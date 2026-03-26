@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import jwt from "jsonwebtoken";
 import { config } from "../config";
 import { prisma } from "../lib/prisma";
+import { synthesizeSpeech } from "../services/tts";
 import { ENCOURAGEMENT_MESSAGES } from "@still-here/shared";
 
 interface AuthenticatedSocket extends WebSocket {
@@ -59,7 +60,7 @@ export function setupWebSocket(server: HttpServer) {
       ws.callId = payload.callId;
       ws.presenceStyle = payload.presenceStyle || "quiet";
     } catch {
-      ws.send(JSON.stringify({ type: "error", message: "Invalid or expired ticket" }));
+      ws.send(JSON.stringify({ type: "error", message: "Invalid ticket" }));
       ws.close();
       return;
     }
@@ -80,6 +81,9 @@ export function setupWebSocket(server: HttpServer) {
         presenceStyle: ws.presenceStyle,
       })
     );
+
+    // Trigger greeting audio — send the initial "Hi. I'm here." lines via TTS
+    sendGreeting(ws);
 
     // Update call start time
     if (ws.callId) {
@@ -132,7 +136,6 @@ export function setupWebSocket(server: HttpServer) {
                 where: { id: call.sessionId },
                 data: {
                   dailyMinutesUsed: { increment: durationMinutes },
-                  lastActiveAt: now,
                 },
               });
             }
@@ -143,8 +146,80 @@ export function setupWebSocket(server: HttpServer) {
   });
 }
 
+/**
+ * Send greeting audio on connect.
+ * The greeting lines ("Hi. I'm here." and "You don't have to talk.")
+ * are sent through the TTS pipeline so the caller hears them immediately.
+ */
+async function sendGreeting(ws: AuthenticatedSocket) {
+  try {
+    // Notify the client that the agent is responding
+    if (ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "agent_state", state: "RESPONDING" }));
+
+    const greetingLines = [
+      "Hi. I'm here.",
+      "You don't have to talk.",
+    ];
+
+    for (const line of greetingLines) {
+      if (ws.readyState !== WebSocket.OPEN) break;
+
+      const audioBase64 = await synthesizeSpeech(line);
+
+      // Only send audio_out if the TTS service returned actual audio data
+      if (audioBase64 && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "audio_out", data: audioBase64 }));
+      }
+    }
+
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "audio_out_done" }));
+      ws.send(JSON.stringify({ type: "agent_state", state: "LISTENING" }));
+    }
+  } catch (err) {
+    console.error("[ws] Failed to send greeting:", err);
+    // Non-fatal — the session still works without the greeting
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "agent_state", state: "LISTENING" }));
+    }
+  }
+}
+
 function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: string]: unknown }) {
   switch (msg.type) {
+    case "ping": {
+      // Respond to client keepalive pings
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "pong" }));
+      }
+      break;
+    }
+
+    case "audio_data": {
+      // Audio data from client microphone — forward to speech processing pipeline
+      // This is handled by the audio processing service
+      break;
+    }
+
+    case "end_call": {
+      // Client requested to end the call
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "call_ended" }));
+        ws.close();
+      }
+      break;
+    }
+
+    case "change_style": {
+      // Client requested a presence style change
+      if (msg.style && typeof msg.style === "string") {
+        ws.presenceStyle = msg.style;
+        ws.send(JSON.stringify({ type: "style_changed", style: msg.style }));
+      }
+      break;
+    }
+
     case "presence": {
       // Broadcast presence to session room
       const room = sessions.get(ws.sessionId!);
@@ -200,6 +275,7 @@ function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: strin
     }
 
     default:
-      ws.send(JSON.stringify({ type: "error", message: `Unknown message type: ${msg.type}` }));
+      // Silently ignore unknown message types — do not send error back
+      break;
   }
 }

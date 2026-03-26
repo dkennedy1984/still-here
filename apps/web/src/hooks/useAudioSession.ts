@@ -45,8 +45,10 @@ export function useAudioSession(
     wsRef.current = ws;
 
     ws.onopen = () => {
-      console.log("[useAudioSession] WebSocket opened, waiting for session_ready...");
-      // Don't set active yet — wait for session_ready event from server
+      console.log("[useAudioSession] WebSocket opened, requesting mic immediately");
+
+      // Start mic capture immediately on open — don't wait for server message
+      startMicCapture(ws);
 
       // Start keepalive
       keepaliveRef.current = setInterval(() => {
@@ -61,7 +63,7 @@ export function useAudioSession(
       setState((prev) => ({
         ...prev,
         status: "error",
-        error: "WebSocket connection error. Check that the server is running.",
+        error: "Connection error. Please try again.",
       }));
     };
 
@@ -80,11 +82,18 @@ export function useAudioSession(
       try {
         const msg = JSON.parse(event.data);
 
+        // Silently ignore ping/pong keepalive messages
+        if (msg.type === "ping" || msg.type === "pong") return;
+
         switch (msg.type) {
+          case "connected":
           case "session_ready":
-            console.log("[useAudioSession] Session ready, starting mic capture");
-            setState((prev) => ({ ...prev, status: "active" }));
-            startMicCapture(ws);
+            console.log(`[useAudioSession] Received ${msg.type}, session is active`);
+            setState((prev) => ({
+              ...prev,
+              status: "active",
+              agentState: msg.agentState || msg.state || prev.agentState,
+            }));
             break;
 
           case "agent_state":
@@ -94,60 +103,66 @@ export function useAudioSession(
             }));
             break;
 
+          case "audio_out":
           case "audio":
             if (msg.data) {
               playAudioChunk(msg.data);
             }
             break;
 
+          case "audio_out_done":
+            // Audio stream finished — nothing to do
+            break;
+
+          case "time_remaining":
           case "timer":
             setState((prev) => ({
               ...prev,
-              remainingSeconds: msg.remaining ?? prev.remainingSeconds,
+              remainingSeconds: msg.remaining ?? msg.seconds ?? prev.remainingSeconds,
             }));
             break;
 
+          case "limit_reached":
           case "call_ended":
             setState((prev) => ({ ...prev, status: "ended" }));
             break;
 
           case "error":
             console.error("[useAudioSession] Server error:", msg.message);
-            setState((prev) => ({
-              ...prev,
-              status: "error",
-              error: msg.message,
-            }));
+            // Log but don't crash — only set error status for critical errors
+            if (msg.fatal) {
+              setState((prev) => ({
+                ...prev,
+                status: "error",
+                error: msg.message,
+              }));
+            }
             break;
 
-          case "pong":
           case "style_changed":
           case "encouragement":
-            // Informational events
+            // Informational events — no action needed
             break;
 
           default:
-            console.log("[useAudioSession] Unknown message type:", msg.type);
+            // Silently ignore unknown message types
+            break;
         }
-      } catch (err) {
-        console.error("[useAudioSession] Failed to parse message:", err);
+      } catch (e) {
+        console.error("[useAudioSession] Failed to parse message:", e);
       }
     };
 
     return () => {
-      if (keepaliveRef.current) {
-        clearInterval(keepaliveRef.current);
-        keepaliveRef.current = null;
+      if (keepaliveRef.current) clearInterval(keepaliveRef.current);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
       }
       if (recorderRef.current && recorderRef.current.state !== "inactive") {
         recorderRef.current.stop();
         recorderRef.current.stream.getTracks().forEach((t) => t.stop());
-        recorderRef.current = null;
       }
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
-      wsRef.current = null;
     };
   }, [callId, wsTicket]);
 
