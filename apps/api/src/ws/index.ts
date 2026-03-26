@@ -3,8 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import jwt from "jsonwebtoken";
 import { config } from "../config";
 import { prisma } from "../lib/prisma";
-import { synthesizeSpeech } from "../services/tts";
-import { ENCOURAGEMENT_MESSAGES } from "@still-here/shared";
+import { AgentStateMachine } from "../services/agentStateMachine";
 
 interface AuthenticatedSocket extends WebSocket {
   callerId?: string;
@@ -12,6 +11,7 @@ interface AuthenticatedSocket extends WebSocket {
   callId?: string;
   presenceStyle?: string;
   isAlive?: boolean;
+  agent?: AgentStateMachine;
 }
 
 const sessions = new Map<string, Set<AuthenticatedSocket>>();
@@ -38,7 +38,7 @@ export function setupWebSocket(server: HttpServer) {
     ws.isAlive = true;
     ws.on("pong", () => { ws.isAlive = true; });
 
-    // Authenticate from query param — accept ?ticket= and ?token= for flexibility
+    // Authenticate from query param
     const url = new URL(req.url || "", `http://${req.headers.host}`);
     const token = url.searchParams.get("ticket") || url.searchParams.get("token");
 
@@ -58,7 +58,7 @@ export function setupWebSocket(server: HttpServer) {
       ws.callerId = payload.callerId;
       ws.sessionId = payload.sessionId;
       ws.callId = payload.callId;
-      ws.presenceStyle = payload.presenceStyle || "quiet";
+      ws.presenceStyle = payload.presenceStyle || "check-ins";
     } catch {
       ws.send(JSON.stringify({ type: "error", message: "Invalid ticket" }));
       ws.close();
@@ -82,8 +82,12 @@ export function setupWebSocket(server: HttpServer) {
       })
     );
 
-    // Trigger greeting audio — send the initial "Hi. I'm here." lines via TTS
-    sendGreeting(ws);
+    // Create and start the agent state machine
+    const agent = new AgentStateMachine(ws, ws.presenceStyle || "check-ins");
+    ws.agent = agent;
+    agent.start().catch((err) => {
+      console.error("[ws] Agent start error:", err);
+    });
 
     // Update call start time
     if (ws.callId) {
@@ -102,6 +106,11 @@ export function setupWebSocket(server: HttpServer) {
     });
 
     ws.on("close", () => {
+      // Destroy the agent state machine
+      if (ws.agent) {
+        ws.agent.destroy();
+      }
+
       const room = sessions.get(sessionId);
       if (room) {
         room.delete(ws);
@@ -114,9 +123,7 @@ export function setupWebSocket(server: HttpServer) {
         prisma.call
           .update({
             where: { id: ws.callId },
-            data: {
-              endedAt: now,
-            },
+            data: { endedAt: now },
           })
           .then(async (call) => {
             if (call.startedAt) {
@@ -125,13 +132,11 @@ export function setupWebSocket(server: HttpServer) {
               );
               const durationMinutes = Math.ceil(durationSeconds / 60);
 
-              // Update call duration
               await prisma.call.update({
                 where: { id: call.id },
                 data: { durationSeconds },
               });
 
-              // Increment session daily minutes
               await prisma.session.update({
                 where: { id: call.sessionId },
                 data: {
@@ -146,50 +151,9 @@ export function setupWebSocket(server: HttpServer) {
   });
 }
 
-/**
- * Send greeting audio on connect.
- * The greeting lines ("Hi. I'm here." and "You don't have to talk.")
- * are sent through the TTS pipeline so the caller hears them immediately.
- */
-async function sendGreeting(ws: AuthenticatedSocket) {
-  try {
-    // Notify the client that the agent is responding
-    if (ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "agent_state", state: "RESPONDING" }));
-
-    const greetingLines = [
-      "Hi. I'm here.",
-      "You don't have to talk.",
-    ];
-
-    for (const line of greetingLines) {
-      if (ws.readyState !== WebSocket.OPEN) break;
-
-      const audioBase64 = await synthesizeSpeech(line);
-
-      // Only send audio_out if the TTS service returned actual audio data
-      if (audioBase64 && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "audio_out", data: audioBase64 }));
-      }
-    }
-
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "audio_out_done" }));
-      ws.send(JSON.stringify({ type: "agent_state", state: "LISTENING" }));
-    }
-  } catch (err) {
-    console.error("[ws] Failed to send greeting:", err);
-    // Non-fatal — the session still works without the greeting
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ type: "agent_state", state: "LISTENING" }));
-    }
-  }
-}
-
 function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: string]: unknown }) {
   switch (msg.type) {
     case "ping": {
-      // Respond to client keepalive pings
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "pong" }));
       }
@@ -197,13 +161,17 @@ function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: strin
     }
 
     case "audio_data": {
-      // Audio data from client microphone — forward to speech processing pipeline
-      // This is handled by the audio processing service
+      // Forward audio to the agent state machine
+      if (ws.agent && typeof msg.data === "string") {
+        ws.agent.onAudioData(msg.data);
+      }
       break;
     }
 
     case "end_call": {
-      // Client requested to end the call
+      if (ws.agent) {
+        ws.agent.destroy();
+      }
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "call_ended" }));
         ws.close();
@@ -212,16 +180,17 @@ function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: strin
     }
 
     case "change_style": {
-      // Client requested a presence style change
       if (msg.style && typeof msg.style === "string") {
         ws.presenceStyle = msg.style;
+        if (ws.agent) {
+          ws.agent.onStyleChange(msg.style);
+        }
         ws.send(JSON.stringify({ type: "style_changed", style: msg.style }));
       }
       break;
     }
 
     case "presence": {
-      // Broadcast presence to session room
       const room = sessions.get(ws.sessionId!);
       if (room) {
         const payload = JSON.stringify({
@@ -239,43 +208,8 @@ function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: strin
       break;
     }
 
-    case "check-in": {
-      // Send an encouragement message back
-      const randomMsg =
-        ENCOURAGEMENT_MESSAGES[Math.floor(Math.random() * ENCOURAGEMENT_MESSAGES.length)];
-      ws.send(
-        JSON.stringify({
-          type: "encouragement",
-          message: randomMsg,
-        })
-      );
-
-      // Increment agent turns for the call
-      if (ws.callId) {
-        prisma.call
-          .update({
-            where: { id: ws.callId },
-            data: { agentTurns: { increment: 1 } },
-          })
-          .catch(() => {});
-      }
-      break;
-    }
-
-    case "user-turn": {
-      if (ws.callId) {
-        prisma.call
-          .update({
-            where: { id: ws.callId },
-            data: { userTurns: { increment: 1 } },
-          })
-          .catch(() => {});
-      }
-      break;
-    }
-
     default:
-      // Silently ignore unknown message types — do not send error back
+      // Silently ignore unknown message types
       break;
   }
 }
