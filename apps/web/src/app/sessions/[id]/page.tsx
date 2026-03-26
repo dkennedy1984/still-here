@@ -84,24 +84,30 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
       const data = JSON.parse(event.data as string) as WsMessage;
       switch (data.type) {
         case "chat_message":
-          setMessages((prev) => [...prev, data.message]);
+          if (data.message) {
+            setMessages((prev) => [...prev, data.message!]);
+          }
           break;
         case "participant_update":
-          setSession((prev) => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              participants: prev.participants.map((p: Participant) =>
-                p.userId === data.participant.userId ? data.participant : p
-              ),
-            };
-          });
+          if (data.participant) {
+            setSession((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                participants: prev.participants.map((p: Participant) =>
+                  p.userId === data.participant!.userId ? data.participant! : p
+                ),
+              };
+            });
+          }
           break;
         case "participant_joined":
-          setSession((prev) => {
-            if (!prev) return prev;
-            return { ...prev, participants: [...prev.participants, data.participant] };
-          });
+          if (data.participant) {
+            setSession((prev) => {
+              if (!prev) return prev;
+              return { ...prev, participants: [...prev.participants, data.participant!] };
+            });
+          }
           break;
         case "participant_left":
           setSession((prev) => {
