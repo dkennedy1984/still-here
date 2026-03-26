@@ -19,8 +19,7 @@
     "clean": "pnpm -r exec rm -rf node_modules dist .next out && rm -rf node_modules"
   },
   "engines": {
-    "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "node": ">=20.0.0"
   },
   "packageManager": "pnpm@9.15.4"
 }
