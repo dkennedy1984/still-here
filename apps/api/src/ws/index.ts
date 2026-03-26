@@ -7,7 +7,6 @@ import { ENCOURAGEMENT_MESSAGES } from "@still-here/shared";
 
 interface AuthenticatedSocket extends WebSocket {
   callerId?: string;
-  userId?: string;
   sessionId?: string;
   callId?: string;
   presenceStyle?: string;
@@ -50,139 +49,157 @@ export function setupWebSocket(server: HttpServer) {
 
     try {
       const payload = jwt.verify(token, config.jwt.secret) as {
-        userId?: string;
         callerId?: string;
         sessionId?: string;
         callId?: string;
         presenceStyle?: string;
       };
-      // Support both "userId" (legacy/registered) and "callerId" (anonymous)
-      ws.callerId = payload.callerId || payload.userId;
-      ws.userId = payload.userId;
+      ws.callerId = payload.callerId;
       ws.sessionId = payload.sessionId;
       ws.callId = payload.callId;
-      ws.presenceStyle = payload.presenceStyle;
+      ws.presenceStyle = payload.presenceStyle || "quiet";
     } catch {
       ws.send(JSON.stringify({ type: "error", message: "Invalid or expired ticket" }));
       ws.close();
       return;
     }
 
-    if (!ws.sessionId) {
-      ws.send(JSON.stringify({ type: "error", message: "No sessionId in ticket" }));
-      ws.close();
-      return;
-    }
-
     // Join session room
-    if (!sessions.has(ws.sessionId)) {
-      sessions.set(ws.sessionId, new Set());
+    const sessionId = ws.sessionId!;
+    if (!sessions.has(sessionId)) {
+      sessions.set(sessionId, new Set());
     }
-    sessions.get(ws.sessionId)!.add(ws);
+    sessions.get(sessionId)!.add(ws);
 
-    // Notify others
-    broadcast(ws.sessionId, {
-      type: "participant:joined",
-      callerId: ws.callerId,
-      callId: ws.callId,
-      presenceStyle: ws.presenceStyle,
-      count: sessions.get(ws.sessionId)!.size,
-    }, ws);
+    // Notify the caller they're connected
+    ws.send(
+      JSON.stringify({
+        type: "connected",
+        callId: ws.callId,
+        sessionId: ws.sessionId,
+        presenceStyle: ws.presenceStyle,
+      })
+    );
 
-    // Send current participant count to the new joiner
-    ws.send(JSON.stringify({
-      type: "session:state",
-      sessionId: ws.sessionId,
-      count: sessions.get(ws.sessionId)!.size,
-    }));
+    // Update call start time
+    if (ws.callId) {
+      prisma.call
+        .update({ where: { id: ws.callId }, data: { startedAt: new Date() } })
+        .catch(() => {});
+    }
 
-    ws.on("message", async (raw) => {
+    ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
-
-        switch (msg.type) {
-          case "check-in": {
-            broadcast(ws.sessionId!, {
-              type: "check-in",
-              callerId: ws.callerId,
-              callId: ws.callId,
-              message: msg.message || "",
-              timestamp: new Date().toISOString(),
-            });
-            break;
-          }
-
-          case "encouragement": {
-            const text =
-              msg.message ||
-              ENCOURAGEMENT_MESSAGES[
-                Math.floor(Math.random() * ENCOURAGEMENT_MESSAGES.length)
-              ];
-            broadcast(ws.sessionId!, {
-              type: "encouragement",
-              from: ws.callerId,
-              message: text,
-              timestamp: new Date().toISOString(),
-            });
-            break;
-          }
-
-          case "focus:start":
-          case "focus:end":
-          case "break:start":
-          case "break:end": {
-            broadcast(ws.sessionId!, {
-              type: msg.type,
-              callerId: ws.callerId,
-              timestamp: new Date().toISOString(),
-            });
-            break;
-          }
-
-          default:
-            ws.send(JSON.stringify({ type: "error", message: `Unknown message type: ${msg.type}` }));
-        }
+        handleMessage(ws, msg);
       } catch {
         ws.send(JSON.stringify({ type: "error", message: "Invalid message format" }));
       }
     });
 
-    ws.on("close", async () => {
-      const room = sessions.get(ws.sessionId!);
+    ws.on("close", () => {
+      const room = sessions.get(sessionId);
       if (room) {
         room.delete(ws);
-        broadcast(ws.sessionId!, {
-          type: "participant:left",
-          callerId: ws.callerId,
-          callId: ws.callId,
-          count: room.size,
-        });
+        if (room.size === 0) sessions.delete(sessionId);
+      }
 
-        // Clean up empty sessions
-        if (room.size === 0) {
-          sessions.delete(ws.sessionId!);
-          // Mark session as completed
-          try {
-            await prisma.session.update({
-              where: { id: ws.sessionId! },
-              data: { status: "completed", endedAt: new Date() },
-            });
-          } catch {
-            // Session may already be completed
-          }
-        }
+      // Mark call as ended and calculate duration
+      if (ws.callId) {
+        const now = new Date();
+        prisma.call
+          .update({
+            where: { id: ws.callId },
+            data: {
+              endedAt: now,
+            },
+          })
+          .then(async (call) => {
+            if (call.startedAt) {
+              const durationSeconds = Math.round(
+                (now.getTime() - call.startedAt.getTime()) / 1000
+              );
+              const durationMinutes = Math.ceil(durationSeconds / 60);
+
+              // Update call duration
+              await prisma.call.update({
+                where: { id: call.id },
+                data: { durationSeconds },
+              });
+
+              // Increment session daily minutes
+              await prisma.session.update({
+                where: { id: call.sessionId },
+                data: {
+                  dailyMinutesUsed: { increment: durationMinutes },
+                  lastActiveAt: now,
+                },
+              });
+            }
+          })
+          .catch(() => {});
       }
     });
   });
 }
 
-function broadcast(sessionId: string, data: Record<string, unknown>, exclude?: AuthenticatedSocket) {
-  const room = sessions.get(sessionId);
-  if (!room) return;
-  const msg = JSON.stringify(data);
-  room.forEach((client) => {
-    if (client !== exclude && client.readyState === WebSocket.OPEN) {
-      client.send(msg);
+function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: string]: unknown }) {
+  switch (msg.type) {
+    case "presence": {
+      // Broadcast presence to session room
+      const room = sessions.get(ws.sessionId!);
+      if (room) {
+        const payload = JSON.stringify({
+          type: "presence",
+          callerId: ws.callerId,
+          presenceStyle: ws.presenceStyle,
+          data: msg.data,
+        });
+        room.forEach((peer) => {
+          if (peer !== ws && peer.readyState === WebSocket.OPEN) {
+            peer.send(payload);
+          }
+        });
+      }
+      break;
     }
-  });
+
+    case "check-in": {
+      // Send an encouragement message back
+      const randomMsg =
+        ENCOURAGEMENT_MESSAGES[Math.floor(Math.random() * ENCOURAGEMENT_MESSAGES.length)];
+      ws.send(
+        JSON.stringify({
+          type: "encouragement",
+          message: randomMsg,
+        })
+      );
+
+      // Increment agent turns for the call
+      if (ws.callId) {
+        prisma.call
+          .update({
+            where: { id: ws.callId },
+            data: { agentTurns: { increment: 1 } },
+          })
+          .catch(() => {});
+      }
+      break;
+    }
+
+    case "user-turn": {
+      if (ws.callId) {
+        prisma.call
+          .update({
+            where: { id: ws.callId },
+            data: { userTurns: { increment: 1 } },
+          })
+          .catch(() => {});
+      }
+      break;
+    }
+
+    default:
+      ws.send(JSON.stringify({ type: "error", message: `Unknown message type: ${msg.type}` }));
+  }
 }

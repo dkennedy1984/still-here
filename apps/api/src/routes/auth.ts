@@ -1,158 +1,141 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { z } from "zod";
-import { config } from "../config";
+import { resolveIdentity, AuthRequest } from "../middleware/auth";
+import { apiLimiter } from "../middleware/rate-limit";
 import { prisma } from "../lib/prisma";
-import { requireAuth, AuthRequest } from "../middleware/auth";
-import { authLimiter } from "../middleware/rate-limit";
 import { AppError } from "../middleware/error-handler";
 
 export const authRouter: Router = Router();
 
-const registerSchema = z.object({
+const verifyEmailSchema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  displayName: z.string().min(2, "Display name must be at least 2 characters").max(50),
 });
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
-});
-
-function generateToken(userId: string): string {
-  return jwt.sign({ userId }, config.jwt.secret, {
-    expiresIn: config.jwt.expiresIn,
-  } as jwt.SignOptions);
-}
-
-authRouter.post("/register", authLimiter, async (req, res, next) => {
+/**
+ * POST /api/v1/auth/verify-email
+ *
+ * Links an email to the current session. In production this should send a
+ * verification code and require a second confirm step. For now it directly
+ * marks the email as verified so the rest of the flow works.
+ *
+ * If another session already owns this verified email, the email is
+ * transferred to the current session (the old session loses it).
+ */
+authRouter.post("/verify-email", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const input = registerSchema.parse(req.body);
-
-    const existing = await prisma.user.findUnique({ where: { email: input.email } });
-    if (existing) {
-      throw new AppError(409, "EMAIL_EXISTS", "An account with this email already exists");
+    if (!req.sessionId) {
+      throw new AppError(401, "NO_SESSION", "No active session. Start a call first.");
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 12);
-    const user = await prisma.user.create({
+    const { email } = verifyEmailSchema.parse(req.body);
+
+    // If another session has this verified email, clear it from the old session
+    await prisma.session.updateMany({
+      where: {
+        email,
+        emailVerifiedAt: { not: null },
+        id: { not: req.sessionId },
+      },
       data: {
-        email: input.email,
-        passwordHash,
-        displayName: input.displayName,
+        email: null,
+        emailVerifiedAt: null,
       },
     });
 
-    const token = generateToken(user.id);
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: config.nodeEnv === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    res.status(201).json({
-      success: true,
+    // Link email to current session and mark as verified
+    // TODO: In production, send a 6-digit code via email and require confirmation
+    const session = await prisma.session.update({
+      where: { id: req.sessionId },
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          displayName: user.displayName,
-          avatarUrl: user.avatarUrl,
-        },
-        token,
+        email,
+        emailVerifiedAt: new Date(),
       },
-    });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        code: "VALIDATION_ERROR",
-        details: err.flatten().fieldErrors,
-      });
-      return;
-    }
-    next(err);
-  }
-});
-
-authRouter.post("/login", authLimiter, async (req, res, next) => {
-  try {
-    const input = loginSchema.parse(req.body);
-
-    const user = await prisma.user.findUnique({ where: { email: input.email } });
-    if (!user) {
-      throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
-    }
-
-    const valid = await bcrypt.compare(input.password, user.passwordHash);
-    if (!valid) {
-      throw new AppError(401, "INVALID_CREDENTIALS", "Invalid email or password");
-    }
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastActiveAt: new Date() },
-    });
-
-    const token = generateToken(user.id);
-
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: config.nodeEnv === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
       success: true,
       data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          displayName: user.displayName,
-          avatarUrl: user.avatarUrl,
-        },
-        token,
+        sessionId: session.id,
+        email: session.email,
+        emailVerified: true,
+        tier: session.tier,
       },
     });
   } catch (err) {
-    if (err instanceof z.ZodError) {
-      res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        code: "VALIDATION_ERROR",
-      });
-      return;
-    }
     next(err);
   }
 });
 
-authRouter.post("/logout", (_req, res) => {
-  res.clearCookie("token");
-  res.json({ success: true, data: null, message: "Logged out" });
+/**
+ * POST /api/v1/auth/magic-link
+ *
+ * Sends a magic link to recover a session by email. The user clicks the link,
+ * which sets the sh_session cookie to the session associated with that email.
+ *
+ * Stubbed for now — returns the sessionId directly for development.
+ */
+authRouter.post("/magic-link", apiLimiter, async (req, res, next) => {
+  try {
+    const { email } = verifyEmailSchema.parse(req.body);
+
+    const session = await prisma.session.findFirst({
+      where: {
+        email,
+        emailVerifiedAt: { not: null },
+      },
+      orderBy: { lastActiveAt: "desc" },
+    });
+
+    if (!session) {
+      // Don't reveal whether the email exists
+      res.json({
+        success: true,
+        message: "If an account exists with that email, a magic link has been sent.",
+      });
+      return;
+    }
+
+    // TODO: In production, send an actual email with a signed JWT link
+    // For now, return the sessionId directly (development only)
+    res.json({
+      success: true,
+      message: "If an account exists with that email, a magic link has been sent.",
+      // Remove this in production:
+      _dev: { sessionId: session.id },
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
-authRouter.get("/me", requireAuth, async (req: AuthRequest, res, next) => {
+/**
+ * GET /api/v1/auth/me
+ *
+ * Returns the current session info (replaces the old /me user profile endpoint).
+ */
+authRouter.get("/me", resolveIdentity, async (req: AuthRequest, res, next) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: req.userId },
+    if (!req.sessionId) {
+      res.json({ success: true, data: null });
+      return;
+    }
+
+    const session = await prisma.session.findUnique({
+      where: { id: req.sessionId },
       select: {
         id: true,
         email: true,
-        displayName: true,
-        avatarUrl: true,
-        bio: true,
-        focusStreak: true,
+        emailVerifiedAt: true,
+        tier: true,
+        presenceStyle: true,
+        transcriptOptIn: true,
+        dailyMinutesUsed: true,
         createdAt: true,
+        lastActiveAt: true,
       },
     });
-    res.json({ success: true, data: user });
+
+    res.json({ success: true, data: session });
   } catch (err) {
     next(err);
   }

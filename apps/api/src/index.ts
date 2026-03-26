@@ -7,7 +7,6 @@ import { createServer } from "http";
 import { config } from "./config";
 import { authRouter } from "./routes/auth";
 import { sessionRouter } from "./routes/sessions";
-import { userRouter } from "./routes/users";
 import { callRouter } from "./routes/calls";
 import { errorHandler } from "./middleware/error-handler";
 import { setupWebSocket } from "./ws";
@@ -52,7 +51,6 @@ app.get("/healthz", (_req, res) => res.json({ status: "ok" }));
 // Routes
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/sessions", sessionRouter);
-app.use("/api/v1/users", userRouter);
 app.use("/api/v1/calls", callRouter);
 
 // Error handler
@@ -62,13 +60,12 @@ app.use(errorHandler);
 setupWebSocket(server);
 
 server.listen(config.port, () => {
-  console.log(`[api] listening on :${config.port} (env=${config.nodeEnv})`);
+  console.log(`[api] listening on :${config.port}`);
 });
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("[api] SIGTERM received, shutting down");
-  server.close();
+  console.log("[api] SIGTERM received, shutting down...");
   await prisma.$disconnect();
-  process.exit(0);
+  server.close(() => process.exit(0));
 });

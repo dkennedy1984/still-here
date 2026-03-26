@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { z } from "zod";
 import jwt from "jsonwebtoken";
 import { resolveIdentity, AuthRequest } from "../middleware/auth";
 import { apiLimiter } from "../middleware/rate-limit";
@@ -8,82 +7,141 @@ import { config } from "../config";
 
 export const callRouter: Router = Router();
 
-const createCallSchema = z.object({
-  sessionId: z.string().uuid(),
-  presenceStyle: z.enum(["silent", "check-ins", "talk"]).default("check-ins"),
-});
+const ANON_DAILY_LIMIT = 15;   // minutes before email required
+const FREE_DAILY_LIMIT = 30;   // minutes for verified free users
+// pro tier: unlimited
 
-// POST /api/v1/calls/session — lightweight session-or-create for the call flow
-// No authentication required — anonymous users get an sh_session cookie identity
+function startOfDay(): Date {
+  const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
+  return now;
+}
+
+/**
+ * Resets dailyMinutesUsed if the last reset was before today.
+ */
+async function ensureDailyReset(sessionId: string, minutesResetAt: Date): Promise<number> {
+  const today = startOfDay();
+  if (minutesResetAt < today) {
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { dailyMinutesUsed: 0, minutesResetAt: today },
+    });
+    return 0;
+  }
+  return -1; // no reset needed, caller should use existing value
+}
+
+// POST /api/v1/calls/session — create or resume a session, then create a call
 callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const callerId = req.userId || req.anonymousId!;
+    const sessionId = req.sessionId;
 
-    // Create a minimal session for the 1-on-1 presence call
-    const session = await prisma.session.create({
-      data: {
-        title: "Presence Call",
-        hostId: callerId,
-        status: "active",
-        visibility: "private",
-        focusDurationMinutes: 25,
-        breakDurationMinutes: 5,
-        maxParticipants: 2,
-        startedAt: new Date(),
-      },
-    });
+    let session: {
+      id: string;
+      email: string | null;
+      emailVerifiedAt: Date | null;
+      tier: string;
+      dailyMinutesUsed: number;
+      minutesResetAt: Date;
+    };
 
-    // Also generate a call + wsTicket so the client can connect immediately
-    const callId = crypto.randomUUID();
-    const wsTicket = jwt.sign(
-      {
-        callerId,
-        sessionId: session.id,
-        callId,
-        presenceStyle: "check-ins",
-      },
-      config.jwt.secret,
-      { expiresIn: "5m" }
-    );
-
-    res.json({ sessionId: session.id, callId, wsTicket });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/v1/calls — create a call and return a WS ticket (JWT)
-// No authentication required — anonymous users can join calls
-callRouter.post("/", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
-  try {
-    const body = createCallSchema.parse(req.body);
-    const callerId = req.userId || req.anonymousId!;
-
-    // Verify the session exists
-    const session = await prisma.session.findUnique({
-      where: { id: body.sessionId },
-    });
-
-    if (!session) {
-      res.status(404).json({ success: false, error: "Session not found" });
-      return;
+    if (sessionId) {
+      // Existing session from cookie
+      const existing = await prisma.session.findUnique({ where: { id: sessionId } });
+      if (existing) {
+        session = existing;
+        // Touch lastActiveAt
+        await prisma.session.update({
+          where: { id: session.id },
+          data: { lastActiveAt: new Date() },
+        });
+      } else {
+        // Cookie references a deleted session — create a new one
+        const created = await prisma.session.create({ data: {} });
+        session = created;
+        setSessionCookie(res, created.id);
+      }
+    } else {
+      // No cookie — new anonymous session
+      const created = await prisma.session.create({ data: {} });
+      session = created;
+      setSessionCookie(res, created.id);
     }
 
-    // Generate a unique call ID and a short-lived WS ticket (JWT)
+    // --- Enforce daily minute limits ---
+    const resetResult = await ensureDailyReset(session.id, session.minutesResetAt);
+    const minutesUsed = resetResult >= 0 ? resetResult : session.dailyMinutesUsed;
+
+    if (session.tier !== "pro") {
+      const limit = session.emailVerifiedAt ? FREE_DAILY_LIMIT : ANON_DAILY_LIMIT;
+
+      if (minutesUsed >= limit) {
+        if (!session.emailVerifiedAt) {
+          res.status(403).json({
+            success: false,
+            error: "Daily anonymous limit reached. Verify your email to continue.",
+            code: "EMAIL_REQUIRED",
+            minutesUsed,
+            limit,
+          });
+          return;
+        }
+        res.status(403).json({
+          success: false,
+          error: "Daily free-tier limit reached. Upgrade to pro for unlimited usage.",
+          code: "LIMIT_REACHED",
+          minutesUsed,
+          limit,
+        });
+        return;
+      }
+    }
+
+    // --- Create the call ---
     const callId = crypto.randomUUID();
     const wsTicket = jwt.sign(
       {
-        callerId,
-        sessionId: body.sessionId,
+        callerId: session.id,
+        sessionId: session.id,
         callId,
-        presenceStyle: body.presenceStyle,
+        presenceStyle: "quiet",
       },
       config.jwt.secret,
       { expiresIn: "5m" }
     );
 
-    res.json({ callId, wsTicket });
+    const call = await prisma.call.create({
+      data: {
+        id: callId,
+        sessionId: session.id,
+        wsTicket,
+        presenceStyle: "quiet",
+      },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        sessionId: session.id,
+        callId: call.id,
+        wsTicket,
+        tier: session.tier,
+        minutesUsed,
+        emailVerified: !!session.emailVerifiedAt,
+      },
+    });
   } catch (err) {
     next(err);
   }
 });
+
+function setSessionCookie(res: any, sessionId: string) {
+  res.cookie("sh_session", sessionId, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict" as const,
+    signed: true,
+    maxAge: 1000 * 60 * 60 * 24 * 365, // 1 year
+  });
+}
