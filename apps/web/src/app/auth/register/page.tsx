@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import type { User } from "@/lib/shared";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function RegisterPage() {
@@ -20,7 +21,8 @@ export default function RegisterPage() {
 
     try {
       const res = await api.post("/auth/register", form);
-      setAuth(res.data.user, res.data.token);
+      const data = res.data as { user: User; token: string };
+      setAuth(data.user, data.token);
       router.push("/sessions");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
