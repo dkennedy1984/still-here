@@ -8,7 +8,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { authLimiter } from "../middleware/rate-limit";
 import { AppError } from "../middleware/error-handler";
 
-export const authRouter = Router();
+export const authRouter: Router = Router();
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email address"),
