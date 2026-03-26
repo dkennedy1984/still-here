@@ -20,7 +20,8 @@ export default function LoginPage() {
 
     try {
       const res = await api.post("/auth/login", form);
-      setAuth(res.data.user, res.data.token);
+      const data = res.data as { user: unknown; token: string };
+      setAuth(data.user, data.token);
       router.push("/sessions");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
