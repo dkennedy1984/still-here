@@ -1,19 +1,16 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({ subsets: ["latin"] });
+
 export const metadata: Metadata = {
-  title: "Still Here — ADHD Body Doubling",
-  description:
-    "Virtual co-working sessions for people with ADHD. Focus together, stay accountable, and get things done with body doubling.",
-  keywords: ["ADHD", "body doubling", "focus", "co-working", "accountability", "productivity"],
-  manifest: "/manifest.json",
-  icons: {
-    icon: "/favicon.ico",
-  },
+  title: "Still Here",
+  description: "ADHD body-doubling companion. I'll just sit with you.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#020617",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -26,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen">
+      <body className={`${inter.className} min-h-screen bg-slate-950`}>
         {children}
       </body>
     </html>
