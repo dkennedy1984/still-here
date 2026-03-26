@@ -9,7 +9,7 @@
  * Returns base64-encoded audio (mp3) for "audio_out" WebSocket messages.
  */
 
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || "pNInz6obpgDQGcFmaJgB";
 
 export async function synthesizeSpeech(text: string): Promise<string> {
   if (!text.trim()) return "";
@@ -34,7 +34,7 @@ async function synthesizeElevenLabs(text: string): Promise<string> {
       },
       body: JSON.stringify({
         text,
-        model_id: "eleven_monolingual_v1",
+        model_id: process.env.ELEVENLABS_MODEL_ID || "eleven_turbo_v2_5",
         voice_settings: { stability: 0.5, similarity_boost: 0.75 },
       }),
     }
