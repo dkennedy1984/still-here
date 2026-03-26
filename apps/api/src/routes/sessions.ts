@@ -88,7 +88,7 @@ sessionRouter.get("/", apiLimiter, async (req, res, next) => {
 sessionRouter.get("/:id", apiLimiter, async (req, res, next) => {
   try {
     const session = await prisma.session.findUnique({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       include: {
         host: { select: { id: true, displayName: true, avatarUrl: true, bio: true, focusStreak: true } },
         participants: {
@@ -156,8 +156,8 @@ sessionRouter.post("/", requireAuth, async (req: AuthRequest, res, next) => {
 sessionRouter.post("/:id/join", requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const session = await prisma.session.findUnique({
-      where: { id: req.params.id },
-      include: { _count: { select: { participants: { where: { status: { not: "left" } } } } } },
+      where: { id: req.params.id as string },
+      include: { participants: { where: { status: { not: "left" } } } },
     });
 
     if (!session) {
@@ -168,7 +168,7 @@ sessionRouter.post("/:id/join", requireAuth, async (req: AuthRequest, res, next)
       throw new AppError(400, "SESSION_ENDED", "This session has already ended");
     }
 
-    if (session._count.participants >= session.maxParticipants) {
+    if (session.participants.length >= session.maxParticipants) {
       throw new AppError(400, "SESSION_FULL", "This session is full");
     }
 
@@ -205,7 +205,7 @@ sessionRouter.post("/:id/join", requireAuth, async (req: AuthRequest, res, next)
 sessionRouter.post("/:id/leave", requireAuth, async (req: AuthRequest, res, next) => {
   try {
     const participant = await prisma.participant.findUnique({
-      where: { userId_sessionId: { userId: req.userId!, sessionId: req.params.id } },
+      where: { userId_sessionId: { userId: req.userId!, sessionId: req.params.id as string } },
     });
 
     if (!participant || participant.status === "left") {
@@ -235,7 +235,7 @@ sessionRouter.post("/:id/check-in", requireAuth, async (req: AuthRequest, res, n
     const input = checkInSchema.parse(req.body);
 
     const participant = await prisma.participant.findUnique({
-      where: { userId_sessionId: { userId: req.userId!, sessionId: req.params.id } },
+      where: { userId_sessionId: { userId: req.userId!, sessionId: req.params.id as string } },
     });
 
     if (!participant || participant.status === "left") {
@@ -245,7 +245,7 @@ sessionRouter.post("/:id/check-in", requireAuth, async (req: AuthRequest, res, n
     const checkIn = await prisma.checkIn.create({
       data: {
         userId: req.userId!,
-        sessionId: req.params.id,
+        sessionId: req.params.id as string,
         mood: input.mood,
         energy: input.energy,
         intention: input.intention,
