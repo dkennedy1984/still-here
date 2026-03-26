@@ -17,9 +17,5 @@
     "db:migrate": "pnpm --filter @still-here/api db:migrate",
     "db:studio": "pnpm --filter @still-here/api db:studio",
     "clean": "pnpm -r exec rm -rf node_modules dist .next out && rm -rf node_modules"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "packageManager": "pnpm@9.15.4"
+  }
 }
