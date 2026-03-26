@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { POPULAR_TAGS, SESSION_FOCUS_MIN, SESSION_FOCUS_MAX } from "@still-here/shared";
-import type { CreateSessionInput } from "@still-here/shared";
+import { POPULAR_TAGS, SESSION_FOCUS_MIN, SESSION_FOCUS_MAX } from "../../../lib/shared";
+import type { CreateSessionInput } from "../../../lib/shared";
 
 export default function CreateSessionPage() {
   const router = useRouter();

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, Users, Timer, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
-import type { SessionSummary } from "@still-here/shared";
-import { POPULAR_TAGS } from "@still-here/shared";
+import type { SessionSummary } from "../../lib/shared";
+import { POPULAR_TAGS } from "../../lib/shared";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function SessionsPage() {

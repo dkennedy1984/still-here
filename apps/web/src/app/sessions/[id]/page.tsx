@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth-store";
 import { Timer, Users, MessageCircle, Send, Heart, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { Session, ChatMessage, Participant } from "@still-here/shared";
+import type { Session, ChatMessage, Participant } from "../../../lib/shared";
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
