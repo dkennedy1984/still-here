@@ -10,8 +10,8 @@ export const sessionRouter: Router = Router();
  */
 sessionRouter.get("/", apiLimiter, async (req, res, next) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const pageSize = Math.min(50, Math.max(1, parseInt(req.query.pageSize as string) || 20));
+    const page = Math.max(1, parseInt(String(req.query.page || "1")));
+    const pageSize = Math.min(50, Math.max(1, parseInt(String(req.query.pageSize || "20"))));
 
     const [sessions, total] = await Promise.all([
       prisma.session.findMany({
@@ -51,8 +51,9 @@ sessionRouter.get("/", apiLimiter, async (req, res, next) => {
  */
 sessionRouter.get("/:id", apiLimiter, async (req, res, next) => {
   try {
+    const id = String(req.params.id);
     const session = await prisma.session.findUnique({
-      where: { id: req.params.id },
+      where: { id },
       select: {
         id: true,
         presenceStyle: true,
