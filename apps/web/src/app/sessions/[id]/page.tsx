@@ -16,6 +16,8 @@ interface WsMessage {
   userId?: string;
   content?: string;
   senderName?: string;
+  fromUser?: string;
+  toUserId?: string;
 }
 
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -119,18 +121,20 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
           });
           break;
         case "encouragement":
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              sessionId: id,
-              userId: null,
-              userName: data.fromUser,
-              content: `${data.fromUser} sent encouragement!`,
-              type: "encouragement" as const,
-              createdAt: new Date().toISOString(),
-            },
-          ]);
+          if (data.fromUser) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: crypto.randomUUID(),
+                sessionId: id,
+                userId: null,
+                userName: data.fromUser!,
+                content: `${data.fromUser} sent encouragement!`,
+                type: "encouragement" as const,
+                createdAt: new Date().toISOString(),
+              },
+            ]);
+          }
           break;
       }
     };
