@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
-import { requireAuth, AuthRequest } from "../middleware/auth";
+import { resolveIdentity, AuthRequest } from "../middleware/auth";
 import { apiLimiter } from "../middleware/rate-limit";
 import { prisma } from "../lib/prisma";
 import { config } from "../config";
@@ -14,13 +14,16 @@ const createCallSchema = z.object({
 });
 
 // POST /api/v1/calls/session — lightweight session-or-create for the call flow
-callRouter.post("/session", requireAuth, apiLimiter, async (req: AuthRequest, res, next) => {
+// No authentication required — anonymous users get an sh_session cookie identity
+callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
+    const callerId = req.userId || req.anonymousId!;
+
     // Create a minimal session for the 1-on-1 presence call
     const session = await prisma.session.create({
       data: {
         title: "Presence Call",
-        hostId: req.userId!,
+        hostId: callerId,
         status: "active",
         visibility: "private",
         focusDurationMinutes: 25,
@@ -30,16 +33,31 @@ callRouter.post("/session", requireAuth, apiLimiter, async (req: AuthRequest, re
       },
     });
 
-    res.json({ sessionId: session.id });
+    // Also generate a call + wsTicket so the client can connect immediately
+    const callId = crypto.randomUUID();
+    const wsTicket = jwt.sign(
+      {
+        callerId,
+        sessionId: session.id,
+        callId,
+        presenceStyle: "check-ins",
+      },
+      config.jwt.secret,
+      { expiresIn: "5m" }
+    );
+
+    res.json({ sessionId: session.id, callId, wsTicket });
   } catch (err) {
     next(err);
   }
 });
 
 // POST /api/v1/calls — create a call and return a WS ticket (JWT)
-callRouter.post("/", requireAuth, apiLimiter, async (req: AuthRequest, res, next) => {
+// No authentication required — anonymous users can join calls
+callRouter.post("/", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
     const body = createCallSchema.parse(req.body);
+    const callerId = req.userId || req.anonymousId!;
 
     // Verify the session exists
     const session = await prisma.session.findUnique({
@@ -55,7 +73,7 @@ callRouter.post("/", requireAuth, apiLimiter, async (req: AuthRequest, res, next
     const callId = crypto.randomUUID();
     const wsTicket = jwt.sign(
       {
-        userId: req.userId!,
+        callerId,
         sessionId: body.sessionId,
         callId,
         presenceStyle: body.presenceStyle,

@@ -14,6 +14,7 @@ export const config = {
     secret: process.env.JWT_SECRET || "dev-secret-change-in-production",
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   },
+  cookieSecret: process.env.COOKIE_SECRET || "dev-cookie-secret-change-in-production",
   rateLimit: {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000", 10),
     max: parseInt(process.env.RATE_LIMIT_MAX || "100", 10),
