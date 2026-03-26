@@ -31,7 +31,7 @@ export default function HomePage() {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6">
       {/* Glowing circle */}
-      <div className="mb-10 h-20 w-20 rounded-full bg-white/10 animate-pulse-slow" />
+      <div className="mb-10 h-20 w-20 rounded-full bg-white/20 shadow-[0_0_60px_rgba(255,255,255,0.15)] ring-1 ring-white/20 animate-pulse-slow" />
 
       {/* Call button */}
       <button
@@ -60,11 +60,11 @@ export default function HomePage() {
           onClick={() => setShowSheet(true)}
           className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
         >
-          Change ▾
+          Presence style
         </button>
       </div>
 
-      {/* Presence style bottom sheet */}
+      {/* Presence style sheet */}
       {showSheet && (
         <PresenceStyleSheet
           selected={presenceStyle}

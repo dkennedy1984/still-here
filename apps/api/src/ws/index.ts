@@ -8,6 +8,8 @@ import { ENCOURAGEMENT_MESSAGES } from "@still-here/shared";
 interface AuthenticatedSocket extends WebSocket {
   userId?: string;
   sessionId?: string;
+  callId?: string;
+  presenceStyle?: string;
   isAlive?: boolean;
 }
 
@@ -35,9 +37,9 @@ export function setupWebSocket(server: HttpServer) {
     ws.isAlive = true;
     ws.on("pong", () => { ws.isAlive = true; });
 
-    // Authenticate from query param
+    // Authenticate from query param — accept both ?ticket= and ?token= for flexibility
     const url = new URL(req.url || "", `http://${req.headers.host}`);
-    const token = url.searchParams.get("token");
+    const token = url.searchParams.get("ticket") || url.searchParams.get("token");
 
     if (!token) {
       ws.send(JSON.stringify({ type: "error", message: "Authentication required" }));
@@ -46,13 +48,37 @@ export function setupWebSocket(server: HttpServer) {
     }
 
     try {
-      const payload = jwt.verify(token, config.jwt.secret) as { userId: string };
+      const payload = jwt.verify(token, config.jwt.secret) as {
+        userId: string;
+        sessionId?: string;
+        callId?: string;
+        presenceStyle?: string;
+      };
       ws.userId = payload.userId;
+      ws.sessionId = payload.sessionId;
+      ws.callId = payload.callId;
+      ws.presenceStyle = payload.presenceStyle;
     } catch {
-      ws.send(JSON.stringify({ type: "error", message: "Invalid token" }));
+      ws.send(JSON.stringify({ type: "error", message: "Invalid or expired ticket" }));
       ws.close();
       return;
     }
+
+    // Add to session room
+    if (ws.sessionId) {
+      if (!sessions.has(ws.sessionId)) {
+        sessions.set(ws.sessionId, new Set());
+      }
+      sessions.get(ws.sessionId)!.add(ws);
+    }
+
+    // Send session_ready event so the client knows the connection is established
+    ws.send(JSON.stringify({
+      type: "session_ready",
+      callId: ws.callId,
+      sessionId: ws.sessionId,
+      presenceStyle: ws.presenceStyle,
+    }));
 
     ws.on("message", async (data) => {
       try {
@@ -64,8 +90,11 @@ export function setupWebSocket(server: HttpServer) {
     });
 
     ws.on("close", () => {
-      if (ws.sessionId) {
-        leaveSessionRoom(ws);
+      if (ws.sessionId && sessions.has(ws.sessionId)) {
+        sessions.get(ws.sessionId)!.delete(ws);
+        if (sessions.get(ws.sessionId)!.size === 0) {
+          sessions.delete(ws.sessionId);
+        }
       }
     });
   });
@@ -73,168 +102,84 @@ export function setupWebSocket(server: HttpServer) {
 
 async function handleEvent(ws: AuthenticatedSocket, event: { type: string; [key: string]: unknown }) {
   switch (event.type) {
+    case "ping":
+      ws.send(JSON.stringify({ type: "pong" }));
+      break;
+
     case "join_session": {
       const sessionId = event.sessionId as string;
       if (!sessionId) return;
 
-      // Verify participant exists
-      const participant = await prisma.participant.findUnique({
-        where: { userId_sessionId: { userId: ws.userId!, sessionId } },
-      });
-      if (!participant || participant.status === "left") {
-        ws.send(JSON.stringify({ type: "error", message: "You must join the session via the API first" }));
-        return;
-      }
-
       ws.sessionId = sessionId;
-      if (!sessions.has(sessionId)) sessions.set(sessionId, new Set());
+      if (!sessions.has(sessionId)) {
+        sessions.set(sessionId, new Set());
+      }
       sessions.get(sessionId)!.add(ws);
 
-      const user = await prisma.user.findUnique({
-        where: { id: ws.userId! },
-        select: { displayName: true },
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: { participants: true },
       });
 
+      ws.send(JSON.stringify({
+        type: "session_joined",
+        session,
+        participantCount: sessions.get(sessionId)?.size || 0,
+      }));
+
+      // Notify others
       broadcast(sessionId, {
-        type: "chat_message",
-        message: {
-          id: crypto.randomUUID(),
-          sessionId,
-          userId: null,
-          userName: "System",
-          content: `${user?.displayName || "Someone"} joined the session`,
-          type: "system",
-          createdAt: new Date().toISOString(),
-        },
+        type: "participant_joined",
+        userId: ws.userId,
+        participantCount: sessions.get(sessionId)?.size || 0,
       }, ws);
-
       break;
     }
 
-    case "leave_session": {
-      leaveSessionRoom(ws);
+    case "audio_data": {
+      // Relay audio data to other participants in the session
+      if (ws.sessionId) {
+        broadcast(ws.sessionId, {
+          type: "audio_data",
+          from: ws.userId,
+          data: event.data,
+        }, ws);
+      }
       break;
     }
 
-    case "send_message": {
-      if (!ws.sessionId || !ws.userId) return;
-      const content = (event.content as string || "").trim();
-      if (!content || content.length > 500) return;
-
-      const user = await prisma.user.findUnique({
-        where: { id: ws.userId },
-        select: { displayName: true },
-      });
-
-      const message = await prisma.chatMessage.create({
-        data: {
-          sessionId: ws.sessionId,
-          userId: ws.userId,
-          userName: user?.displayName || "Anonymous",
-          content,
-          type: "text",
-        },
-      });
-
-      broadcast(ws.sessionId, {
-        type: "chat_message",
-        message: {
-          id: message.id,
-          sessionId: message.sessionId,
-          userId: message.userId,
-          userName: message.userName,
-          content: message.content,
-          type: message.type,
-          createdAt: message.createdAt.toISOString(),
-        },
-      });
-
+    case "change_style": {
+      ws.presenceStyle = event.style as string;
+      ws.send(JSON.stringify({ type: "style_changed", style: event.style }));
       break;
     }
 
-    case "update_task": {
-      if (!ws.sessionId || !ws.userId) return;
-      const task = (event.task as string || "").trim().slice(0, 200);
-
-      const participant = await prisma.participant.update({
-        where: { userId_sessionId: { userId: ws.userId, sessionId: ws.sessionId } },
-        data: { currentTask: task || null },
-        include: {
-          user: { select: { id: true, displayName: true, avatarUrl: true, bio: true, focusStreak: true } },
-        },
-      });
-
-      broadcast(ws.sessionId, { type: "participant_update", participant });
+    case "encouragement": {
+      const msg = ENCOURAGEMENT_MESSAGES[
+        Math.floor(Math.random() * ENCOURAGEMENT_MESSAGES.length)
+      ];
+      ws.send(JSON.stringify({ type: "encouragement", message: msg }));
       break;
     }
 
-    case "toggle_focus": {
-      if (!ws.sessionId || !ws.userId) return;
-      const focusing = event.focusing as boolean;
-      const newStatus = focusing ? "focusing" : "joined";
-
-      const participant = await prisma.participant.update({
-        where: { userId_sessionId: { userId: ws.userId, sessionId: ws.sessionId } },
-        data: { status: newStatus },
-        include: {
-          user: { select: { id: true, displayName: true, avatarUrl: true, bio: true, focusStreak: true } },
-        },
-      });
-
-      broadcast(ws.sessionId, { type: "participant_update", participant });
+    case "end_call": {
+      ws.send(JSON.stringify({ type: "call_ended" }));
+      ws.close();
       break;
     }
 
-    case "send_encouragement": {
-      if (!ws.sessionId || !ws.userId) return;
-      const targetUserId = event.targetUserId as string;
-      if (!targetUserId) return;
-
-      const user = await prisma.user.findUnique({
-        where: { id: ws.userId },
-        select: { displayName: true },
-      });
-
-      const randomMsg = ENCOURAGEMENT_MESSAGES[Math.floor(Math.random() * ENCOURAGEMENT_MESSAGES.length)];
-
-      await prisma.chatMessage.create({
-        data: {
-          sessionId: ws.sessionId,
-          userId: ws.userId,
-          userName: user?.displayName || "Someone",
-          content: randomMsg,
-          type: "encouragement",
-        },
-      });
-
-      broadcast(ws.sessionId, {
-        type: "encouragement",
-        fromUser: user?.displayName || "Someone",
-        toUserId: targetUserId,
-      });
-
-      break;
-    }
+    default:
+      ws.send(JSON.stringify({ type: "error", message: `Unknown event type: ${event.type}` }));
   }
 }
 
-function leaveSessionRoom(ws: AuthenticatedSocket) {
-  if (!ws.sessionId) return;
-  const room = sessions.get(ws.sessionId);
-  if (room) {
-    room.delete(ws);
-    if (room.size === 0) sessions.delete(ws.sessionId);
-  }
-  ws.sessionId = undefined;
-}
-
-function broadcast(sessionId: string, data: unknown, exclude?: AuthenticatedSocket) {
+function broadcast(sessionId: string, data: Record<string, unknown>, exclude?: WebSocket) {
   const room = sessions.get(sessionId);
   if (!room) return;
-  const message = JSON.stringify(data);
+  const msg = JSON.stringify(data);
   room.forEach((client) => {
     if (client !== exclude && client.readyState === WebSocket.OPEN) {
-      client.send(message);
+      client.send(msg);
     }
   });
 }

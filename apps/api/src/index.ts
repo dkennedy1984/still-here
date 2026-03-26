@@ -8,6 +8,7 @@ import { config } from "./config";
 import { authRouter } from "./routes/auth";
 import { sessionRouter } from "./routes/sessions";
 import { userRouter } from "./routes/users";
+import { callRouter } from "./routes/calls";
 import { errorHandler } from "./middleware/error-handler";
 import { setupWebSocket } from "./ws";
 import { prisma } from "./lib/prisma";
@@ -17,7 +18,32 @@ const server = createServer(app);
 
 // Middleware
 app.use(helmet());
-app.use(cors({ origin: config.corsOrigin, credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+
+      const allowed = config.corsOrigins;
+
+      // Explicit wildcard
+      if (allowed.includes("*")) return callback(null, true);
+
+      // Exact match against configured origins
+      if (allowed.includes(origin)) return callback(null, true);
+
+      // Also allow any Vercel preview/production URL for this project
+      if (origin.endsWith(".vercel.app") || origin.endsWith(".vercel.sh")) {
+        return callback(null, true);
+      }
+
+      // Reject cleanly (don't throw — that crashes the request)
+      console.warn(`CORS rejected origin: ${origin}. Allowed: ${allowed.join(", ")}`);
+      callback(null, false);
+    },
+    credentials: true,
+  })
+);
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser());
@@ -31,6 +57,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/sessions", sessionRouter);
 app.use("/api/v1/users", userRouter);
+app.use("/api/v1/calls", callRouter);
 
 // Error handler
 app.use(errorHandler);
@@ -47,6 +74,7 @@ async function main() {
     server.listen(config.port, () => {
       console.log(`Still Here API running on port ${config.port}`);
       console.log(`WebSocket server ready`);
+      console.log(`CORS origins: ${config.corsOrigins.join(", ")}`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);

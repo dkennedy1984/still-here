@@ -4,12 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { playAudioChunk } from "@/lib/audioPlayer";
 
 type AgentState = "IDLE" | "LISTENING" | "RESPONDING" | "CHECK_IN" | "";
-type SessionStatus = "connecting" | "active" | "ended";
+type SessionStatus = "connecting" | "active" | "ended" | "error";
 
 interface AudioSessionState {
   status: SessionStatus;
   agentState: AgentState;
   remainingSeconds: number | null;
+  error?: string;
 }
 
 interface UseAudioSessionReturn {
@@ -37,12 +38,15 @@ export function useAudioSession(
   useEffect(() => {
     if (!callId || !wsTicket) return;
 
-    const wsUrl = (process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001") + `/ws?ticket=${wsTicket}`;
+    const wsBase = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4000";
+    const wsUrl = wsBase + `/ws?ticket=${wsTicket}`;
+    console.log("[useAudioSession] Connecting to", wsUrl.replace(/ticket=.*/, "ticket=***"));
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      setState((prev) => ({ ...prev, status: "active" }));
+      console.log("[useAudioSession] WebSocket opened, waiting for session_ready...");
+      // Don't set active yet — wait for session_ready event from server
 
       // Start keepalive
       keepaliveRef.current = setInterval(() => {
@@ -50,85 +54,138 @@ export function useAudioSession(
           ws.send(JSON.stringify({ type: "ping" }));
         }
       }, 20000);
+    };
 
-      // Start mic capture
-      navigator.mediaDevices
-        .getUserMedia({ audio: true })
-        .then((stream) => {
-          const recorder = new MediaRecorder(stream, {
-            mimeType: "audio/webm;codecs=opus",
-          });
-          recorderRef.current = recorder;
+    ws.onerror = (event) => {
+      console.error("[useAudioSession] WebSocket error:", event);
+      setState((prev) => ({
+        ...prev,
+        status: "error",
+        error: "WebSocket connection error. Check that the server is running.",
+      }));
+    };
 
-          recorder.ondataavailable = async (event) => {
-            if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-              const buffer = await event.data.arrayBuffer();
-              const base64 = btoa(
-                String.fromCharCode(...new Uint8Array(buffer))
-              );
-              ws.send(
-                JSON.stringify({ type: "audio_chunk", data: base64 })
-              );
-            }
-          };
-
-          recorder.start(100);
-        })
-        .catch((err) => {
-          console.error("Mic access denied:", err);
-        });
+    ws.onclose = (event) => {
+      console.log("[useAudioSession] WebSocket closed:", event.code, event.reason);
+      setState((prev) => {
+        // Only set to ended if we were previously active or connecting
+        if (prev.status === "active" || prev.status === "connecting") {
+          return { ...prev, status: "ended" };
+        }
+        return prev;
+      });
     };
 
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
 
-        if (msg.type === "agent_state") {
-          setState((prev) => ({ ...prev, agentState: msg.state }));
-        }
+        switch (msg.type) {
+          case "session_ready":
+            console.log("[useAudioSession] Session ready, starting mic capture");
+            setState((prev) => ({ ...prev, status: "active" }));
+            startMicCapture(ws);
+            break;
 
-        if (msg.type === "audio_out") {
-          playAudioChunk(msg.data);
-        }
+          case "agent_state":
+            setState((prev) => ({
+              ...prev,
+              agentState: msg.state || prev.agentState,
+            }));
+            break;
 
-        if (msg.type === "limit_reached") {
-          setState((prev) => ({ ...prev, status: "ended" }));
-        }
+          case "audio":
+            if (msg.data) {
+              playAudioChunk(msg.data);
+            }
+            break;
 
-        if (msg.type === "remaining_seconds") {
-          setState((prev) => ({
-            ...prev,
-            remainingSeconds: msg.seconds,
-          }));
+          case "timer":
+            setState((prev) => ({
+              ...prev,
+              remainingSeconds: msg.remaining ?? prev.remainingSeconds,
+            }));
+            break;
+
+          case "call_ended":
+            setState((prev) => ({ ...prev, status: "ended" }));
+            break;
+
+          case "error":
+            console.error("[useAudioSession] Server error:", msg.message);
+            setState((prev) => ({
+              ...prev,
+              status: "error",
+              error: msg.message,
+            }));
+            break;
+
+          case "pong":
+          case "style_changed":
+          case "encouragement":
+            // Informational events
+            break;
+
+          default:
+            console.log("[useAudioSession] Unknown message type:", msg.type);
         }
-      } catch {
-        // ignore parse errors
+      } catch (err) {
+        console.error("[useAudioSession] Failed to parse message:", err);
       }
     };
 
-    ws.onclose = () => {
-      setState((prev) => ({ ...prev, status: "ended" }));
-    };
-
-    ws.onerror = () => {
-      setState((prev) => ({ ...prev, status: "ended" }));
-    };
-
     return () => {
-      if (keepaliveRef.current) clearInterval(keepaliveRef.current);
+      if (keepaliveRef.current) {
+        clearInterval(keepaliveRef.current);
+        keepaliveRef.current = null;
+      }
       if (recorderRef.current && recorderRef.current.state !== "inactive") {
         recorderRef.current.stop();
         recorderRef.current.stream.getTracks().forEach((t) => t.stop());
+        recorderRef.current = null;
       }
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close();
       }
+      wsRef.current = null;
     };
   }, [callId, wsTicket]);
 
+  async function startMicCapture(ws: WebSocket) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm;codecs=opus",
+      });
+      recorderRef.current = recorder;
+
+      recorder.ondataavailable = async (event) => {
+        if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = (reader.result as string).split(",")[1];
+            if (base64) {
+              ws.send(JSON.stringify({ type: "audio_data", data: base64 }));
+            }
+          };
+          reader.readAsDataURL(event.data);
+        }
+      };
+
+      recorder.start(250); // send chunks every 250ms
+    } catch (err) {
+      console.error("[useAudioSession] Microphone access denied or unavailable:", err);
+      setState((prev) => ({
+        ...prev,
+        status: "error",
+        error: "Microphone access denied. Please allow microphone permission and try again.",
+      }));
+    }
+  }
+
   const hangup = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "hangup" }));
+      wsRef.current.send(JSON.stringify({ type: "end_call" }));
       wsRef.current.close();
     }
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
@@ -145,10 +202,8 @@ export function useAudioSession(
   }, []);
 
   const preferSilence = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "change_style", style: "silent" }));
-    }
-  }, []);
+    changeStyle("silent");
+  }, [changeStyle]);
 
   return { state, hangup, changeStyle, preferSilence };
 }
