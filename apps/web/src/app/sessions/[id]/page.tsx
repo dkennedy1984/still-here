@@ -8,6 +8,16 @@ import { Timer, Users, MessageCircle, Send, Heart, ArrowLeft } from "lucide-reac
 import Link from "next/link";
 import type { Session, ChatMessage, Participant } from "../../../lib/shared";
 
+
+interface WsMessage {
+  type: string;
+  message?: ChatMessage;
+  participant?: Participant;
+  userId?: string;
+  content?: string;
+  senderName?: string;
+}
+
 export default function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -33,7 +43,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
 
   async function loadSession() {
     try {
-      const res = await api.get(`/sessions/${id}`);
+      const res = await api.get<{ data: Session }>(`/sessions/${id}`);
       setSession(res.data);
     } catch {
       console.error("Failed to load session");
@@ -71,7 +81,7 @@ export default function SessionDetailPage({ params }: { params: Promise<{ id: st
     };
 
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      const data = JSON.parse(event.data as string) as WsMessage;
       switch (data.type) {
         case "chat_message":
           setMessages((prev) => [...prev, data.message]);

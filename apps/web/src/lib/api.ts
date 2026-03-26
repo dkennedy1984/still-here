@@ -18,7 +18,7 @@ class ApiClient {
     try {
       const stored = localStorage.getItem("auth-storage");
       if (stored) {
-        const parsed = JSON.parse(stored);
+        const parsed = JSON.parse(stored) as { state?: { token?: string } };
         return parsed?.state?.token || null;
       }
     } catch {
@@ -42,13 +42,14 @@ class ApiClient {
       credentials: "include",
     });
 
-    const data = await res.json();
+    const data: unknown = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.error || `Request failed with status ${res.status}`);
+      const errorData = data as { error?: string };
+      throw new Error(errorData.error || `Request failed with status ${res.status}`);
     }
 
-    return data;
+    return data as T;
   }
 
   async get<T = Record<string, unknown>>(path: string): Promise<T> {

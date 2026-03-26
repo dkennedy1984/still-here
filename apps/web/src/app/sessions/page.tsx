@@ -24,7 +24,7 @@ export default function SessionsPage() {
     try {
       const params = new URLSearchParams();
       if (activeTag) params.set("tag", activeTag);
-      const res = await api.get(`/sessions?${params}`);
+      const res = await api.get<{ data: SessionSummary[] }>(`/sessions?${params}`);
       setSessions(res.data);
     } catch {
       console.error("Failed to load sessions");

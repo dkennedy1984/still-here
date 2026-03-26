@@ -20,8 +20,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await api.post("/auth/login", form);
-      const data = res.data as { user: User; token: string };
+      const { data } = await api.post<{ data: { user: User; token: string } }>("/auth/login", form);
       setAuth(data.user, data.token);
       router.push("/sessions");
     } catch (err: unknown) {

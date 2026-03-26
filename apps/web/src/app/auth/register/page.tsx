@@ -20,8 +20,7 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      const res = await api.post("/auth/register", form);
-      const data = res.data as { user: User; token: string };
+      const { data } = await api.post<{ data: { user: User; token: string } }>("/auth/register", form);
       setAuth(data.user, data.token);
       router.push("/sessions");
     } catch (err: unknown) {

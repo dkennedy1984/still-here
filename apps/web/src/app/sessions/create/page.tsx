@@ -37,7 +37,7 @@ export default function CreateSessionPage() {
     setLoading(true);
 
     try {
-      const res = await api.post("/sessions", form);
+      const res = await api.post<{ data: { id: string } }>("/sessions", form);
       router.push(`/sessions/${res.data.id}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to create session";
