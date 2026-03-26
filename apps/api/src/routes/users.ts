@@ -3,7 +3,7 @@ import { requireAuth, AuthRequest } from "../middleware/auth";
 import { prisma } from "../lib/prisma";
 import { AppError } from "../middleware/error-handler";
 
-export const userRouter = Router();
+export const userRouter: Router = Router();
 
 // Get user profile
 userRouter.get("/:id/profile", async (req, res, next) => {
