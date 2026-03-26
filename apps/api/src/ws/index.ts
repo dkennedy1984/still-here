@@ -163,7 +163,10 @@ function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: strin
     case "audio_data": {
       // Forward audio to the agent state machine
       if (ws.agent && typeof msg.data === "string") {
-        ws.agent.onAudioData(msg.data);
+        ws.agent.onAudioData(
+          msg.data,
+          typeof msg.mimeType === "string" ? msg.mimeType : undefined
+        );
       }
       break;
     }

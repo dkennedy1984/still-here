@@ -47,6 +47,7 @@ export class AgentStateMachine {
   private checkInTimer: ReturnType<typeof setTimeout> | null = null;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private audioChunks: string[] = [];
+  private clientMimeType = "audio/webm;codecs=opus";
   private history: ChatMessage[] = [];
 
   constructor(ws: WebSocket, presenceStyle: string) {
@@ -62,7 +63,8 @@ export class AgentStateMachine {
     await this.runGreeting();
   }
 
-  onAudioData(base64Chunk: string): void {
+  onAudioData(base64Chunk: string, mimeType?: string): void {
+    if (mimeType) this.clientMimeType = mimeType;
     if (this.state === "ENDED") return;
 
     this.audioChunks.push(base64Chunk);
@@ -207,16 +209,16 @@ export class AgentStateMachine {
     this.transition("THINKING");
     this.cancelSilenceTimer();
 
-    const allAudio = this.audioChunks.join("");
+    const chunks = this.audioChunks;
     this.audioChunks = [];
 
-    if (!allAudio) {
+    if (chunks.length === 0) {
       this.enterSilentPresence();
       return;
     }
 
     try {
-      const transcript = await transcribeAudio(allAudio);
+      const transcript = await transcribeAudio(chunks, this.clientMimeType);
       console.log(`[agent] Transcript: "${transcript}"`);
 
       if (!transcript.trim()) {

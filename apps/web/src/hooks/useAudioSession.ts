@@ -169,9 +169,15 @@ export function useAudioSession(
   async function startMicCapture(ws: WebSocket) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
+
+      // Pick the best supported audio format for this browser
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/ogg;codecs=opus";
+
+      const recorder = new MediaRecorder(stream, { mimeType });
       recorderRef.current = recorder;
 
       recorder.ondataavailable = async (event) => {
@@ -180,7 +186,13 @@ export function useAudioSession(
           reader.onloadend = () => {
             const base64 = (reader.result as string).split(",")[1];
             if (base64) {
-              ws.send(JSON.stringify({ type: "audio_data", data: base64 }));
+              ws.send(
+                JSON.stringify({
+                  type: "audio_data",
+                  data: base64,
+                  mimeType,
+                })
+              );
             }
           };
           reader.readAsDataURL(event.data);

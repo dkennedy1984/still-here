@@ -5,29 +5,40 @@
  * 1. Deepgram Nova-2 (DEEPGRAM_API_KEY) — cheapest at $0.0043/min
  * 2. OpenAI Whisper (OPENAI_API_KEY) — $0.006/min
  *
- * Accepts a base64-encoded webm/opus audio blob and returns a transcript string.
+ * Accepts an array of base64-encoded webm/opus audio chunks and returns a
+ * transcript string.  Callers may also pass a single base64 string for
+ * backward compatibility.
  */
 
-export async function transcribeAudio(base64Audio: string): Promise<string> {
-  if (!base64Audio) return "";
+export async function transcribeAudio(
+  audioInput: string | string[],
+  mimeType = "audio/webm;codecs=opus"
+): Promise<string> {
+  // Normalise to a single Buffer regardless of input shape
+  const audioBuffer = Array.isArray(audioInput)
+    ? Buffer.concat(audioInput.filter(Boolean).map((c) => Buffer.from(c, "base64")))
+    : Buffer.from(audioInput, "base64");
 
-  if (process.env.DEEPGRAM_API_KEY) return transcribeDeepgram(base64Audio);
-  if (process.env.OPENAI_API_KEY) return transcribeWhisper(base64Audio);
+  if (audioBuffer.length === 0) return "";
+
+  if (process.env.DEEPGRAM_API_KEY) return transcribeDeepgram(audioBuffer, mimeType);
+  if (process.env.OPENAI_API_KEY) return transcribeWhisper(audioBuffer);
 
   console.warn("[stt] No STT API key found. Set DEEPGRAM_API_KEY or OPENAI_API_KEY.");
   return "";
 }
 
-async function transcribeDeepgram(base64Audio: string): Promise<string> {
-  const audioBuffer = Buffer.from(base64Audio, "base64");
-
+async function transcribeDeepgram(
+  audioBuffer: Buffer,
+  mimeType: string
+): Promise<string> {
   const res = await fetch(
-    "https://api.deepgram.com/v1/listen?model=nova-2&language=en&smart_format=true",
+    "https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&smart_format=true&punctuate=true",
     {
       method: "POST",
       headers: {
         Authorization: `Token ${process.env.DEEPGRAM_API_KEY}`,
-        "Content-Type": "audio/webm",
+        "Content-Type": mimeType,
       },
       body: audioBuffer,
     }
@@ -38,15 +49,15 @@ async function transcribeDeepgram(base64Audio: string): Promise<string> {
     return "";
   }
 
-  const data = await res.json() as {
-    results?: { channels?: Array<{ alternatives?: Array<{ transcript?: string }> }> };
+  const data = (await res.json()) as {
+    results?: {
+      channels?: Array<{ alternatives?: Array<{ transcript?: string }> }>;
+    };
   };
   return data.results?.channels?.[0]?.alternatives?.[0]?.transcript || "";
 }
 
-async function transcribeWhisper(base64Audio: string): Promise<string> {
-  const audioBuffer = Buffer.from(base64Audio, "base64");
-
+async function transcribeWhisper(audioBuffer: Buffer): Promise<string> {
   // Whisper API expects multipart form data
   const blob = new Blob([audioBuffer], { type: "audio/webm" });
   const formData = new FormData();
@@ -67,6 +78,6 @@ async function transcribeWhisper(base64Audio: string): Promise<string> {
     return "";
   }
 
-  const data = await res.json() as { text?: string };
+  const data = (await res.json()) as { text?: string };
   return data.text || "";
 }
