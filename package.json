@@ -1,0 +1,26 @@
+{
+  "name": "still-here",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Still Here — ADHD body-doubling PWA for virtual co-working sessions",
+  "scripts": {
+    "dev": "pnpm --parallel -r run dev",
+    "dev:web": "pnpm --filter @still-here/web dev",
+    "dev:api": "pnpm --filter @still-here/api dev",
+    "build": "pnpm -r run build",
+    "build:web": "pnpm --filter @still-here/web build",
+    "build:api": "pnpm --filter @still-here/api build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "db:generate": "pnpm --filter @still-here/api db:generate",
+    "db:push": "pnpm --filter @still-here/api db:push",
+    "db:migrate": "pnpm --filter @still-here/api db:migrate",
+    "db:studio": "pnpm --filter @still-here/api db:studio",
+    "clean": "pnpm -r exec rm -rf node_modules dist .next out && rm -rf node_modules"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.4"
+}
