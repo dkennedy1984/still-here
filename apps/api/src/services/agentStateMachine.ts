@@ -17,21 +17,18 @@ export type AgentStateType =
 export type PresenceStyle = "silent" | "check-ins" | "talk";
 
 interface AgentConfig {
-  /** Minutes between check-ins per style */
   checkInIntervalMs: Record<PresenceStyle, number>;
-  /** Silence timeout before processing speech (ms) */
   silenceTimeoutMs: number;
-  /** Greeting lines spoken on connect */
   greetingLines: string[];
 }
 
 const DEFAULT_CONFIG: AgentConfig = {
   checkInIntervalMs: {
-    "silent": Infinity,           // never check in
-    "check-ins": 8 * 60 * 1000,  // every 8 minutes
-    "talk": 4 * 60 * 1000,       // every 4 minutes
+    "silent": Infinity,
+    "check-ins": 8 * 60 * 1000,
+    "talk": 4 * 60 * 1000,
   },
-  silenceTimeoutMs: 3000,         // 3 seconds of silence = end of utterance
+  silenceTimeoutMs: 3000,
   greetingLines: [
     "Hi. I'm here.",
     "You don't have to talk.",
@@ -41,19 +38,15 @@ const DEFAULT_CONFIG: AgentConfig = {
 // ─── State Machine ───────────────────────────────────────────
 
 export class AgentStateMachine {
-  private state: AgentStateType = "GREETING";
+  // Use plain string to avoid TS2367 narrowing issues with async flows
+  private state: string = "GREETING";
   private ws: WebSocket;
   private style: PresenceStyle;
   private config: AgentConfig;
 
-  // Timers
   private checkInTimer: ReturnType<typeof setTimeout> | null = null;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // Audio buffer for collecting user speech chunks
   private audioChunks: string[] = [];
-
-  // Conversation history (kept tiny for cost)
   private history: ChatMessage[] = [];
 
   constructor(ws: WebSocket, presenceStyle: string) {
@@ -64,41 +57,33 @@ export class AgentStateMachine {
 
   // ─── Public API ──────────────────────────────────────────
 
-  /** Start the state machine — call once on connection */
   async start(): Promise<void> {
     this.transition("GREETING");
     await this.runGreeting();
   }
 
-  /** Handle incoming audio data from the user's microphone */
   onAudioData(base64Chunk: string): void {
     if (this.state === "ENDED") return;
 
-    // Collect audio regardless of state
     this.audioChunks.push(base64Chunk);
 
-    // If we're in SILENT_PRESENCE or CHECK_IN, transition to LISTENING
     if (this.state === "SILENT_PRESENCE" || this.state === "CHECK_IN") {
       this.cancelCheckInTimer();
       this.transition("LISTENING");
     }
 
-    // Reset silence timer — user is still speaking
     if (this.state === "LISTENING") {
       this.resetSilenceTimer();
     }
   }
 
-  /** Handle presence style changes from the user */
   onStyleChange(newStyle: string): void {
     this.style = this.normalizeStyle(newStyle);
-    // Restart check-in timer with new interval
     if (this.state === "SILENT_PRESENCE") {
       this.startCheckInTimer();
     }
   }
 
-  /** Clean up everything */
   destroy(): void {
     this.transition("ENDED");
     this.cancelCheckInTimer();
@@ -108,7 +93,7 @@ export class AgentStateMachine {
   }
 
   getState(): AgentStateType {
-    return this.state;
+    return this.state as AgentStateType;
   }
 
   // ─── State Transitions ─────────────────────────────────
@@ -150,7 +135,7 @@ export class AgentStateMachine {
   private startCheckInTimer(): void {
     this.cancelCheckInTimer();
     const interval = this.config.checkInIntervalMs[this.style];
-    if (interval === Infinity) return; // silent mode — no check-ins
+    if (interval === Infinity) return;
 
     this.checkInTimer = setTimeout(() => {
       if (this.state === "SILENT_PRESENCE") {
@@ -174,7 +159,6 @@ export class AgentStateMachine {
     this.transition("CHECK_IN");
 
     try {
-      // Generate a check-in line via LLM (tiny call, ~20 tokens)
       const line = await generateCheckIn(this.style);
 
       if (this.state !== "ENDED" && this.state !== "LISTENING" && this.ws.readyState === WebSocket.OPEN) {
@@ -186,14 +170,12 @@ export class AgentStateMachine {
         if (this.ws.readyState === WebSocket.OPEN) {
           this.sendToClient({ type: "audio_out_done" });
         }
-        // Track in history
         this.history.push({ role: "assistant", content: line });
       }
     } catch (err) {
       console.error("[agent] Check-in error:", err);
     }
 
-    // Go back to silent presence (unless user started talking during check-in)
     if (this.state !== "LISTENING" && this.state !== "ENDED") {
       this.enterSilentPresence();
     }
@@ -204,7 +186,6 @@ export class AgentStateMachine {
   private resetSilenceTimer(): void {
     this.cancelSilenceTimer();
     this.silenceTimer = setTimeout(() => {
-      // Silence detected — process the collected audio
       if (this.state === "LISTENING") {
         this.processUserSpeech();
       }
@@ -226,7 +207,6 @@ export class AgentStateMachine {
     this.transition("THINKING");
     this.cancelSilenceTimer();
 
-    // Collect all buffered audio chunks into one blob
     const allAudio = this.audioChunks.join("");
     this.audioChunks = [];
 
@@ -236,32 +216,25 @@ export class AgentStateMachine {
     }
 
     try {
-      // 1. Transcribe (STT)
       const transcript = await transcribeAudio(allAudio);
       console.log(`[agent] Transcript: "${transcript}"`);
 
       if (!transcript.trim()) {
-        // No meaningful speech detected
         this.enterSilentPresence();
         return;
       }
 
-      // Track user message
       this.history.push({ role: "user", content: transcript });
 
-      // 2. Generate response (LLM) — GPT-4o-mini, ~100 tokens
       const response = await generateResponse(transcript, this.history);
       console.log(`[agent] Response: "${response}"`);
 
-      // Track assistant response
       this.history.push({ role: "assistant", content: response });
 
-      // Trim history to keep cost tiny (max 6 messages = 3 exchanges)
       if (this.history.length > 8) {
         this.history = this.history.slice(-6);
       }
 
-      // 3. TTS the response and send audio
       if (this.state !== "ENDED" && this.ws.readyState === WebSocket.OPEN) {
         this.transition("RESPONDING");
         const audio = await synthesizeSpeech(response);
@@ -276,7 +249,6 @@ export class AgentStateMachine {
       console.error("[agent] processUserSpeech error:", err);
     }
 
-    // Back to silent presence
     if (this.state !== "ENDED") {
       this.enterSilentPresence();
     }
