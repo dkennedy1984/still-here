@@ -17,7 +17,7 @@ import {
   SESSION_TAGS_MAX,
 } from "@still-here/shared";
 
-export const sessionRouter = Router();
+export const sessionRouter: Router = Router();
 
 const createSessionSchema = z.object({
   title: z.string().min(SESSION_TITLE_MIN).max(SESSION_TITLE_MAX),
