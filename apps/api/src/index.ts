@@ -14,6 +14,7 @@ import { setupWebSocket } from "./ws";
 import { prisma } from "./lib/prisma";
 
 const app = express();
+app.set('trust proxy', 1);
 const server = createServer(app);
 
 // Middleware
