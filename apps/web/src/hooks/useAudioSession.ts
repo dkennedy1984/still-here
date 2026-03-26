@@ -111,92 +111,77 @@ export function useAudioSession(
             break;
 
           case "audio_out_done":
-            // Audio stream finished — nothing to do
+            // Agent finished sending audio for this response
             break;
 
-          case "time_remaining":
-          case "timer":
+          case "remaining_seconds":
             setState((prev) => ({
               ...prev,
-              remainingSeconds: msg.remaining ?? msg.seconds ?? prev.remainingSeconds,
+              remainingSeconds: msg.seconds ?? prev.remainingSeconds,
             }));
             break;
 
-          case "limit_reached":
           case "call_ended":
             setState((prev) => ({ ...prev, status: "ended" }));
             break;
 
           case "error":
-            console.error("[useAudioSession] Server error:", msg.message);
-            // Log but don't crash — only set error status for critical errors
-            if (msg.fatal) {
-              setState((prev) => ({
-                ...prev,
-                status: "error",
-                error: msg.message,
-              }));
-            }
-            break;
-
-          case "style_changed":
-          case "encouragement":
-            // Informational events — no action needed
+            setState((prev) => ({
+              ...prev,
+              status: "error",
+              error: msg.message || "Unknown error occurred.",
+            }));
             break;
 
           default:
-            // Silently ignore unknown message types
-            break;
+            console.log("[useAudioSession] Unknown message type:", msg.type);
         }
-      } catch (e) {
-        console.error("[useAudioSession] Failed to parse message:", e);
+      } catch {
+        console.error("[useAudioSession] Failed to parse message:", event.data);
       }
     };
 
     return () => {
       if (keepaliveRef.current) clearInterval(keepaliveRef.current);
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
       if (recorderRef.current && recorderRef.current.state !== "inactive") {
         recorderRef.current.stop();
         recorderRef.current.stream.getTracks().forEach((t) => t.stop());
+      }
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.close();
       }
     };
   }, [callId, wsTicket]);
 
   async function startMicCapture(ws: WebSocket) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
 
       // Pick the best supported audio format for this browser
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-        ? "audio/webm"
-        : "audio/ogg;codecs=opus";
+        : "audio/webm";
 
       const recorder = new MediaRecorder(stream, { mimeType });
       recorderRef.current = recorder;
 
-      recorder.ondataavailable = async (event) => {
-        if (event.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = (reader.result as string).split(",")[1];
-            if (base64) {
-              ws.send(
-                JSON.stringify({
-                  type: "audio_data",
-                  data: base64,
-                  mimeType,
-                })
-              );
-            }
-          };
-          reader.readAsDataURL(event.data);
-        }
+      recorder.ondataavailable = async (e) => {
+        if (e.data.size === 0) return;
+        if (ws.readyState !== WebSocket.OPEN) return;
+
+        console.log("[audio] sending chunk, size:", e.data.size);
+
+        const buffer = await e.data.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+
+        console.log("[ws] sending audio_chunk");
+        ws.send(
+          JSON.stringify({
+            type: "audio_chunk",
+            data: base64,
+            mimeType,
+          })
+        );
       };
 
       recorder.start(250); // send chunks every 250ms

@@ -67,16 +67,21 @@ export class AgentStateMachine {
     if (mimeType) this.clientMimeType = mimeType;
     if (this.state === "ENDED") return;
 
+    console.log(`[agent] onAudioData in state=${this.state}, chunk size=${base64Chunk.length}`);
+
     this.audioChunks.push(base64Chunk);
 
-    if (this.state === "SILENT_PRESENCE" || this.state === "CHECK_IN") {
+    // Transition to LISTENING from any state except ENDED and LISTENING itself.
+    // This fixes the bug where audio arriving during GREETING or RESPONDING
+    // was buffered but the silence timer was never started, so THINKING was
+    // never reached.
+    if (this.state !== "LISTENING") {
       this.cancelCheckInTimer();
       this.transition("LISTENING");
     }
 
-    if (this.state === "LISTENING") {
-      this.resetSilenceTimer();
-    }
+    // Reset the silence timer so that processUserSpeech fires after a pause
+    this.resetSilenceTimer();
   }
 
   onStyleChange(newStyle: string): void {

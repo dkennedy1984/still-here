@@ -160,9 +160,11 @@ function handleMessage(ws: AuthenticatedSocket, msg: { type: string; [key: strin
       break;
     }
 
+    case "audio_chunk":
     case "audio_data": {
-      // Forward audio to the agent state machine
+      // Forward audio to the agent state machine (accept both event names)
       if (ws.agent && typeof msg.data === "string") {
+        console.log("[ws] received audio_chunk, size:", Buffer.from(msg.data, "base64").length);
         ws.agent.onAudioData(
           msg.data,
           typeof msg.mimeType === "string" ? msg.mimeType : undefined
