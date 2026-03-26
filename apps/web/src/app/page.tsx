@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createSession, createCall } from "@/lib/api";
+import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
 
 export default function HomePage() {
@@ -15,8 +15,7 @@ export default function HomePage() {
     if (loading) return;
     setLoading(true);
     try {
-      const sessionId = await createSession();
-      const { callId, wsTicket } = await createCall(sessionId, presenceStyle);
+      const { callId, wsTicket } = await startCall(presenceStyle);
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     } catch (err) {
       console.error("Failed to start call:", err);

@@ -18,23 +18,15 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export async function createSession(): Promise<string> {
-  const data = await apiFetch<{ sessionId: string }>("/api/v1/calls/session", {
-    method: "POST",
-  });
-  return data.sessionId;
-}
-
-export async function createCall(
-  sessionId: string,
-  presenceStyle: string
-): Promise<{ callId: string; wsTicket: string }> {
-  const data = await apiFetch<{ callId: string; wsTicket: string }>(
-    "/api/v1/calls",
+export async function startCall(
+  presenceStyle: string = "quiet"
+): Promise<{ callId: string; wsTicket: string; sessionId: string }> {
+  const body = await apiFetch<{ success: boolean; data: { callId: string; wsTicket: string; sessionId: string } }>(
+    "/api/v1/calls/session",
     {
       method: "POST",
-      body: JSON.stringify({ sessionId, presenceStyle }),
+      body: JSON.stringify({ presenceStyle }),
     }
   );
-  return data;
+  return body.data;
 }
