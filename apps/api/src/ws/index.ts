@@ -184,6 +184,7 @@ export function setupWebSocket(server: Server) {
     async function endCall() {
       if (isEnded) return;
       isEnded = true;
+      if (!call) return;
       try {
         deepgramAgent?.close();
       } catch {}
