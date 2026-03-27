@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws';
-import { prisma } from '../db/prisma';
+import { prisma } from '../lib/prisma';
 
 type AgentState = 'GREETING' | 'SILENT_PRESENCE' | 'LISTENING' | 'THINKING' | 'RESPONDING' | 'ENDED';
 type PresenceStyle = 'quiet' | 'check-ins' | 'talk';

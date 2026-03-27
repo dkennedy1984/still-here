@@ -1,7 +1,7 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import { IncomingMessage } from 'http';
 import { Server } from 'http';
-import { prisma } from '../db/prisma';
+import { prisma } from '../lib/prisma';
 import { AgentStateMachine } from '../agent/agentStateMachine';
 
 export function setupWebSocket(server: Server) {
