@@ -111,34 +111,38 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
         };
 
         // --- VAD loop ---
-        const SPEECH_THRESHOLD = 20;
-        const SILENCE_FRAMES_NEEDED = 15; // ~500ms of silence before speech_end
+        const SPEECH_THRESHOLD = 35;
+        const SILENCE_FRAMES_NEEDED = 25;
+        const SPEECH_FRAMES_NEEDED = 5;
         let silenceFrames = 0;
+        let speechFrames = 0;
 
         const vadLoop = () => {
           if (destroyed) return;
           analyser.getByteFrequencyData(freqData);
-          const avg = freqData.slice(0, 60).reduce((a, b) => a + b, 0) / 60; // focus on voice frequencies
+          const avg = freqData.slice(0, 60).reduce((a, b) => a + b, 0) / 60;
 
           if (avg > SPEECH_THRESHOLD) {
             silenceFrames = 0;
-            if (!isSpeaking) {
+            speechFrames++;
+            if (speechFrames >= SPEECH_FRAMES_NEEDED && !isSpeaking) {
               isSpeaking = true;
               console.log('[vad] speech start, energy:', avg.toFixed(1));
-              ws.send(JSON.stringify({ type: 'speech_start' }));
-              mediaRecorder!.start(100); // collect 100ms chunks
+              if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'speech_start' }));
+              if (mediaRecorder && mediaRecorder.state === 'inactive') mediaRecorder.start(250);
             }
           } else {
+            speechFrames = 0;
             if (isSpeaking) {
               silenceFrames++;
               if (silenceFrames >= SILENCE_FRAMES_NEEDED) {
                 isSpeaking = false;
                 silenceFrames = 0;
                 console.log('[vad] speech end');
-                if (mediaRecorder!.state === 'recording') {
-                  mediaRecorder!.stop(); // triggers final ondataavailable
-                }
-                setTimeout(() => ws.send(JSON.stringify({ type: 'speech_end' })), 200);
+                if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+                setTimeout(() => {
+                  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'speech_end' }));
+                }, 300);
               }
             }
           }

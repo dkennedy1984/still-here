@@ -24,9 +24,7 @@ export class AgentStateMachine {
     if (this.hasGreeted) return;
     this.hasGreeted = true;
     this.send({ type: 'connected', state: this.state });
-    await this.speak("Hi. I'm here.");
-    await this.sleep(800);
-    await this.speak("You don't have to talk. We can just sit quietly.");
+    await this.speak("Hi, I'm here. You don't have to talk — we can just sit quietly.");
     this.transition('SILENT_PRESENCE');
     this.resetCheckInTimer();
   }
@@ -54,11 +52,11 @@ export class AgentStateMachine {
     console.log('[stt] sending', audio.length, 'bytes to Deepgram');
     try {
       console.time('[stt] transcribe');
-      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true&encoding=linear16&sample_rate=16000&channels=1', {
+      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true&smart_format=true', {
         method: 'POST',
         headers: {
           'Authorization': 'Token ' + process.env.DEEPGRAM_API_KEY,
-          'Content-Type': 'audio/l16',
+          'Content-Type': 'audio/webm;codecs=opus',
         },
         body: audio,
       });
@@ -67,6 +65,9 @@ export class AgentStateMachine {
       if (!res.ok) { console.error('[stt] Deepgram error:', res.status, JSON.stringify(json)); this.transition('SILENT_PRESENCE'); return; }
       const transcript = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
       console.log('[stt] transcript:', JSON.stringify(transcript));
+      if (!transcript) {
+        console.log('[stt] empty transcript, full response:', JSON.stringify(json).substring(0, 500));
+      }
       if (transcript) { await this.onTranscript(transcript); } else { this.transition('LISTENING'); }
     } catch (err) {
       console.error('[stt] fetch error:', err);
