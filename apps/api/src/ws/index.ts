@@ -43,7 +43,18 @@ export function setupWebSocket(server: Server) {
       clientWs.close(4003, 'deepgram_timeout');
     }, 10000);
 
-    dgWs = new WS('wss://agent.deepgram.com/v1/agent', {
+    // Diagnostic: verify API key before connecting
+    try {
+      const testRes = await fetch('https://api.deepgram.com/v1/projects', {
+        headers: { 'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}` }
+      });
+      const testBody = await testRes.text();
+      console.log('[deepgram] API key test:', testRes.status, testBody.substring(0, 100));
+    } catch (e: any) {
+      console.error('[deepgram] API key test failed:', e.message);
+    }
+
+        dgWs = new WS('wss://agent.deepgram.com/v1/agent/converse', {
       headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
     });
 
