@@ -1,7 +1,7 @@
 import { WebSocket as WS, WebSocketServer } from 'ws';
 import { IncomingMessage } from 'http';
 import { Server } from 'http';
-import { createClient } from '@deepgram/sdk';
+import { DeepgramClient } from '@deepgram/sdk';
 import { prisma } from '../lib/prisma';
 
 const SAFETY_KEYWORDS = ['kill myself','end my life','want to die','suicide','self harm','hurt myself','not worth living',"can't go on"];
@@ -45,7 +45,7 @@ export function setupWebSocket(server: Server) {
     };
 
     try {
-      const deepgram = createClient(process.env.DEEPGRAM_API_KEY!);
+      const deepgram = new DeepgramClient({ apiKey: process.env.DEEPGRAM_API_KEY! });
 
       // agent.v1.connect() returns a Promise — must be awaited to get the actual socket
       const dgSocket = await (deepgram.agent.v1 as any).connect();
