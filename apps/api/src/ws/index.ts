@@ -20,193 +20,201 @@ export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', async (clientWs: WS, req: IncomingMessage) => {
-    const url = new URL(req.url!, `http://${req.headers.host}`);
-    const ticket = url.searchParams.get('ticket');
-    if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
+    console.log('[ws] raw connection received');
+    try {
+      const url = new URL(req.url!, `http://${req.headers.host}`);
+      const ticket = url.searchParams.get('ticket');
+      if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
-    const call = await prisma.call.findUnique({ where: { wsTicket: ticket }, include: { session: true } });
-    if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
+      const call = await prisma.call.findUnique({ where: { wsTicket: ticket }, include: { session: true } });
+      if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
 
-    const style = call.presenceStyle || 'quiet';
-    const systemPrompt = SYSTEM_PROMPTS[style] || SYSTEM_PROMPTS.quiet;
-    const sessionId = call.session.id;
+      console.log('[ws] connected', { ticket, callId: call.id });
 
-    const apiKey = process.env.DEEPGRAM_API_KEY;
-    if (!apiKey) { clientWs.close(4003, 'missing_api_key'); return; }
+      const style = call.presenceStyle || 'quiet';
+      const systemPrompt = SYSTEM_PROMPTS[style] || SYSTEM_PROMPTS.quiet;
+      const sessionId = call.session.id;
 
-    let isEnded = false;
+      const apiKey = process.env.DEEPGRAM_API_KEY;
+      if (!apiKey) { clientWs.close(4003, 'missing_api_key'); return; }
 
-    // Check-in timer — only fires when style is 'check-ins'
-    let checkInTimer: ReturnType<typeof setTimeout> | null = null;
-    const CHECK_IN_MS = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '1500000', 10);
+      let isEnded = false;
 
-    function resetCheckInTimer() {
-      if (checkInTimer) clearTimeout(checkInTimer);
-      if (style !== 'check-ins') return;
-      checkInTimer = setTimeout(() => {
-        if (dgWs.readyState === WebSocket.OPEN && !isEnded) {
-          dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: 'Still here.' }));
-          resetCheckInTimer();
-        }
-      }, CHECK_IN_MS);
-    }
+      // Check-in timer — only fires when style is 'check-ins'
+      let checkInTimer: ReturnType<typeof setTimeout> | null = null;
+      const CHECK_IN_MS = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '1500000', 10);
 
-    function endCall() {
-      if (isEnded) return;
-      isEnded = true;
-      if (checkInTimer) clearTimeout(checkInTimer);
-      checkInTimer = null;
-      try { dgWs.close(); } catch {}
-      try { clientWs.close(1000, 'call_ended'); } catch {}
-      prisma.call.update({ where: { id: call!.id }, data: { endedAt: new Date() } }).catch(() => {});
-    }
-
-    // Open raw WebSocket to Deepgram
-    const dgWs = new WebSocket(DG_URL, {
-      headers: { Authorization: `Token ${apiKey}` },
-    });
-
-    // Safety check: close if Deepgram never connects
-    const safetyTimeout = setTimeout(() => {
-      if (!isEnded && dgWs.readyState !== WebSocket.OPEN) {
-        clientWs.send(JSON.stringify({ type: 'error', message: 'Deepgram connection timed out' }));
-        endCall();
-      }
-    }, 10000);
-
-    dgWs.on('open', () => {
-      clearTimeout(safetyTimeout);
-
-      // Send Settings
-      dgWs.send(JSON.stringify({
-        type: 'Settings',
-        audio: {
-          input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
-        },
-        agent: {
-          listen: { model: 'nova-2' },
-          think: {
-            provider: { type: 'open_ai' },
-            model: 'gpt-4o-mini',
-            instructions: systemPrompt,
-          },
-          speak: { model: speakModel },
-        },
-      }));
-    });
-
-    dgWs.on('message', (data: Buffer | string, isBinary: boolean) => {
-      if (isBinary) {
-        // Audio chunk — forward to client
-        if (clientWs.readyState === WebSocket.OPEN) {
-          clientWs.send(data, { binary: true });
-        }
-        return;
-      }
-
-      let msg: any;
-      try { msg = JSON.parse(data.toString()); } catch { return; }
-
-      const type: string = msg.type || '';
-
-      if (type === 'SettingsApplied') {
-        // Send greeting once settings are confirmed
-        dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: GREETING }));
-        resetCheckInTimer();
-        return;
-      }
-
-      if (type === 'ConversationText') {
-        // Reset check-in timer on any conversation activity
-        resetCheckInTimer();
-
-        const role: string = msg.role || '';
-        const text: string = msg.content || msg.text || '';
-
-        // Safety check on user speech
-        if (role === 'user') {
-          const lower = text.toLowerCase();
-          if (SAFETY_KEYWORDS.some(kw => lower.includes(kw))) {
-            dgWs.send(JSON.stringify({
-              type: 'InjectAgentMessage',
-              message: "I hear you. You don't have to be okay right now. If you're in crisis, please reach out to a helpline — you deserve real support.",
-            }));
+      function resetCheckInTimer() {
+        if (checkInTimer) clearTimeout(checkInTimer);
+        if (style !== 'check-ins') return;
+        checkInTimer = setTimeout(() => {
+          if (dgWs.readyState === WebSocket.OPEN && !isEnded) {
+            dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: 'Still here.' }));
+            resetCheckInTimer();
           }
+        }, CHECK_IN_MS);
+      }
+
+      function endCall() {
+        if (isEnded) return;
+        isEnded = true;
+        if (checkInTimer) clearTimeout(checkInTimer);
+        checkInTimer = null;
+        try { dgWs.close(); } catch {}
+        try { clientWs.close(1000, 'call_ended'); } catch {}
+        prisma.call.update({ where: { id: call!.id }, data: { endedAt: new Date() } }).catch(() => {});
+      }
+
+      // Open raw WebSocket to Deepgram
+      const dgWs = new WebSocket(DG_URL, {
+        headers: { Authorization: `Token ${apiKey}` },
+      });
+
+      // Safety check: close if Deepgram never connects
+      const safetyTimeout = setTimeout(() => {
+        if (!isEnded && dgWs.readyState !== WebSocket.OPEN) {
+          clientWs.send(JSON.stringify({ type: 'error', message: 'Deepgram connection timed out' }));
+          endCall();
+        }
+      }, 10000);
+
+      dgWs.on('open', () => {
+        clearTimeout(safetyTimeout);
+
+        // Send Settings
+        dgWs.send(JSON.stringify({
+          type: 'Settings',
+          audio: {
+            input: { encoding: 'linear16', sample_rate: 16000 },
+            output: { encoding: 'linear16', sample_rate: 24000, container: 'none' },
+          },
+          agent: {
+            listen: { model: 'nova-2' },
+            think: {
+              provider: { type: 'open_ai' },
+              model: 'gpt-4o-mini',
+              instructions: systemPrompt,
+            },
+            speak: { model: speakModel },
+          },
+        }));
+      });
+
+      dgWs.on('message', (data: Buffer | string, isBinary: boolean) => {
+        if (isBinary) {
+          // Audio chunk — forward to client
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(data, { binary: true });
+          }
+          return;
         }
 
-        // Forward to client for display
+        let msg: any;
+        try { msg = JSON.parse(data.toString()); } catch { return; }
+
+        const type: string = msg.type || '';
+
+        if (type === 'SettingsApplied') {
+          // Send greeting once settings are confirmed
+          dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: GREETING }));
+          resetCheckInTimer();
+          return;
+        }
+
+        if (type === 'ConversationText') {
+          // Reset check-in timer on any conversation activity
+          resetCheckInTimer();
+
+          const role: string = msg.role || '';
+          const text: string = msg.content || msg.text || '';
+
+          // Safety check on user speech
+          if (role === 'user') {
+            const lower = text.toLowerCase();
+            if (SAFETY_KEYWORDS.some(kw => lower.includes(kw))) {
+              dgWs.send(JSON.stringify({
+                type: 'InjectAgentMessage',
+                message: "I hear you. You don't have to be okay right now. If you're in crisis, please reach out to a helpline — you deserve real support.",
+              }));
+            }
+          }
+
+          // Forward to client for display
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ type: 'transcript', role, text }));
+          }
+
+          return;
+        }
+
+        if (type === 'AgentAudioDone') {
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ type: 'agent_audio_done' }));
+          }
+          return;
+        }
+
+        if (type === 'UserStartedSpeaking') {
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ type: 'user_started_speaking' }));
+          }
+          return;
+        }
+
+        if (type === 'AgentStartedSpeaking') {
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ type: 'agent_started_speaking' }));
+          }
+          return;
+        }
+
+        // Forward any other JSON messages
         if (clientWs.readyState === WebSocket.OPEN) {
-          clientWs.send(JSON.stringify({ type: 'transcript', role, text }));
+          clientWs.send(JSON.stringify(msg));
         }
+      });
 
-        return;
-      }
+      dgWs.on('close', (code: number, reason: Buffer) => {
+        if (!isEnded) endCall();
+      });
 
-      if (type === 'AgentAudioDone') {
+      dgWs.on('error', (err: Error) => {
+        console.error('[dgWs error]', err.message);
         if (clientWs.readyState === WebSocket.OPEN) {
-          clientWs.send(JSON.stringify({ type: 'agent_audio_done' }));
+          clientWs.send(JSON.stringify({ type: 'error', message: err.message }));
         }
-        return;
-      }
-
-      if (type === 'UserStartedSpeaking') {
-        if (clientWs.readyState === WebSocket.OPEN) {
-          clientWs.send(JSON.stringify({ type: 'user_started_speaking' }));
-        }
-        return;
-      }
-
-      if (type === 'AgentStartedSpeaking') {
-        if (clientWs.readyState === WebSocket.OPEN) {
-          clientWs.send(JSON.stringify({ type: 'agent_started_speaking' }));
-        }
-        return;
-      }
-
-      // Forward any other JSON messages
-      if (clientWs.readyState === WebSocket.OPEN) {
-        clientWs.send(JSON.stringify(msg));
-      }
-    });
-
-    dgWs.on('close', (code: number, reason: Buffer) => {
-      if (!isEnded) endCall();
-    });
-
-    dgWs.on('error', (err: Error) => {
-      console.error('[dgWs error]', err.message);
-      if (clientWs.readyState === WebSocket.OPEN) {
-        clientWs.send(JSON.stringify({ type: 'error', message: err.message }));
-      }
-      endCall();
-    });
-
-    // Handle messages from client
-    clientWs.on('message', (data: Buffer | string, isBinary: boolean) => {
-      if (isEnded) return;
-      if (isBinary) {
-        // Raw audio from client microphone — forward to Deepgram
-        if (dgWs.readyState === WebSocket.OPEN) {
-          dgWs.send(data, { binary: true });
-        }
-        return;
-      }
-      // JSON control messages from client
-      let msg: any;
-      try { msg = JSON.parse(data.toString()); } catch { return; }
-      if (msg.type === 'hangup') {
         endCall();
-      }
-    });
+      });
 
-    clientWs.on('close', () => {
-      endCall();
-    });
+      // Handle messages from client
+      clientWs.on('message', (data: Buffer | string, isBinary: boolean) => {
+        if (isEnded) return;
+        if (isBinary) {
+          // Raw audio from client microphone — forward to Deepgram
+          if (dgWs.readyState === WebSocket.OPEN) {
+            dgWs.send(data, { binary: true });
+          }
+          return;
+        }
+        // JSON control messages from client
+        let msg: any;
+        try { msg = JSON.parse(data.toString()); } catch { return; }
+        if (msg.type === 'hangup') {
+          endCall();
+        }
+      });
 
-    clientWs.on('error', (err: Error) => {
-      console.error('[clientWs error]', err.message);
-      endCall();
-    });
+      clientWs.on('close', () => {
+        endCall();
+      });
+
+      clientWs.on('error', (err: Error) => {
+        console.error('[clientWs error]', err.message);
+        endCall();
+      });
+    } catch (err) {
+      console.error('[ws] unhandled error in connection handler:', err);
+      if (clientWs.readyState === WS.OPEN) clientWs.close(4000, 'internal_error');
+    }
   });
 }
