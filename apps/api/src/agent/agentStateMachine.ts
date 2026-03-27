@@ -87,9 +87,11 @@ export class AgentStateMachine {
       console.time('[llm] respond');
       const reply = await this.getLLMReply(transcript);
       console.timeEnd('[llm] respond');
-      console.time('[tts] speak');
-      await this.speak(reply);
-      console.timeEnd('[tts] speak');
+      // Split into sentences and speak first one immediately
+      const sentences = reply.match(/[^.!?]+[.!?]+/g) || [reply];
+      for (const sentence of sentences) {
+        if (sentence.trim()) await this.speak(sentence.trim());
+      }
     } catch (err) { console.error('[llm] error:', err); }
     this.transition('SILENT_PRESENCE');
     this.resetCheckInTimer();
@@ -101,7 +103,7 @@ export class AgentStateMachine {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', max_tokens: 60, temperature: 0.6,
+        model: 'gpt-4o-mini', max_tokens: 40, temperature: 0.6,
         messages: [
           { role: 'system', content: 'You are a calm, quiet body-doubling companion for someone who may have ADHD. Maximum 2 sentences. Never directive. Never mention productivity. Never fill silence. Never ask what they are working on. Respond in British English. ' + styleNote },
           { role: 'user', content: userMessage }

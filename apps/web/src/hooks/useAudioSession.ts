@@ -10,6 +10,7 @@ interface AudioSessionState {
   status: SessionStatus;
   agentState: AgentState;
   remainingSeconds: number | null;
+  isPlayingAudio: boolean;
   error?: string;
 }
 
@@ -31,6 +32,7 @@ export function useAudioSession(
     status: "connecting",
     agentState: "",
     remainingSeconds: null,
+    isPlayingAudio: false,
   });
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -113,12 +115,14 @@ export function useAudioSession(
           case "audio":
             if (msg.data) {
               bufferAudioChunk(msg.data);
+              setState((prev) => ({ ...prev, isPlayingAudio: true }));
             }
             break;
 
           case "audio_out_done":
             // Agent finished streaming — decode and play the complete audio
             flushAudioBuffer();
+            setState((prev) => ({ ...prev, isPlayingAudio: false }));
             break;
 
           case "remaining_seconds":

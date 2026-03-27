@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAudioSession } from "@/hooks/useAudioSession";
+import { PresenceOrb } from "@/components/PresenceOrb";
 import clsx from "clsx";
 
 function CallPageInner() {
@@ -39,82 +40,67 @@ function CallPageInner() {
     setShowOverlay((prev) => !prev);
   }, []);
 
-  const isActive = state.agentState === "RESPONDING" || state.agentState === "CHECK_IN";
+  // Map agentState + audio activity to orbState
+  // Use isPlayingAudio for real-time sync with voice output
+  const orbState: 'idle' | 'listening' | 'speaking' | 'greeting' = (() => {
+    if (state.isPlayingAudio) return 'speaking';
+    switch (state.agentState) {
+      case 'RESPONDING':
+      case 'CHECK_IN':
+        return 'speaking';
+      case 'LISTENING':
+        return 'listening';
+      case 'IDLE':
+        return 'idle';
+      default:
+        return 'idle';
+    }
+  })();
 
   return (
     <main
       className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6 select-none"
       onClick={toggleOverlay}
     >
-      {/* Breathing circle with optional green glow */}
+      {/* Presence orb */}
+      <PresenceOrb state={orbState} size="lg" />
+
+      {/* Bottom overlay */}
       <div
         className={clsx(
-          "h-20 w-20 rounded-full bg-white/10 animate-breathe transition-shadow duration-700",
-          isActive && "shadow-[0_0_40px_10px_rgba(34,197,94,0.3)]"
+          "absolute bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-sm px-6 pb-10 pt-6 transition-all duration-300",
+          showOverlay ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
         )}
-      />
-
-      {/* Tap overlay */}
-      {showOverlay && (
-        <div
-          className="absolute inset-0 flex items-center justify-center bg-black/40 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="flex flex-col gap-3 items-center">
-            <button
-              onClick={() => {
-                preferSilence();
-                setPresenceStyle("silent");
-                setShowOverlay(false);
-              }}
-              className="w-48 rounded-full border border-white/20 bg-white/10 px-6 py-3 text-sm text-white backdrop-blur-sm"
-            >
-              Prefer silence
-            </button>
-            <button
-              onClick={() => {
-                changeStyle("talk");
-                setPresenceStyle("talk");
-                setShowOverlay(false);
-              }}
-              className="w-48 rounded-full border border-white/20 bg-white/10 px-6 py-3 text-sm text-white backdrop-blur-sm"
-            >
-              Talk
-            </button>
-            <button
-              onClick={() => setShowOverlay(false)}
-              className="w-48 rounded-full border border-white/20 bg-white/10 px-6 py-3 text-sm text-white backdrop-blur-sm"
-            >
-              Music ▾
-            </button>
-          </div>
+      >
+        <div className="flex flex-col items-center gap-4">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleHangup(); }}
+            className="w-full max-w-xs rounded-full bg-red-500 px-6 py-3 text-white font-medium transition hover:bg-red-600"
+          >
+            End
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); preferSilence(); }}
+            className="text-sm text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            Prefer silence
+          </button>
         </div>
+      </div>
+
+      {/* Timer / status */}
+      {state.remainingSeconds !== null && (
+        <p className="absolute top-8 text-slate-500 text-xs tabular-nums">
+          {Math.floor(state.remainingSeconds / 60)}:{String(state.remainingSeconds % 60).padStart(2, "0")}
+        </p>
       )}
-
-      {/* Bottom left */}
-      <div className="absolute bottom-8 left-6 z-20">
-        <span className="text-sm text-slate-500">Still here</span>
-      </div>
-
-      {/* Bottom right */}
-      <div className="absolute bottom-8 right-6 z-20">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleHangup();
-          }}
-          className="rounded-full border border-red-400/30 px-5 py-2 text-sm text-red-400 transition-colors hover:bg-red-400/10"
-        >
-          Hang up
-        </button>
-      </div>
     </main>
   );
 }
 
 export default function CallPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">Loading...</div>}>
       <CallPageInner />
     </Suspense>
   );

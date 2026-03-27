@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
+import { PresenceOrb } from "@/components/PresenceOrb";
 
 export default function HomePage() {
   const router = useRouter();
@@ -29,8 +30,10 @@ export default function HomePage() {
 
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6">
-      {/* Glowing circle */}
-      <div className="mb-10 h-20 w-20 rounded-full bg-white/20 shadow-[0_0_60px_rgba(255,255,255,0.15)] ring-1 ring-white/20 animate-pulse-slow" />
+      {/* Presence orb */}
+      <div className="mb-10">
+        <PresenceOrb state="idle" size="lg" />
+      </div>
 
       {/* Call button */}
       <button
@@ -53,17 +56,15 @@ export default function HomePage() {
           Prefer silence
         </button>
       </div>
-
       <div className="absolute bottom-8 right-6">
         <button
           onClick={() => setShowSheet(true)}
           className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
         >
-          Presence style
+          Settings
         </button>
       </div>
 
-      {/* Presence style sheet */}
       {showSheet && (
         <PresenceStyleSheet
           selected={presenceStyle}
