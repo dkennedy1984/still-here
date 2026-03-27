@@ -8,6 +8,7 @@ import { config } from "./config";
 import { authRouter } from "./routes/auth";
 import { sessionRouter } from "./routes/sessions";
 import { callRouter } from "./routes/calls";
+import { billingRouter, billingWebhookHandler } from "./routes/billing";
 import { errorHandler } from "./middleware/error-handler";
 import { setupWebSocket } from "./ws";
 import { prisma } from "./lib/prisma";
@@ -15,6 +16,9 @@ import { prisma } from "./lib/prisma";
 const app = express();
 app.set('trust proxy', 1);
 const server = createServer(app);
+
+// Billing webhook must receive raw body — mount before express.json()
+app.use("/api/billing/webhook", express.raw({ type: "application/json" }), billingWebhookHandler);
 
 // Middleware
 app.use(helmet());
@@ -36,6 +40,10 @@ app.use(
       if (origin.endsWith(".vercel.app") || origin.endsWith(".vercel.sh"))
         return callback(null, true);
 
+      // Allow sitwithyou.app domain
+      if (origin.endsWith(".sitwithyou.app") || origin === "https://sitwithyou.app")
+        return callback(null, true);
+
       callback(new Error(`CORS: origin ${origin} not allowed`));
     },
     credentials: true,
@@ -52,6 +60,7 @@ app.get("/healthz", (_req, res) => res.json({ status: "ok" }));
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/sessions", sessionRouter);
 app.use("/api/v1/calls", callRouter);
+app.use("/api/billing", billingRouter);
 
 // Error handler
 app.use(errorHandler);
@@ -65,7 +74,7 @@ server.listen(config.port, () => {
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("[api] SIGTERM received, shutting down...");
+  console.log("[api] SIGTERM received, shutting down");
   await prisma.$disconnect();
   server.close(() => process.exit(0));
 });

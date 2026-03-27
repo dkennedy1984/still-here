@@ -11,12 +11,14 @@ model Session {
   id               String    @id @default(cuid())
   email            String?
   emailVerifiedAt  DateTime? @map("email_verified_at")
+  emailVerified    Boolean   @default(false) @map("email_verified")
   createdAt        DateTime  @default(now()) @map("created_at")
   lastActiveAt     DateTime  @default(now()) @map("last_active_at")
   presenceStyle    String    @default("quiet")
   transcriptOptIn  Boolean   @default(false) @map("transcript_opt_in")
   tier             String    @default("free")
   subscriptionId   String?   @map("subscription_id")
+  stripeCustomerId String?   @map("stripe_customer_id")
   dailyMinutesUsed Int       @default(0) @map("daily_minutes_used")
   minutesResetAt   DateTime  @default(now()) @map("minutes_reset_at")
 
@@ -40,4 +42,18 @@ model Call {
 
   @@index([sessionId])
   @@map("calls")
+}
+
+model MagicToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique @default(cuid())
+  sessionId String?  @map("session_id")
+  used      Boolean  @default(false)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([token])
+  @@index([email])
+  @@map("magic_tokens")
 }

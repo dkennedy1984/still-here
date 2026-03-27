@@ -1,142 +1,215 @@
-import { Router } from "express";
-import { z } from "zod";
-import { resolveIdentity, AuthRequest } from "../middleware/auth";
-import { apiLimiter } from "../middleware/rate-limit";
+import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { AppError } from "../middleware/error-handler";
 
 export const authRouter: Router = Router();
 
-const verifyEmailSchema = z.object({
-  email: z.string().email("Invalid email address"),
-});
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const MAGIC_LINK_BASE_URL = process.env.MAGIC_LINK_BASE_URL || process.env.API_BASE_URL || "http://localhost:4000";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Still Here <hello@sitwithyou.app>";
 
-/**
- * POST /api/v1/auth/verify-email
- *
- * Links an email to the current session. In production this should send a
- * verification code and require a second confirm step. For now it directly
- * marks the email as verified so the rest of the flow works.
- *
- * If another session already owns this verified email, the email is
- * transferred to the current session (the old session loses it).
- */
-authRouter.post("/verify-email", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
+// POST /api/v1/auth/magic-link
+authRouter.post("/magic-link", async (req: Request, res: Response) => {
   try {
-    if (!req.sessionId) {
-      throw new AppError(401, "NO_SESSION", "No active session. Start a call first.");
+    const { email } = req.body as { email?: string };
+    if (!email || typeof email !== "string" || !email.includes("@")) {
+      return res.status(400).json({ success: false, error: "Valid email required" });
     }
 
-    const { email } = verifyEmailSchema.parse(req.body);
+    const normalizedEmail = email.trim().toLowerCase();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-    // If another session has this verified email, clear it from the old session
-    await prisma.session.updateMany({
-      where: {
-        email,
-        emailVerifiedAt: { not: null },
-        id: { not: req.sessionId },
-      },
+    const magicToken = await prisma.magicToken.create({
       data: {
-        email: null,
-        emailVerifiedAt: null,
+        email: normalizedEmail,
+        expiresAt,
       },
     });
 
-    // Link email to current session and mark as verified
-    // TODO: In production, send a 6-digit code via email and require confirmation
-    const session = await prisma.session.update({
-      where: { id: req.sessionId },
-      data: {
-        email,
-        emailVerifiedAt: new Date(),
+    const magicLinkUrl = `${MAGIC_LINK_BASE_URL}/api/v1/auth/verify?token=${magicToken.token}`;
+
+    // Send email via Resend
+    const emailRes = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + RESEND_API_KEY,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        from: RESEND_FROM_EMAIL,
+        to: normalizedEmail,
+        subject: "Your link to Still Here",
+        html:
+          "<p>Hi,</p>" +
+          "<p>Click the link below to access Still Here on this device:</p>" +
+          '<p><a href="' + magicLinkUrl + '">Open Still Here</a></p>' +
+          "<p>This link expires in 15 minutes.</p>" +
+          "<p>If you did not request this, you can ignore this email.</p>",
+      }),
     });
 
-    res.json({
-      success: true,
-      data: {
-        sessionId: session.id,
-        email: session.email,
-        emailVerified: true,
-        tier: session.tier,
-      },
-    });
+    if (!emailRes.ok) {
+      const errText = await emailRes.text().catch(() => "unknown");
+      console.error("[auth] Resend error:", emailRes.status, errText);
+      return res.status(500).json({ success: false, error: "Failed to send email" });
+    }
+
+    console.log("[auth] magic link sent to", normalizedEmail);
+    return res.json({ success: true, message: "Check your email" });
   } catch (err) {
-    next(err);
+    console.error("[auth] magic-link error:", err);
+    return res.status(500).json({ success: false, error: "Internal error" });
   }
 });
 
-/**
- * POST /api/v1/auth/magic-link
- *
- * Sends a magic link to recover a session by email. The user clicks the link,
- * which sets the sh_session cookie to the session associated with that email.
- *
- * Stubbed for now — returns the sessionId directly for development.
- */
-authRouter.post("/magic-link", apiLimiter, async (req, res, next) => {
-  try {
-    const { email } = verifyEmailSchema.parse(req.body);
+// GET /api/v1/auth/verify?token=TOKEN  — redirect flow (used from email link)
+authRouter.get("/verify", async (req: Request, res: Response) => {
+  const { token } = req.query as { token?: string };
 
-    const session = await prisma.session.findFirst({
-      where: {
-        email,
-        emailVerifiedAt: { not: null },
-      },
-      orderBy: { lastActiveAt: "desc" },
+  if (!token) {
+    return res.redirect(`${FRONTEND_URL}/upgrade?error=expired`);
+  }
+
+  try {
+    const magicToken = await prisma.magicToken.findUnique({
+      where: { token },
+    });
+
+    if (
+      !magicToken ||
+      magicToken.used ||
+      magicToken.expiresAt < new Date()
+    ) {
+      return res.redirect(`${FRONTEND_URL}/upgrade?error=expired`);
+    }
+
+    // Mark token as used
+    await prisma.magicToken.update({
+      where: { id: magicToken.id },
+      data: { used: true },
+    });
+
+    // Find or create session by email
+    let session = await prisma.session.findFirst({
+      where: { email: magicToken.email },
+      orderBy: { createdAt: "desc" },
     });
 
     if (!session) {
-      // Don't reveal whether the email exists
-      res.json({
-        success: true,
-        message: "If an account exists with that email, a magic link has been sent.",
+      session = await prisma.session.create({
+        data: {
+          email: magicToken.email,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          tier: "paid",
+        },
       });
-      return;
+    } else {
+      session = await prisma.session.update({
+        where: { id: session.id },
+        data: {
+          tier: "paid",
+          emailVerified: true,
+          emailVerifiedAt: session.emailVerifiedAt ?? new Date(),
+        },
+      });
     }
 
-    // TODO: In production, send an actual email with a signed JWT link
-    // For now, return the sessionId directly (development only)
-    res.json({
-      success: true,
-      message: "If an account exists with that email, a magic link has been sent.",
-      // Remove this in production:
-      _dev: { sessionId: session.id },
+    // Link token to session
+    await prisma.magicToken.update({
+      where: { id: magicToken.id },
+      data: { sessionId: session.id },
     });
+
+    // Set session cookie (1 year)
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("sh_session", session.id, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "strict",
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+    });
+
+    console.log("[auth] verified magic link for", magicToken.email, "-> session", session.id);
+    return res.redirect(`${FRONTEND_URL}/?verified=true`);
   } catch (err) {
-    next(err);
+    console.error("[auth] verify error:", err);
+    return res.redirect(`${FRONTEND_URL}/upgrade?error=expired`);
   }
 });
 
-/**
- * GET /api/v1/auth/me
- *
- * Returns the current session info (replaces the old /me user profile endpoint).
- */
-authRouter.get("/me", resolveIdentity, async (req: AuthRequest, res, next) => {
-  try {
-    if (!req.sessionId) {
-      res.json({ success: true, data: null });
-      return;
-    }
+// POST /api/v1/auth/magic-link/verify — JSON flow (for frontend polling or direct use)
+authRouter.post("/magic-link/verify", async (req: Request, res: Response) => {
+  const { token } = req.body as { token?: string };
 
-    const session = await prisma.session.findUnique({
-      where: { id: req.sessionId },
-      select: {
-        id: true,
-        email: true,
-        emailVerifiedAt: true,
-        tier: true,
-        presenceStyle: true,
-        transcriptOptIn: true,
-        dailyMinutesUsed: true,
-        createdAt: true,
-        lastActiveAt: true,
-      },
+  if (!token) {
+    return res.status(400).json({ success: false, error: "Token required" });
+  }
+
+  try {
+    const magicToken = await prisma.magicToken.findUnique({
+      where: { token },
     });
 
-    res.json({ success: true, data: session });
+    if (
+      !magicToken ||
+      magicToken.used ||
+      magicToken.expiresAt < new Date()
+    ) {
+      return res.status(400).json({ success: false, error: "expired" });
+    }
+
+    // Mark token as used
+    await prisma.magicToken.update({
+      where: { id: magicToken.id },
+      data: { used: true },
+    });
+
+    // Find or create session by email
+    let session = await prisma.session.findFirst({
+      where: { email: magicToken.email },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!session) {
+      session = await prisma.session.create({
+        data: {
+          email: magicToken.email,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+          tier: "paid",
+        },
+      });
+    } else {
+      session = await prisma.session.update({
+        where: { id: session.id },
+        data: {
+          tier: "paid",
+          emailVerified: true,
+          emailVerifiedAt: session.emailVerifiedAt ?? new Date(),
+        },
+      });
+    }
+
+    // Link token to session
+    await prisma.magicToken.update({
+      where: { id: magicToken.id },
+      data: { sessionId: session.id },
+    });
+
+    // Set session cookie (1 year)
+    const isProduction = process.env.NODE_ENV === "production";
+    res.cookie("sh_session", session.id, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "strict",
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+    });
+
+    console.log("[auth] JSON verify for", magicToken.email, "-> session", session.id);
+    return res.json({ success: true, sessionId: session.id, tier: session.tier });
   } catch (err) {
-    next(err);
+    console.error("[auth] magic-link/verify error:", err);
+    return res.status(500).json({ success: false, error: "Internal error" });
   }
 });
