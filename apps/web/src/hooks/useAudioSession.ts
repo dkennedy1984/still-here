@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { bufferAudioChunk, flushAudioBuffer, setAudioCallbacks } from "@/lib/audioPlayer";
+import { playAudioChunk, resetAudioPlayer, setAudioCallbacks } from "@/lib/audioPlayer";
 
 type AgentState = "IDLE" | "LISTENING" | "RESPONDING" | "CHECK_IN" | "";
 type SessionStatus = "connecting" | "active" | "ended" | "error";
@@ -132,7 +132,9 @@ export function useAudioSession(
               if (!isSpeakingRef.current) {
                 isSpeakingRef.current = true;
               }
-              ws.send(pcm16.buffer);
+              // Convert PCM16 to base64 and send as JSON
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+              ws.send(JSON.stringify({ type: 'audio_chunk', data: base64, mimeType: 'audio/l16' }));
             } else {
               if (isSpeakingRef.current) {
                 isSpeakingRef.current = false;
@@ -210,14 +212,14 @@ export function useAudioSession(
             // onStart/onEnd callbacks based on actual browser playback,
             // so we do NOT touch isPlayingAudio here.
             if (msg.data) {
-              bufferAudioChunk(msg.data);
+              playAudioChunk(msg.data);
             }
             break;
 
           case "audio_out_done":
             // All server chunks have been sent. Actual playback continues
             // until the last decoded chunk fires its onended event.
-            flushAudioBuffer(); // no-op but kept for compat
+            resetAudioPlayer(); // no-op but kept for compat
             break;
 
           case "remaining_seconds":
