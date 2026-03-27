@@ -11,12 +11,10 @@ export class AgentStateMachine {
   private style: PresenceStyle = 'quiet';
   private audioChunks: Buffer[] = [];
   private audioTimer: NodeJS.Timeout | null = null;
-  private currentMimeType = 'audio/l16';
-  private checkInTimer: NodeJS.Timeout | null = null;
+  private currentMimeType = 'audio/webm;codecs=opus';
+  public checkInTimer: NodeJS.Timeout | null = null;
   private startTime = Date.now();
   private hasGreeted = false;
-  private readonly voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
-  private readonly modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
 
   constructor(private ws: WebSocket, private callId: string, private sessionId: string) {}
 
@@ -24,7 +22,7 @@ export class AgentStateMachine {
     if (this.hasGreeted) return;
     this.hasGreeted = true;
     this.send({ type: 'connected', state: this.state });
-    await this.speak("Hi, I'm here. You don't have to talk — we can just sit quietly.");
+    await this.speak("Hi. I'm here. You don't have to talk — we can just sit quietly.");
     this.transition('SILENT_PRESENCE');
     this.resetCheckInTimer();
   }
@@ -47,7 +45,7 @@ export class AgentStateMachine {
     if (this.state === 'ENDED' || this.state === 'RESPONDING') return;
     const audio = Buffer.concat(this.audioChunks);
     this.audioChunks = [];
-    if (audio.length < 5000) { this.transition('LISTENING'); return; }
+    if (audio.length < 3000) { this.transition('LISTENING'); return; }
     this.transition('THINKING');
     console.log('[stt] sending', audio.length, 'bytes to Deepgram');
     try {
@@ -60,15 +58,16 @@ export class AgentStateMachine {
         },
         body: audio,
       });
-      const json = await res.json() as any;
       console.timeEnd('[stt] transcribe');
-      if (!res.ok) { console.error('[stt] Deepgram error:', res.status, JSON.stringify(json)); this.transition('SILENT_PRESENCE'); return; }
+      const json = await res.json() as any;
       const transcript = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
       console.log('[stt] transcript:', JSON.stringify(transcript));
       if (!transcript) {
         console.log('[stt] empty transcript, full response:', JSON.stringify(json).substring(0, 500));
+        this.transition('LISTENING');
+        return;
       }
-      if (transcript) { await this.onTranscript(transcript); } else { this.transition('LISTENING'); }
+      await this.onTranscript(transcript);
     } catch (err) {
       console.error('[stt] fetch error:', err);
       this.transition('SILENT_PRESENCE');
@@ -85,14 +84,8 @@ export class AgentStateMachine {
     this.clearCheckInTimer();
     this.transition('RESPONDING');
     try {
-      console.time('[llm] respond');
       const reply = await this.getLLMReply(transcript);
-      console.timeEnd('[llm] respond');
-      // Split into sentences and speak first one immediately
-      const sentences = reply.match(/[^.!?]+[.!?]+/g) || [reply];
-      for (const sentence of sentences) {
-        if (sentence.trim()) await this.speak(sentence.trim());
-      }
+      await this.speak(reply);
     } catch (err) { console.error('[llm] error:', err); }
     this.transition('SILENT_PRESENCE');
     this.resetCheckInTimer();
@@ -112,19 +105,17 @@ export class AgentStateMachine {
       }),
     });
     const json = await res.json() as any;
-    if (!res.ok) { console.error('[llm] OpenAI error:', res.status, JSON.stringify(json)); }
-    console.log('[llm] response:', JSON.stringify(json.choices?.[0]?.message?.content));
-    return json.choices?.[0]?.message?.content?.trim() || "I hear you. I'm still here.";
+    return json.choices?.[0]?.message?.content?.trim() || "I am here.";
   }
+
+  private readonly voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+  private readonly modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
 
   private async speak(text: string) {
     console.log('[tts] speaking:', text);
     const start = Date.now();
     try {
-      // Stream from ElevenLabs to minimise server-side latency, but buffer the full
-      // response before forwarding. This keeps time-to-first-byte from ElevenLabs low
-      // while sending the client one complete, decodable MP3 blob (not fragmented frames).
-      const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + this.voiceId + '/stream', {
+      const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + this.voiceId, {
         method: 'POST',
         headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY!, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -135,26 +126,37 @@ export class AgentStateMachine {
         }),
       });
       if (!res.ok) { console.error('[tts] error:', res.status, await res.text()); return; }
-      // Collect all stream chunks into one buffer — ElevenLabs streams fast to the server
-      // (low latency), but sending fragmented MP3 frames to the browser causes decodeAudioData
-      // to fail. One complete blob = one clean decode.
-      const reader = res.body!.getReader();
-      const parts: Uint8Array[] = [];
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value && value.length > 0) parts.push(value);
-      }
-      const totalLen = parts.reduce((n, p) => n + p.length, 0);
-      const buffer = Buffer.allocUnsafe(totalLen);
-      let off = 0;
-      for (const p of parts) { buffer.set(p, off); off += p.length; }
+      const buffer = Buffer.from(await res.arrayBuffer());
       console.log('[tts] done in', Date.now() - start, 'ms, size:', buffer.length);
       this.send({ type: 'audio_out', data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
       this.send({ type: 'audio_out_done' });
     } catch (err) { console.error('[tts] error:', err); }
   }
-  private sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+  setStyle(style: PresenceStyle) { this.style = style; this.resetCheckInTimer(); }
+
+  private resetCheckInTimer() {
+    this.clearCheckInTimer();
+    if (this.style !== 'check-ins') return;
+    const ms = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '1500000', 10);
+    this.checkInTimer = setTimeout(async () => {
+      if (this.state !== 'SILENT_PRESENCE') return;
+      await this.speak('Still here.');
+      this.resetCheckInTimer();
+    }, ms);
+  }
+
+  private clearCheckInTimer() { if (this.checkInTimer) { clearTimeout(this.checkInTimer); this.checkInTimer = null; } }
+
+  private transition(next: AgentState) {
+    console.log('[agent]', this.state, '->', next);
+    this.state = next;
+    this.send({ type: 'agent_state', state: next });
+  }
+
+  private send(payload: Record<string, unknown>) {
+    if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(payload));
+  }
 
   async end() {
     if (this.state === 'ENDED') return;
