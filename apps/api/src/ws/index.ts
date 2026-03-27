@@ -24,21 +24,21 @@ export function setupWebSocket(server: Server) {
 
     if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
-    let call: { id: string; userId: string; presenceStyle?: string } | null = null;
+    let call: { id: string; sessionId: string; presenceStyle?: string } | null = null;
     try {
-      const wsTicket = await prisma.wsTicket.findUnique({ where: { token: ticket } });
-      if (!wsTicket || wsTicket.expiresAt < new Date()) {
+      call = await prisma.call.findUnique({ where: { wsTicket: ticket } });
+      if (!call) {
         console.warn('[ws] invalid or expired ticket');
         clientWs.close(4002, 'invalid_ticket');
         return;
       }
-      call = await prisma.call.findUnique({ where: { id: wsTicket.callId } });
-      if (!call) {
-        console.warn('[ws] call not found');
-        clientWs.close(4004, 'call_not_found');
-        return;
-      }
-      await prisma.wsTicket.delete({ where: { token: ticket } });
+      await prisma.call.update({ where: { id: call.id }, data: { wsTicket: call.id } });
+
+
+
+
+
+
     } catch (err: any) {
       console.error('[ws] ticket validation error:', err.message);
       clientWs.close(4000, 'internal_error');
@@ -193,7 +193,7 @@ export function setupWebSocket(server: Server) {
         underlyingSocket.addEventListener('message', (event: any) => {
           const raw = event.data;
           if (raw instanceof ArrayBuffer || Buffer.isBuffer(raw) || raw instanceof Uint8Array) {
-            const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+            const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw instanceof ArrayBuffer ? new Uint8Array(raw) : raw);
             console.log('[deepgram] binary audio chunk received, bytes:', buf.length);
             if (clientWs.readyState === WebSocket.OPEN && buf.length > 0) {
               const b64 = buf.toString('base64');
