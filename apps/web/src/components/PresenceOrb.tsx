@@ -7,80 +7,78 @@ interface PresenceOrbProps {
 }
 
 export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setTimeout(() => setMounted(true), 100); }, []);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setVisible(true), 100); return () => clearTimeout(t); }, []);
 
-  const baseSize = size === 'lg' ? 96 : 72;
+  const d = size === 'lg' ? 88 : 64;
+  const isSpeaking = state === 'speaking';
+  const isListening = state === 'listening';
 
   return (
-    <div className="relative flex items-center justify-center" style={{ width: baseSize * 2, height: baseSize * 2 }}>
-      
-      {/* Outermost ripple ring - only when speaking */}
-      {state === 'speaking' && (
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: d * 2.4, height: d * 2.4, opacity: visible ? 1 : 0, transition: 'opacity 1.5s ease' }}
+    >
+      {/* Ripple rings - speaking only, smooth continuous outward ripple */}
+      {isSpeaking && (
         <>
-          <div className="absolute rounded-full border-2 border-white/30 animate-ripple-slow"
-               style={{ width: baseSize * 1.9, height: baseSize * 1.9 }} />
-          <div className="absolute rounded-full border-2 border-white/40 animate-ripple-medium"
-               style={{ width: baseSize * 1.6, height: baseSize * 1.6 }} />
-          <div className="absolute rounded-full border-2 border-white/50 animate-ripple-fast"
-               style={{ width: baseSize * 1.3, height: baseSize * 1.3 }} />
+          <div className="absolute rounded-full animate-ripple-1"
+            style={{ width: d * 2.2, height: d * 2.2, border: '1px solid rgba(134,239,172,0.25)' }} />
+          <div className="absolute rounded-full animate-ripple-2"
+            style={{ width: d * 2.2, height: d * 2.2, border: '1px solid rgba(134,239,172,0.20)' }} />
+          <div className="absolute rounded-full animate-ripple-3"
+            style={{ width: d * 2.2, height: d * 2.2, border: '1px solid rgba(134,239,172,0.15)' }} />
         </>
       )}
 
-      {/* Listening ring - single slow pulse */}
-      {state === 'listening' && (
-        <div className="absolute rounded-full border-2 border-blue-300/30 animate-pulse-ring"
-             style={{ width: baseSize * 1.4, height: baseSize * 1.4 }} />
+      {/* Listening ring */}
+      {isListening && (
+        <div className="absolute rounded-full"
+          style={{
+            width: d * 1.5, height: d * 1.5,
+            border: '1px solid rgba(147,197,253,0.2)',
+            animation: 'breathe 3s ease-in-out infinite',
+          }} />
       )}
 
-      {/* Outer glow layer */}
+      {/* Glow halo */}
       <div
-        className={`absolute rounded-full transition-all duration-1000 ${
-          state === 'speaking' ? 'opacity-60 scale-110' :
-          state === 'listening' ? 'opacity-30 scale-100' :
-          'opacity-15 scale-100'
-        }`}
+        className="absolute rounded-full"
         style={{
-          width: baseSize * 1.2,
-          height: baseSize * 1.2,
-          background: state === 'speaking'
-            ? 'radial-gradient(circle, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 70%)'
-            : state === 'listening'
-            ? 'radial-gradient(circle, rgba(180,200,255,0.5) 0%, rgba(180,200,255,0) 70%)'
-            : 'radial-gradient(circle, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 70%)',
-          filter: 'blur(8px)',
+          width: d * 1.5, height: d * 1.5,
+          background: isSpeaking
+            ? 'radial-gradient(circle, rgba(134,239,172,0.25) 0%, transparent 70%)'
+            : isListening
+            ? 'radial-gradient(circle, rgba(147,197,253,0.15) 0%, transparent 70%)'
+            : 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)',
+          filter: 'blur(10px)',
+          transition: 'background 0.8s ease',
         }}
       />
 
       {/* Core orb */}
       <div
-        className={`relative rounded-full transition-all duration-700 ${
-          state === 'idle' ? 'animate-breathe' :
-          state === 'greeting' ? 'animate-breathe opacity-0 animate-fade-in' :
-          ''
-        }`}
+        className="relative rounded-full"
         style={{
-          width: state === 'speaking' ? baseSize * 1.05 : state === 'listening' ? baseSize * 0.9 : baseSize,
-          height: state === 'speaking' ? baseSize * 1.05 : state === 'listening' ? baseSize * 0.9 : baseSize,
-          background: state === 'speaking'
-            ? 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.95) 0%, rgba(220,220,230,0.7) 50%, rgba(150,150,170,0.4) 100%)'
-            : state === 'listening'
-            ? 'radial-gradient(circle at 35% 35%, rgba(200,210,255,0.9) 0%, rgba(160,170,220,0.6) 50%, rgba(100,110,160,0.3) 100%)'
-            : 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.85) 0%, rgba(200,200,215,0.6) 50%, rgba(130,130,150,0.3) 100%)',
-          boxShadow: state === 'speaking'
-            ? '0 0 30px rgba(255,255,255,0.3), 0 0 60px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.8)'
-            : state === 'listening'
-            ? '0 0 20px rgba(180,200,255,0.2), inset 0 1px 0 rgba(255,255,255,0.6)'
-            : '0 0 20px rgba(255,255,255,0.1), inset 0 1px 0 rgba(255,255,255,0.5)',
+          width: d, height: d,
+          background: isSpeaking
+            ? 'radial-gradient(circle at 38% 32%, rgba(200,255,210,0.98) 0%, rgba(100,220,130,0.85) 45%, rgba(40,160,80,0.6) 100%)'
+            : isListening
+            ? 'radial-gradient(circle at 38% 32%, rgba(210,225,255,0.95) 0%, rgba(150,175,240,0.75) 45%, rgba(90,110,200,0.4) 100%)'
+            : 'radial-gradient(circle at 38% 32%, rgba(255,255,255,0.95) 0%, rgba(210,215,225,0.75) 45%, rgba(140,145,165,0.4) 100%)',
+          boxShadow: isSpeaking
+            ? '0 0 25px rgba(100,220,130,0.4), 0 0 50px rgba(100,220,130,0.15), inset 0 1px 0 rgba(255,255,255,0.9)'
+            : isListening
+            ? '0 0 20px rgba(150,175,240,0.25), inset 0 1px 0 rgba(255,255,255,0.7)'
+            : '0 0 18px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.6)',
+          animation: isSpeaking ? 'none' : 'breathe 5s ease-in-out infinite',
+          transition: 'background 0.5s ease, box-shadow 0.5s ease, width 0.4s ease, height 0.4s ease',
         }}
       >
-        {/* Inner highlight */}
-        <div className="absolute rounded-full bg-white/30"
-             style={{ width: '35%', height: '35%', top: '15%', left: '20%', filter: 'blur(4px)' }} />
+        {/* Specular highlight */}
+        <div className="absolute rounded-full"
+          style={{ width: '32%', height: '32%', top: '14%', left: '18%', background: 'rgba(255,255,255,0.45)', filter: 'blur(5px)' }} />
       </div>
-
-      {/* Mounted fade-in */}
-      {!mounted && <div className="absolute inset-0 bg-slate-950 rounded-full" />}
     </div>
   );
 }

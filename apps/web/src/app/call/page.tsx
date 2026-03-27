@@ -65,27 +65,48 @@ function CallPageInner() {
       {/* Presence orb */}
       <PresenceOrb state={orbState} size="lg" />
 
-      {/* Bottom overlay */}
+      {/* Tap overlay - Prefer silence / Talk / Music */}
       <div
         className={clsx(
-          "absolute bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-sm px-6 pb-10 pt-6 transition-all duration-300",
-          showOverlay ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
+          "fixed bottom-20 left-0 right-0 flex justify-center gap-4 px-6 pb-4 pt-2 transition-all duration-300",
+          showOverlay ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0 pointer-events-none"
         )}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="flex flex-col items-center gap-4">
-          <button
-            onClick={(e) => { e.stopPropagation(); handleHangup(); }}
-            className="w-full max-w-xs rounded-full bg-red-500 px-6 py-3 text-white font-medium transition hover:bg-red-600"
-          >
-            End
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); preferSilence(); }}
-            className="text-sm text-slate-400 hover:text-slate-200 transition-colors"
-          >
-            Prefer silence
-          </button>
-        </div>
+        <button
+          onClick={() => { preferSilence(); setShowOverlay(false); }}
+          className="px-4 py-2 rounded-full border border-slate-600/40 text-slate-400 text-sm
+                     hover:bg-slate-800/60 active:scale-95 transition-all duration-150"
+        >
+          Prefer silence
+        </button>
+        <button
+          onClick={() => { changeStyle("talk"); setShowOverlay(false); }}
+          className="px-4 py-2 rounded-full border border-slate-600/40 text-slate-400 text-sm
+                     hover:bg-slate-800/60 active:scale-95 transition-all duration-150"
+        >
+          Talk
+        </button>
+        <button
+          onClick={() => { setShowOverlay(false); }}
+          className="px-4 py-2 rounded-full border border-slate-600/40 text-slate-400 text-sm
+                     hover:bg-slate-800/60 active:scale-95 transition-all duration-150"
+        >
+          Music ▾
+        </button>
+      </div>
+
+      {/* Always visible footer */}
+      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-8 pb-10 pt-4"
+           onClick={e => e.stopPropagation()}>
+        <span className="text-xs text-slate-500 tracking-wide">Still here</span>
+        <button
+          onClick={handleHangup}
+          className="px-5 py-2.5 rounded-full border border-red-400/30 text-red-400 text-sm
+                     hover:bg-red-400/10 active:scale-95 transition-all duration-150"
+        >
+          Hang up
+        </button>
       </div>
 
       {/* Timer / status */}

@@ -25,35 +25,25 @@ const config: Config = {
         sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
       },
       animation: {
-        "pulse-slow": "pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "breathe": "breathe 5s ease-in-out infinite",
-        "slide-up": "slideUp 0.3s ease-out",
-        "ripple-fast": "ripple 1.2s ease-out infinite",
-        "ripple-medium": "ripple 1.2s ease-out infinite 0.3s",
-        "ripple-slow": "ripple 1.2s ease-out infinite 0.6s",
-        "pulse-ring": "pulseRing 2.5s ease-in-out infinite",
-        "fade-in": "fadeIn 1.5s ease-in forwards",
+        'breathe': 'breathe 5s ease-in-out infinite',
+        'ripple-1': 'rippleOut 2.4s ease-out infinite',
+        'ripple-2': 'rippleOut 2.4s ease-out infinite 0.8s',
+        'ripple-3': 'rippleOut 2.4s ease-out infinite 1.6s',
+        'pulse-slow': 'pulse 4s ease-in-out infinite',
+        'fade-in': 'fadeIn 1.5s ease-in forwards',
       },
       keyframes: {
         breathe: {
-          "0%, 100%": { transform: "scale(1)", opacity: "0.9" },
-          "50%": { transform: "scale(1.07)", opacity: "1" },
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.06)' },
         },
-        slideUp: {
-          "0%": { transform: "translateY(100%)" },
-          "100%": { transform: "translateY(0)" },
-        },
-        ripple: {
-          "0%": { transform: "scale(0.8)", opacity: "0.6" },
-          "100%": { transform: "scale(1.3)", opacity: "0" },
-        },
-        pulseRing: {
-          "0%, 100%": { transform: "scale(1)", opacity: "0.3" },
-          "50%": { transform: "scale(1.1)", opacity: "0.1" },
+        rippleOut: {
+          '0%': { transform: 'scale(0.5)', opacity: '0.7' },
+          '100%': { transform: 'scale(1)', opacity: '0' },
         },
         fadeIn: {
-          "0%": { opacity: "0", transform: "scale(0.95)" },
-          "100%": { opacity: "1", transform: "scale(1)" },
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
         },
       },
     },
