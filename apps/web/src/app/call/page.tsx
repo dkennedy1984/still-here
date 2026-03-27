@@ -57,12 +57,9 @@ function CallPageInner() {
     if (isAudioPlaying) return 'speaking';
     switch (state.agentState) {
       case 'RESPONDING':
-      case 'CHECK_IN':
         return 'speaking';
       case 'LISTENING':
         return 'listening';
-      case 'IDLE':
-        return 'idle';
       default:
         return 'idle';
     }
