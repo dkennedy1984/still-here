@@ -8,6 +8,15 @@ let playQueue: Promise<void> = Promise.resolve();
 function getCtx(): AudioContext {
   if (!audioCtx || audioCtx.state === 'closed') {
     audioCtx = new AudioContext({ sampleRate: 16000 });
+    // Play silent buffer immediately to unlock AudioContext on iOS
+    const buf = audioCtx.createBuffer(1, 1, 16000);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().catch(() => {});
   }
   return audioCtx;
 }

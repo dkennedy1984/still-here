@@ -20,6 +20,7 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [agentState, setAgentState] = useState<AgentState>('GREETING');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -35,6 +36,7 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
     processorRef.current?.disconnect();
     sourceRef.current?.disconnect();
     streamRef.current?.getTracks().forEach(track => track.stop());
+    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current.srcObject = null; audioElRef.current = null; }
     audioCtxRef.current?.close();
     wsRef.current?.close();
     setStatus('ended');
@@ -84,6 +86,14 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
         const source = audioCtx.createMediaStreamSource(stream);
         sourceRef.current = source;
         streamRef.current = stream;
+
+        // Force speaker output on iOS - without this, audio routes to earpiece
+        const audioEl = document.createElement('audio');
+        audioEl.srcObject = stream;
+        audioEl.muted = true;
+        audioEl.setAttribute('playsinline', 'true');
+        audioEl.play().catch(() => {});
+        audioElRef.current = audioEl;
         const processor = audioCtx.createScriptProcessor(2048, 1, 1);
         processorRef.current = processor;
 
