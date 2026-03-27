@@ -58,7 +58,7 @@ export function setupWebSocket(server: Server) {
       checkInTimer = null;
       try { dgWs.close(); } catch {}
       try { clientWs.close(1000, 'call_ended'); } catch {}
-      prisma.call.update({ where: { id: call.id }, data: { endedAt: new Date() } }).catch(() => {});
+      prisma.call.update({ where: { id: call!.id }, data: { endedAt: new Date() } }).catch(() => {});
     }
 
     // Open raw WebSocket to Deepgram
@@ -140,10 +140,6 @@ export function setupWebSocket(server: Server) {
           clientWs.send(JSON.stringify({ type: 'transcript', role, text }));
         }
 
-        // Persist to DB
-        prisma.message.create({
-          data: { sessionId, role, content: text },
-        }).catch(() => {});
         return;
       }
 
