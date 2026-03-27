@@ -31,7 +31,12 @@ export class AgentStateMachine {
     this.audioChunks.push(chunk);
     this.currentMimeType = mimeType;
     if (this.audioTimer) clearTimeout(this.audioTimer);
-    this.audioTimer = setTimeout(() => this.flushAudio(), 3000);
+    this.audioTimer = setTimeout(() => this.flushAudio(), 10000);
+  }
+
+  async handleSpeechEnd() {
+    if (this.audioTimer) { clearTimeout(this.audioTimer); this.audioTimer = null; }
+    await this.flushAudio();
   }
 
   private async flushAudio() {

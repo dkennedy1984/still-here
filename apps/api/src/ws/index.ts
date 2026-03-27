@@ -32,6 +32,8 @@ export function setupWebSocket(server: Server) {
         } else if (type === 'prefer_silence') {
           room.setStyle('quiet');
         }
+        else if (type === 'speech_end') { await room.handleSpeechEnd(); }
+        else if (type === 'speech_start') { console.log('[ws] speech start'); }
       } catch (err) {
         console.error('[ws] message handler error:', err);
       }

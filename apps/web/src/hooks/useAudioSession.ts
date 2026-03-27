@@ -173,6 +173,7 @@ export function useAudioSession(
 
       // Start a VAD polling loop
       const dataArray = new Float32Array(analyser.fftSize);
+      let wasSpeaking = false;
       function checkVAD() {
         if (!analyserRef.current) return;
         analyserRef.current.getFloatTimeDomainData(dataArray);
@@ -182,7 +183,10 @@ export function useAudioSession(
           sum += dataArray[i] * dataArray[i];
         }
         const rms = Math.sqrt(sum / dataArray.length);
-        isSpeakingRef.current = rms > VAD_THRESHOLD;
+        const speaking = rms > VAD_THRESHOLD;
+        isSpeakingRef.current = speaking;
+        if (speaking && !wasSpeaking) { wasSpeaking = true; if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'speech_start' })); }
+        else if (!speaking && wasSpeaking) { wasSpeaking = false; if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'speech_end' })); }
         requestAnimationFrame(checkVAD);
       }
       checkVAD();
