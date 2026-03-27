@@ -12,7 +12,7 @@ function CallPageInner() {
   const callId = searchParams.get("callId") || "";
   const ticket = searchParams.get("ticket") || "";
 
-  const [presenceStyle, setPresenceStyle] = useState<"silent" | "check-ins" | "talk">("check-ins");
+  const [presenceStyle, setPresenceStyle] = useState<"quiet" | "check-ins" | "talk">("check-ins");
 
   // isAudioPlaying is driven by actual browser AudioBufferSource playback events,
   // not server messages — so the orb stays green for the exact duration
