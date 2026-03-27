@@ -21,6 +21,7 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const connectedRef = useRef(false); // prevent double WebSocket connection
   const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [agentState, setAgentState] = useState<AgentState>('GREETING');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -42,11 +43,13 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
     setStatus('ended');
   }, [send]);
 
-  const changeStyle = useCallback((style: PresenceStyle) => send('style_change', { style }), [send]);
+  const changeStyle = useCallback((style: PresenceStyle) => send('change_style', { style }), [send]);
   const preferSilence = useCallback(() => send('prefer_silence'), [send]);
 
   useEffect(() => {
     if (!callId || !wsTicket) return;
+    if (connectedRef.current) return; // prevent double connection (StrictMode double-invoke / remount)
+    connectedRef.current = true;
     let destroyed = false;
 
     setStatus('connecting');
@@ -96,26 +99,21 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
         audioElRef.current = audioEl;
         const processor = audioCtx.createScriptProcessor(2048, 1, 1);
         processorRef.current = processor;
-
         processor.onaudioprocess = (e) => {
           if (ws.readyState !== WebSocket.OPEN) return;
-          const float32 = e.inputBuffer.getChannelData(0);
-          const int16 = new Int16Array(float32.length);
-          for (let i = 0; i < float32.length; i++) {
-            int16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+          const input = e.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(input.length);
+          for (let i = 0; i < input.length; i++) {
+            pcm[i] = Math.max(-32768, Math.min(32767, Math.round(input[i] * 32767)));
           }
-          // Send as raw binary - Deepgram Voice Agent expects raw PCM
-          ws.send(int16.buffer);
+          ws.send(pcm.buffer);
         };
-
         source.connect(processor);
         processor.connect(audioCtx.destination);
-
         setStatus('connected');
-        console.log('[useAudioSession] mic streaming started');
       } catch (err) {
         console.error('[useAudioSession] mic error:', err);
-        setStatus('error');
+        if (!destroyed) setStatus('error');
       }
     };
 
@@ -171,6 +169,7 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
 
     return () => {
       destroyed = true;
+      connectedRef.current = false;
       clearInterval(pingInterval);
       processorRef.current?.disconnect();
       sourceRef.current?.disconnect();
