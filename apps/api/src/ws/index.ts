@@ -27,7 +27,7 @@ export function setupWebSocket(server: Server) {
     const call = await prisma.call.findUnique({ where: { wsTicket: ticket } }).catch(() => null);
     if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
 
-    const mode = call.mode ?? 'quiet';
+    const mode = call.presenceStyle ?? 'quiet';
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.quiet;
 
     const sendToClient = (type: string, payload: object) => {
@@ -165,7 +165,7 @@ export function setupWebSocket(server: Server) {
       if (isBinary) {
         // Forward raw PCM audio from client to Deepgram
         if (dgSocket) {
-          dgSocket.sendBinary(data as any);
+          (dgSocket as any).sendBinary(data as any);
         }
       } else {
         // Control messages from client
