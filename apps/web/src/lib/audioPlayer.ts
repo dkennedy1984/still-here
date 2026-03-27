@@ -1,6 +1,17 @@
 let audioContext: AudioContext | null = null;
 let nextStartTime = 0;
-const pendingChunks: Uint8Array[] = [];
+
+let activeCount = 0;
+let onStartCallback: (() => void) | null = null;
+let onEndCallback: (() => void) | null = null;
+
+export function setAudioCallbacks(
+  onStart: () => void,
+  onEnd: () => void
+): void {
+  onStartCallback = onStart;
+  onEndCallback = onEnd;
+}
 
 function getAudioContext(): AudioContext {
   if (!audioContext) {
@@ -18,43 +29,57 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
-// Buffer a streamed chunk (called on each audio_out message)
+// Decode and schedule a chunk for immediate sequential playback.
+// Fires onStart when the first chunk of a new burst begins,
+// and onEnd only after the LAST chunk in that burst finishes playing.
 export function bufferAudioChunk(base64: string): void {
-  pendingChunks.push(base64ToBytes(base64));
-}
+  const bytes = base64ToBytes(base64);
 
-// Concatenate all buffered chunks and play (called on audio_out_done)
-export async function flushAudioBuffer(): Promise<void> {
-  if (pendingChunks.length === 0) return;
-
-  // Concatenate all chunks into a single buffer
-  const totalLength = pendingChunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const combined = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of pendingChunks) {
-    combined.set(chunk, offset);
-    offset += chunk.length;
+  // Signal "speaking started" on the very first queued chunk
+  if (activeCount === 0) {
+    onStartCallback?.();
   }
-  pendingChunks.length = 0;
+  activeCount++;
 
-  try {
-    const ctx = getAudioContext();
-    const audioBuffer = await ctx.decodeAudioData(combined.buffer);
+  const ctx = getAudioContext();
+
+  ctx.decodeAudioData(bytes.buffer).then((audioBuffer) => {
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(ctx.destination);
 
-    const currentTime = ctx.currentTime;
-    const startTime = Math.max(currentTime, nextStartTime);
+    const now = ctx.currentTime;
+    const startTime = Math.max(now, nextStartTime);
     source.start(startTime);
     nextStartTime = startTime + audioBuffer.duration;
-  } catch (err) {
-    console.error("Audio playback error:", err);
-  }
+
+    // When this chunk finishes playing in the browser
+    source.onended = () => {
+      activeCount--;
+      if (activeCount === 0) {
+        onEndCallback?.();
+        // Reset scheduling baseline so next utterance starts cleanly
+        nextStartTime = 0;
+      }
+    };
+  }).catch((err) => {
+    console.error("[audioPlayer] decodeAudioData error:", err);
+    activeCount--;
+    if (activeCount === 0) {
+      onEndCallback?.();
+      nextStartTime = 0;
+    }
+  });
 }
 
-// Legacy: play a single complete audio chunk (for backwards compat)
+// Called on audio_out_done — nothing to do here anymore,
+// playback is already scheduled chunk-by-chunk above.
+// Kept for backwards compat so callers don't break.
+export function flushAudioBuffer(): void {
+  // no-op: chunks are scheduled individually as they arrive
+}
+
+// Legacy alias
 export function playAudioChunk(base64: string): void {
   bufferAudioChunk(base64);
-  flushAudioBuffer();
 }

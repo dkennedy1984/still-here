@@ -13,7 +13,19 @@ function CallPageInner() {
   const ticket = searchParams.get("ticket") || "";
 
   const [presenceStyle, setPresenceStyle] = useState<"silent" | "check-ins" | "talk">("check-ins");
-  const { state, hangup, changeStyle, preferSilence } = useAudioSession(callId, ticket, presenceStyle);
+
+  // isAudioPlaying is driven by actual browser AudioBufferSource playback events,
+  // not server messages — so the orb stays green for the exact duration
+  // the user hears audio, no matter how many chunks there are.
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  const { state, hangup, changeStyle, preferSilence } = useAudioSession({
+    callId,
+    wsTicket: ticket,
+    presenceStyle,
+    onAudioStart: () => setIsAudioPlaying(true),
+    onAudioEnd: () => setIsAudioPlaying(false),
+  });
 
   const [showOverlay, setShowOverlay] = useState(false);
 
@@ -40,10 +52,9 @@ function CallPageInner() {
     setShowOverlay((prev) => !prev);
   }, []);
 
-  // Map agentState + audio activity to orbState
-  // Use isPlayingAudio for real-time sync with voice output
+  // orbState is driven by actual audio playback — green = AI is speaking in the browser
   const orbState: 'idle' | 'listening' | 'speaking' | 'greeting' = (() => {
-    if (state.isPlayingAudio) return 'speaking';
+    if (isAudioPlaying) return 'speaking';
     switch (state.agentState) {
       case 'RESPONDING':
       case 'CHECK_IN':
@@ -58,14 +69,13 @@ function CallPageInner() {
   })();
 
   return (
-    <main
-      className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6 select-none"
+    <div
+      className="min-h-screen bg-black flex flex-col items-center justify-center relative"
       onClick={toggleOverlay}
     >
-      {/* Presence orb */}
       <PresenceOrb state={orbState} size="lg" />
 
-      {/* Tap overlay - Prefer silence / Talk / Music */}
+      {/* Slide-up overlay with controls */}
       <div
         className={clsx(
           "fixed bottom-20 left-0 right-0 flex justify-center gap-4 px-6 pb-4 pt-2 transition-all duration-300",
@@ -105,23 +115,16 @@ function CallPageInner() {
           className="px-5 py-2.5 rounded-full border border-red-400/30 text-red-400 text-sm
                      hover:bg-red-400/10 active:scale-95 transition-all duration-150"
         >
-          Hang up
+          End
         </button>
       </div>
-
-      {/* Timer / status */}
-      {state.remainingSeconds !== null && (
-        <p className="absolute top-8 text-slate-500 text-xs tabular-nums">
-          {Math.floor(state.remainingSeconds / 60)}:{String(state.remainingSeconds % 60).padStart(2, "0")}
-        </p>
-      )}
-    </main>
+    </div>
   );
 }
 
 export default function CallPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">Loading...</div>}>
+    <Suspense>
       <CallPageInner />
     </Suspense>
   );

@@ -36,7 +36,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         <div className="absolute rounded-full"
           style={{
             width: d * 1.5, height: d * 1.5,
-            border: '1px solid rgba(147,197,253,0.2)',
+            border: '1px solid rgba(210,215,220,0.2)',
             animation: 'breathe 3s ease-in-out infinite',
           }} />
       )}
@@ -49,7 +49,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
           background: isSpeaking
             ? 'radial-gradient(circle, rgba(134,239,172,0.25) 0%, transparent 70%)'
             : isListening
-            ? 'radial-gradient(circle, rgba(147,197,253,0.15) 0%, transparent 70%)'
+            ? 'radial-gradient(circle, rgba(220,225,235,0.15) 0%, transparent 70%)'
             : 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%)',
           filter: 'blur(10px)',
           transition: 'background 0.8s ease',
@@ -64,12 +64,12 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
           background: isSpeaking
             ? 'radial-gradient(circle at 38% 32%, rgba(200,255,210,0.98) 0%, rgba(100,220,130,0.85) 45%, rgba(40,160,80,0.6) 100%)'
             : isListening
-            ? 'radial-gradient(circle at 38% 32%, rgba(210,225,255,0.95) 0%, rgba(150,175,240,0.75) 45%, rgba(90,110,200,0.4) 100%)'
-            : 'radial-gradient(circle at 38% 32%, rgba(255,255,255,0.95) 0%, rgba(210,215,225,0.75) 45%, rgba(140,145,165,0.4) 100%)',
+            ? 'radial-gradient(circle at 38% 32%, rgba(240,243,255,0.95) 0%, rgba(200,205,220,0.75) 45%, rgba(130,135,155,0.4) 100%)'
+            : 'radial-gradient(circle at 38% 32%, rgba(255,255,255,0.95) 0%, rgba(210,215,220,0.75) 45%, rgba(140,145,150,0.4) 100%)',
           boxShadow: isSpeaking
             ? '0 0 25px rgba(100,220,130,0.4), 0 0 50px rgba(100,220,130,0.15), inset 0 1px 0 rgba(255,255,255,0.9)'
             : isListening
-            ? '0 0 20px rgba(150,175,240,0.25), inset 0 1px 0 rgba(255,255,255,0.7)'
+            ? '0 0 20px rgba(200,205,220,0.25), inset 0 1px 0 rgba(255,255,255,0.7)'
             : '0 0 18px rgba(255,255,255,0.12), inset 0 1px 0 rgba(255,255,255,0.6)',
           animation: isSpeaking ? 'none' : 'breathe 5s ease-in-out infinite',
           transition: 'background 0.5s ease, box-shadow 0.5s ease, width 0.4s ease, height 0.4s ease',

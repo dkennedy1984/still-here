@@ -26,9 +26,9 @@ const config: Config = {
       },
       animation: {
         'breathe': 'breathe 5s ease-in-out infinite',
-        'ripple-1': 'rippleOut 2.4s ease-out infinite',
-        'ripple-2': 'rippleOut 2.4s ease-out infinite 0.8s',
-        'ripple-3': 'rippleOut 2.4s ease-out infinite 1.6s',
+        'ripple-1': 'rippleOut 2.8s ease-out infinite',
+        'ripple-2': 'rippleOut 2.8s ease-out infinite 0.93s',
+        'ripple-3': 'rippleOut 2.8s ease-out infinite 1.86s',
         'pulse-slow': 'pulse 4s ease-in-out infinite',
         'fade-in': 'fadeIn 1.5s ease-in forwards',
       },
@@ -38,7 +38,8 @@ const config: Config = {
           '50%': { transform: 'scale(1.06)' },
         },
         rippleOut: {
-          '0%': { transform: 'scale(0.5)', opacity: '0.7' },
+          '0%': { transform: 'scale(0.85)', opacity: '0' },
+          '15%': { transform: 'scale(0.88)', opacity: '0.6' },
           '100%': { transform: 'scale(1)', opacity: '0' },
         },
         fadeIn: {
