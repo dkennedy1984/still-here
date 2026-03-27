@@ -51,7 +51,7 @@ export function setupWebSocket(server: Server) {
 
     try {
       console.log('[deepgram] connecting directly via WebSocket...');
-      dgWs = new WS('wss://agent.deepgram.com/agent', {
+      dgWs = new WS('wss://agent.deepgram.com/v1/agent/converse', {
         headers: {
           'Authorization': 'Token ' + process.env.DEEPGRAM_API_KEY,
         },

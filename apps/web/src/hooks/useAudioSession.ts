@@ -18,6 +18,8 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
   const wsRef = useRef<WebSocket | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [agentState, setAgentState] = useState<AgentState>('GREETING');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -31,6 +33,8 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
   const hangup = useCallback(() => {
     send('hangup');
     processorRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    streamRef.current?.getTracks().forEach(track => track.stop());
     audioCtxRef.current?.close();
     wsRef.current?.close();
     setStatus('ended');
@@ -78,6 +82,8 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
         const audioCtx = new AudioContext({ sampleRate: 16000 });
         audioCtxRef.current = audioCtx;
         const source = audioCtx.createMediaStreamSource(stream);
+        sourceRef.current = source;
+        streamRef.current = stream;
         const processor = audioCtx.createScriptProcessor(2048, 1, 1);
         processorRef.current = processor;
 
@@ -157,6 +163,8 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
       destroyed = true;
       clearInterval(pingInterval);
       processorRef.current?.disconnect();
+      sourceRef.current?.disconnect();
+      streamRef.current?.getTracks().forEach(track => track.stop());
       audioCtxRef.current?.close().catch(() => {});
       ws.close();
       resetAudioPlayer();
