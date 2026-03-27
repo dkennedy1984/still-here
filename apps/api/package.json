@@ -1,33 +1,20 @@
 {
-  "name": "@still-here/api",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc --build",
-    "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
-  },
   "dependencies": {
-    "@still-here/shared": "workspace:*",
+    "@deepgram/sdk": "^3.9.0",
     "@prisma/client": "^6.2.0",
+    "@still-here/shared": "workspace:*",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
     "express": "^4.21.0",
+    "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "ws": "^8.18.0",
-    "zod": "^3.24.0",
-    "bcryptjs": "^2.4.3",
-    "cookie-parser": "^1.4.7",
-    "express-rate-limit": "^7.5.0",
     "uuid": "^11.0.0",
-    "dotenv": "^16.4.0"
+    "ws": "^8.18.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -42,5 +29,19 @@
     "prisma": "^6.2.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
-  }
+  },
+  "name": "@still-here/api",
+  "private": true,
+  "scripts": {
+    "build": "tsc --build",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "version": "0.1.0"
 }

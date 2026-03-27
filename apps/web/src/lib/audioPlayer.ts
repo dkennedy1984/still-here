@@ -7,11 +7,7 @@ let playQueue: Promise<void> = Promise.resolve();
 
 function getCtx(): AudioContext {
   if (!audioCtx || audioCtx.state === 'closed') {
-    audioCtx = new AudioContext();
-  }
-  // Resume if suspended (browser autoplay policy)
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume().catch(() => {});
+    audioCtx = new AudioContext({ sampleRate: 16000 });
   }
   return audioCtx;
 }
@@ -27,7 +23,6 @@ export function resetAudioPlayer() {
   playQueue = Promise.resolve();
 }
 
-/** Buffer a single base64 chunk — does not play yet. */
 export function bufferAudioChunk(base64: string): void {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -35,36 +30,29 @@ export function bufferAudioChunk(base64: string): void {
   chunkBuffer.push(bytes);
 }
 
-/**
- * Flush all buffered chunks as a single decoded audio buffer.
- * Call this when audio_out_done is received.
- * Concatenating before decode is critical: MP3 frames split across separate
- * decodeAudioData calls produce garbage or throw EncodingError.
- */
 export async function flushAudioBuffer(): Promise<void> {
   if (chunkBuffer.length === 0) return;
-
-  const chunks = chunkBuffer;
+  const chunks = [...chunkBuffer];
   chunkBuffer = [];
-
-  const totalLength = chunks.reduce((acc, c) => acc + c.length, 0);
-  const combined = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.length;
-  }
 
   playQueue = playQueue.then(async () => {
     try {
       const ctx = getCtx();
-      // slice(0) creates a detached copy so decodeAudioData can take ownership
-      const audioBuffer = await ctx.decodeAudioData(combined.buffer.slice(0) as ArrayBuffer);
+      // Combine all chunks
+      const totalBytes = chunks.reduce((acc, c) => acc + c.length, 0);
+      const combined = new Uint8Array(totalBytes);
+      let offset = 0;
+      for (const chunk of chunks) { combined.set(chunk, offset); offset += chunk.length; }
 
-      if (!isPlaying) {
-        isPlaying = true;
-        onStartCb?.();
-      }
+      // Convert linear16 PCM to AudioBuffer
+      const int16 = new Int16Array(combined.buffer);
+      const float32 = new Float32Array(int16.length);
+      for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
+
+      const audioBuffer = ctx.createBuffer(1, float32.length, 16000);
+      audioBuffer.copyToChannel(float32, 0);
+
+      if (!isPlaying) { isPlaying = true; onStartCb?.(); }
 
       await new Promise<void>((resolve) => {
         const source = ctx.createBufferSource();
@@ -74,19 +62,16 @@ export async function flushAudioBuffer(): Promise<void> {
         source.start(0);
       });
     } catch (err) {
-      console.error('[audio] decode error:', err);
+      console.error('[audio] playback error:', err);
     } finally {
-      if (chunkBuffer.length === 0) {
-        isPlaying = false;
-        onEndCb?.();
-      }
+      if (chunkBuffer.length === 0) { isPlaying = false; onEndCb?.(); }
     }
   });
-
   return playQueue;
 }
 
-/** Legacy alias kept for any callers that still use playAudioChunk directly. */
+// Legacy compatibility
 export async function playAudioChunk(base64: string): Promise<void> {
   bufferAudioChunk(base64);
+  await flushAudioBuffer();
 }
