@@ -20,6 +20,8 @@ interface UseAudioSessionReturn {
   preferSilence: () => void;
 }
 
+const VAD_THRESHOLD = 0.015; // RMS energy threshold below which audio is considered silence
+
 export function useAudioSession(
   callId: string,
   wsTicket: string,
@@ -34,6 +36,8 @@ export function useAudioSession(
   const wsRef = useRef<WebSocket | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const isSpeakingRef = useRef(false);
 
   useEffect(() => {
     if (!callId || !wsTicket) return;
@@ -129,35 +133,60 @@ export function useAudioSession(
             setState((prev) => ({
               ...prev,
               status: "error",
-              error: msg.message || "Unknown error occurred.",
+              error: msg.message || "An error occurred",
             }));
             break;
 
           default:
             console.log("[useAudioSession] Unknown message type:", msg.type);
         }
-      } catch {
-        console.error("[useAudioSession] Failed to parse message:", event.data);
+      } catch (err) {
+        console.error("[useAudioSession] Failed to parse message:", err);
       }
     };
 
     return () => {
       if (keepaliveRef.current) clearInterval(keepaliveRef.current);
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
       if (recorderRef.current && recorderRef.current.state !== "inactive") {
         recorderRef.current.stop();
         recorderRef.current.stream.getTracks().forEach((t) => t.stop());
-      }
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
       }
     };
   }, [callId, wsTicket]);
 
   async function startMicCapture(ws: WebSocket) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-      // Pick the best supported audio format for this browser
+      // Set up AnalyserNode for Voice Activity Detection
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.3;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      // Start a VAD polling loop
+      const dataArray = new Float32Array(analyser.fftSize);
+      function checkVAD() {
+        if (!analyserRef.current) return;
+        analyserRef.current.getFloatTimeDomainData(dataArray);
+        // Calculate RMS energy
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i] * dataArray[i];
+        }
+        const rms = Math.sqrt(sum / dataArray.length);
+        isSpeakingRef.current = rms > VAD_THRESHOLD;
+        requestAnimationFrame(checkVAD);
+      }
+      checkVAD();
+
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
         ? "audio/webm;codecs=opus"
         : "audio/webm";
@@ -168,6 +197,9 @@ export function useAudioSession(
       recorder.ondataavailable = async (e) => {
         if (e.data.size === 0) return;
         if (ws.readyState !== WebSocket.OPEN) return;
+
+        // Only send audio when VAD detects speech
+        if (!isSpeakingRef.current) return;
 
         console.log("[audio] sending chunk, size:", e.data.size);
 
@@ -197,19 +229,22 @@ export function useAudioSession(
 
   const hangup = useCallback(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "end_call" }));
+      wsRef.current.send(JSON.stringify({ type: "hangup" }));
       wsRef.current.close();
     }
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
       recorderRef.current.stop();
       recorderRef.current.stream.getTracks().forEach((t) => t.stop());
     }
+    if (analyserRef.current) {
+      analyserRef.current = null;
+    }
     setState((prev) => ({ ...prev, status: "ended" }));
   }, []);
 
   const changeStyle = useCallback((style: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "change_style", style }));
+      wsRef.current.send(JSON.stringify({ type: "style_change", style }));
     }
   }, []);
 

@@ -28,10 +28,13 @@ export class AgentStateMachine {
 
   handleAudio(chunk: Buffer, mimeType: string) {
     if (this.state === 'ENDED' || this.state === 'RESPONDING') return;
+    // Skip very small chunks (likely silence or empty frames)
+    if (chunk.length < 200) return;
     this.audioChunks.push(chunk);
     this.currentMimeType = mimeType;
+    if (this.state !== 'LISTENING') this.transition('LISTENING');
     if (this.audioTimer) clearTimeout(this.audioTimer);
-    this.audioTimer = setTimeout(() => this.flushAudio(), 2000);
+    this.audioTimer = setTimeout(() => this.flushAudio(), 1500);
   }
 
   private async flushAudio() {
