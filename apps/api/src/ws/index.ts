@@ -27,7 +27,7 @@ export function setupWebSocket(server: Server) {
     const call = await prisma.call.findUnique({ where: { wsTicket: ticket } }).catch(() => null);
     if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
 
-    const mode = (call.mode as string) || 'quiet';
+    const mode = (call.presenceStyle as string) || 'quiet';
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.quiet;
 
     const sendToClient = (type: string, payload: object) => {
