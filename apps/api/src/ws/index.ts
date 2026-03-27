@@ -23,35 +23,46 @@ export function setupWebSocket(server: Server) {
     const ticket = url.searchParams.get('ticket');
     if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
-    const call = await prisma.call.findUnique({ where: { wsTicket: ticket } }).catch(() => null);
+    const call = await prisma.call.findUnique({ where: { wsTicket: ticket }, include: { session: true } });
     if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
 
-    const session = await prisma.session.findUnique({ where: { id: call.sessionId } }).catch(() => null);
-    const styleRaw = session?.presenceStyle?.toLowerCase().replace('_', '-') || 'quiet';
-    const style = ['quiet','check-ins','talk'].includes(styleRaw) ? styleRaw : 'quiet';
-    const systemPrompt = SYSTEM_PROMPTS[style] || SYSTEM_PROMPTS.quiet;
+    const mode = (call as any).presenceStyle || 'quiet';
+    const systemPrompt = SYSTEM_PROMPTS[mode] ?? SYSTEM_PROMPTS['quiet'];
+    const sessionId = call.session?.id ?? 'unknown';
 
-    console.log('[ws] connected, style:', style);
+    console.log('[ws] call:', call.id, '| mode:', mode, '| session:', sessionId);
 
-    const startTime = Date.now();
-    let isEnded = false;
-    let dgReady = false;
-    const audioBuffer: Buffer[] = [];
+    const dgKey = process.env.DEEPGRAM_API_KEY;
+    if (!dgKey) { clientWs.close(4003, 'missing_api_key'); return; }
 
-    const sendToClient = (type: string, payload: Record<string, unknown> = {}) => {
+    const sendToClient = (type: string, data?: Record<string, unknown>) => {
       if (clientWs.readyState === WS.OPEN) {
-        clientWs.send(JSON.stringify({ type, ...payload }));
+        clientWs.send(JSON.stringify({ type, ...data }));
       }
     };
 
-    // Direct WebSocket to Deepgram - bypasses SDK entirely
+    let dgReady = false;
+    let isEnded = false;
+    const audioBuffer: Buffer[] = [];
+
+    const endCall = () => {
+      if (isEnded) return;
+      isEnded = true;
+      try { dgWs.close(); } catch {}
+      try { clientWs.close(); } catch {}
+    };
+
+    // Open raw WebSocket to Deepgram (bypassing SDK EventEmitter issues)
     const dgWs = new WebSocket(DG_URL, {
-      headers: { 'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}` },
+      headers: { Authorization: `Token ${dgKey}` },
     });
 
     dgWs.on('open', () => {
-      console.log('[deepgram] connected - sending Settings');
+      console.log('[deepgram] connected');
 
+      // Build settings with CORRECT think field format per Deepgram API spec:
+      // - model goes INSIDE provider (not at think level)
+      // - use "prompt" not "instructions"
       const settings = {
         type: 'Settings',
         audio: {
@@ -63,9 +74,11 @@ export function setupWebSocket(server: Server) {
             provider: { type: 'deepgram', model: 'nova-2', language: 'en-GB' },
           },
           think: {
-            provider: { type: 'open_ai' },
-            model: 'gpt-4o-mini',
-            instructions: systemPrompt,
+            provider: {
+              type: 'open_ai',
+              model: 'gpt-4o-mini',
+            },
+            prompt: systemPrompt,
           },
           speak: {
             provider: { type: 'deepgram', model: 'aura-athena-en' },
@@ -73,6 +86,7 @@ export function setupWebSocket(server: Server) {
         },
       };
 
+      console.log('[deepgram] Settings:', JSON.stringify(settings, null, 2));
       dgWs.send(JSON.stringify(settings));
       console.log('[deepgram] Settings sent');
     });
@@ -143,42 +157,43 @@ export function setupWebSocket(server: Server) {
     });
 
     // Forward client audio to Deepgram
-    clientWs.on('message', (raw: Buffer, isBinary: boolean) => {
-      if (isBinary) {
-        if (dgReady && dgWs.readyState === WebSocket.OPEN) {
-          dgWs.send(raw);
-        } else {
-          audioBuffer.push(Buffer.from(raw));
-        }
+    clientWs.on('message', (data: Buffer, isBinary: boolean) => {
+      if (!isBinary) {
+        // JSON control message from client
+        try {
+          const msg = JSON.parse(data.toString());
+          console.log('[client] msg:', msg.type);
+          // Could handle client-side control messages here
+        } catch {}
         return;
       }
-      try {
-        const msg = JSON.parse(raw.toString());
-        if (msg.type === 'hangup') endCall();
-        else if (msg.type === 'ping') sendToClient('pong');
-        else if (msg.type === 'style_change' || msg.type === 'prefer_silence') {
-          const newStyle = msg.type === 'prefer_silence' ? 'quiet' : (msg.style || 'quiet');
-          const newPrompt = SYSTEM_PROMPTS[newStyle] || SYSTEM_PROMPTS.quiet;
-          if (dgReady && dgWs.readyState === WebSocket.OPEN) {
-            dgWs.send(JSON.stringify({ type: 'UpdateInstructions', instructions: newPrompt }));
-          }
-        }
-      } catch {}
+
+      // Binary = raw PCM audio from client microphone
+      if (dgReady && dgWs.readyState === WebSocket.OPEN) {
+        dgWs.send(data);
+      } else {
+        audioBuffer.push(data as Buffer);
+        if (audioBuffer.length > 500) audioBuffer.shift(); // cap buffer
+      }
     });
 
-    clientWs.on('close', () => endCall());
-    clientWs.on('error', (err) => console.error('[ws] client error:', err));
+    clientWs.on('close', () => {
+      console.log('[client] disconnected');
+      if (!isEnded) endCall();
+    });
 
-    async function endCall() {
-      if (isEnded) return;
-      isEnded = true;
-      try { dgWs.close(); } catch {}
-      const duration = Math.floor((Date.now() - startTime) / 1000);
-      await prisma.call.update({
-        where: { id: call!.id },
-        data: { endedAt: new Date(), durationSeconds: duration },
-      }).catch(() => {});
-      console.log('[ws] call ended, duration:', duration, 's');
-    }
+    clientWs.on('error', (err) => {
+      console.error('[client] error:', err);
+      if (!isEnded) endCall();
+    });
+
+    // Safety timeout
+    setTimeout(() => {
+      if (!dgReady && !isEnded) {
+        console.error('[ws] timeout: Deepgram never became ready');
+        sendToClient('error', { message: 'Connection timeout' });
+        endCall();
+      }
+    }, 15000);
   });
 }
