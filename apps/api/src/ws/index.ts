@@ -73,13 +73,24 @@ export function setupWebSocket(server: Server) {
           output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
         },
         agent: {
-          listen: { model: 'nova-2' },
+          listen: {
+            provider: {
+              type: 'deepgram',
+              model: 'nova-2',
+              language: 'en-GB',
+            },
+          },
           think: {
             provider: { type: 'open_ai' },
             model: 'gpt-4o-mini',
             prompt: systemPrompt,
           },
-          speak: { model: 'aura-athena-en' },
+          speak: {
+            provider: {
+              type: 'deepgram',
+              model: 'aura-athena-en',
+            },
+          },
         },
       };
 
