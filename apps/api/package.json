@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@deepgram/sdk": "^3.9.0",
+    "@deepgram/sdk": "^5.0.0",
     "@prisma/client": "^6.2.0",
     "@still-here/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
