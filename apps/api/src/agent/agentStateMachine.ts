@@ -14,10 +14,15 @@ export class AgentStateMachine {
   private currentMimeType = 'audio/l16';
   private checkInTimer: NodeJS.Timeout | null = null;
   private startTime = Date.now();
+  private hasGreeted = false;
+  private readonly voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+  private readonly modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
 
   constructor(private ws: WebSocket, private callId: string, private sessionId: string) {}
 
   async start() {
+    if (this.hasGreeted) return;
+    this.hasGreeted = true;
     this.send({ type: 'connected', state: this.state });
     await this.speak("Hi. I'm here.");
     await this.sleep(800);
@@ -48,6 +53,7 @@ export class AgentStateMachine {
     this.transition('THINKING');
     console.log('[stt] sending', audio.length, 'bytes to Deepgram');
     try {
+      console.time('[stt] transcribe');
       const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true&encoding=linear16&sample_rate=16000&channels=1', {
         method: 'POST',
         headers: {
@@ -57,6 +63,7 @@ export class AgentStateMachine {
         body: audio,
       });
       const json = await res.json() as any;
+      console.timeEnd('[stt] transcribe');
       if (!res.ok) { console.error('[stt] Deepgram error:', res.status, JSON.stringify(json)); this.transition('SILENT_PRESENCE'); return; }
       const transcript = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
       console.log('[stt] transcript:', JSON.stringify(transcript));
@@ -77,8 +84,12 @@ export class AgentStateMachine {
     this.clearCheckInTimer();
     this.transition('RESPONDING');
     try {
+      console.time('[llm] respond');
       const reply = await this.getLLMReply(transcript);
+      console.timeEnd('[llm] respond');
+      console.time('[tts] speak');
       await this.speak(reply);
+      console.timeEnd('[tts] speak');
     } catch (err) { console.error('[llm] error:', err); }
     this.transition('SILENT_PRESENCE');
     this.resetCheckInTimer();
@@ -105,18 +116,31 @@ export class AgentStateMachine {
 
   private async speak(text: string) {
     console.log('[tts] speaking:', text);
+    const start = Date.now();
     try {
-      const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + (process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB'), {
+      const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + this.voiceId + '/stream', {
         method: 'POST',
         headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY!, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5', voice_settings: { stability: 0.75, similarity_boost: 0.75, style: 0.0 } }),
+        body: JSON.stringify({
+          text,
+          model_id: this.modelId,
+          voice_settings: { stability: 0.75, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false },
+          output_format: 'mp3_44100_128',
+        }),
       });
       if (!res.ok) { console.error('[tts] error:', res.status, await res.text()); return; }
-      const buffer = Buffer.from(await res.arrayBuffer());
-      // Send entire audio as single base64 message - browser decodeAudioData
-      // needs complete MP3 data, not partial 4KB fragments
-      this.send({ type: 'audio_out', data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
+      // Stream chunks as they arrive instead of buffering entire response
+      const reader = res.body!.getReader();
+      let chunkIndex = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value && value.length > 0) {
+          this.send({ type: 'audio_out', data: Buffer.from(value).toString('base64'), mimeType: 'audio/mpeg', chunkIndex: chunkIndex++ });
+        }
+      }
       this.send({ type: 'audio_out_done' });
+      console.log('[tts] done in', Date.now() - start, 'ms');
     } catch (err) { console.error('[tts] error:', err); }
   }
 

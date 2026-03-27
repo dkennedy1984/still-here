@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { playAudioChunk } from "@/lib/audioPlayer";
+import { bufferAudioChunk, flushAudioBuffer } from "@/lib/audioPlayer";
 
 type AgentState = "IDLE" | "LISTENING" | "RESPONDING" | "CHECK_IN" | "";
 type SessionStatus = "connecting" | "active" | "ended" | "error";
@@ -112,12 +112,13 @@ export function useAudioSession(
           case "audio_out":
           case "audio":
             if (msg.data) {
-              playAudioChunk(msg.data);
+              bufferAudioChunk(msg.data);
             }
             break;
 
           case "audio_out_done":
-            // Agent finished sending audio for this response
+            // Agent finished streaming — decode and play the complete audio
+            flushAudioBuffer();
             break;
 
           case "remaining_seconds":
@@ -177,7 +178,7 @@ export function useAudioSession(
       const audioCtx = new AudioContext({ sampleRate: 16000 });
       audioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      const processor = audioCtx.createScriptProcessor(2048, 1, 1);
       processorRef.current = processor;
       source.connect(processor);
       processor.connect(audioCtx.destination);
