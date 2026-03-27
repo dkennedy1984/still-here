@@ -50,6 +50,12 @@ export class AgentStateMachine {
         headers: { 'Authorization': 'Token ' + process.env.DEEPGRAM_API_KEY, 'Content-Type': this.currentMimeType },
         body: audio,
       });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => 'unknown');
+        console.error('[stt] Deepgram API error:', res.status, errText);
+        this.transition('SILENT_PRESENCE');
+        return;
+      }
       const json = await res.json() as any;
       const transcript = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
       console.log('[stt] transcript:', JSON.stringify(transcript));
@@ -104,10 +110,9 @@ export class AgentStateMachine {
       });
       if (!res.ok) { console.error('[tts] error:', res.status, await res.text()); return; }
       const buffer = Buffer.from(await res.arrayBuffer());
-      const CHUNK = 4096;
-      for (let i = 0; i < buffer.length; i += CHUNK) {
-        this.send({ type: 'audio_out', data: buffer.subarray(i, i + CHUNK).toString('base64'), mimeType: 'audio/mpeg' });
-      }
+      // Send entire audio as single base64 message - browser decodeAudioData
+      // needs complete MP3 data, not partial 4KB fragments
+      this.send({ type: 'audio_out', data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
       this.send({ type: 'audio_out_done' });
     } catch (err) { console.error('[tts] error:', err); }
   }
