@@ -120,6 +120,9 @@ export class AgentStateMachine {
     console.log('[tts] speaking:', text);
     const start = Date.now();
     try {
+      // Stream from ElevenLabs to minimise server-side latency, but buffer the full
+      // response before forwarding. This keeps time-to-first-byte from ElevenLabs low
+      // while sending the client one complete, decodable MP3 blob (not fragmented frames).
       const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + this.voiceId + '/stream', {
         method: 'POST',
         headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY!, 'Content-Type': 'application/json' },
@@ -127,50 +130,29 @@ export class AgentStateMachine {
           text,
           model_id: this.modelId,
           voice_settings: { stability: 0.75, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false },
-          output_format: 'mp3_44100_128',
+          output_format: 'mp3_22050_32',
         }),
       });
       if (!res.ok) { console.error('[tts] error:', res.status, await res.text()); return; }
-      // Stream chunks as they arrive instead of buffering entire response
+      // Collect all stream chunks into one buffer — ElevenLabs streams fast to the server
+      // (low latency), but sending fragmented MP3 frames to the browser causes decodeAudioData
+      // to fail. One complete blob = one clean decode.
       const reader = res.body!.getReader();
-      let chunkIndex = 0;
+      const parts: Uint8Array[] = [];
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (value && value.length > 0) {
-          this.send({ type: 'audio_out', data: Buffer.from(value).toString('base64'), mimeType: 'audio/mpeg', chunkIndex: chunkIndex++ });
-        }
+        if (value && value.length > 0) parts.push(value);
       }
+      const totalLen = parts.reduce((n, p) => n + p.length, 0);
+      const buffer = Buffer.allocUnsafe(totalLen);
+      let off = 0;
+      for (const p of parts) { buffer.set(p, off); off += p.length; }
+      console.log('[tts] done in', Date.now() - start, 'ms, size:', buffer.length);
+      this.send({ type: 'audio_out', data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
       this.send({ type: 'audio_out_done' });
-      console.log('[tts] done in', Date.now() - start, 'ms');
     } catch (err) { console.error('[tts] error:', err); }
   }
-
-  setStyle(style: PresenceStyle) { this.style = style; this.resetCheckInTimer(); }
-
-  private resetCheckInTimer() {
-    this.clearCheckInTimer();
-    if (this.style !== 'check-ins') return;
-    const ms = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '1500000', 10);
-    this.checkInTimer = setTimeout(async () => {
-      if (this.state !== 'SILENT_PRESENCE') return;
-      await this.speak('Still here.');
-      this.resetCheckInTimer();
-    }, ms);
-  }
-
-  private clearCheckInTimer() { if (this.checkInTimer) { clearTimeout(this.checkInTimer); this.checkInTimer = null; } }
-
-  private transition(next: AgentState) {
-    console.log('[agent]', this.state, '->', next);
-    this.state = next;
-    this.send({ type: 'agent_state', state: next });
-  }
-
-  private send(payload: Record<string, unknown>) {
-    if (this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(payload));
-  }
-
   private sleep(ms: number) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
   async end() {
