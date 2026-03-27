@@ -27,42 +27,36 @@ export function setupWebSocket(server: Server) {
     if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
 
     const mode = (call as any).presenceStyle || 'quiet';
-    const systemPrompt = SYSTEM_PROMPTS[mode] ?? SYSTEM_PROMPTS['quiet'];
-    const sessionId = call.session?.id ?? 'unknown';
+    const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.quiet;
 
-    console.log('[ws] call:', call.id, '| mode:', mode, '| session:', sessionId);
+    console.log(`[ws] new connection, callId=${call.id}, mode=${mode}`);
 
-    const dgKey = process.env.DEEPGRAM_API_KEY;
-    if (!dgKey) { clientWs.close(4003, 'missing_api_key'); return; }
-
-    const sendToClient = (type: string, data?: Record<string, unknown>) => {
+    const sendToClient = (type: string, payload: Record<string, unknown> = {}) => {
       if (clientWs.readyState === WS.OPEN) {
-        clientWs.send(JSON.stringify({ type, ...data }));
+        clientWs.send(JSON.stringify({ type, ...payload }));
       }
     };
 
     let dgReady = false;
     let isEnded = false;
+    let agentSpeaking = false;
     const audioBuffer: Buffer[] = [];
 
     const endCall = () => {
       if (isEnded) return;
       isEnded = true;
+      sendToClient('call_ended');
       try { dgWs.close(); } catch {}
       try { clientWs.close(); } catch {}
     };
 
-    // Open raw WebSocket to Deepgram (bypassing SDK EventEmitter issues)
     const dgWs = new WebSocket(DG_URL, {
-      headers: { Authorization: `Token ${dgKey}` },
+      headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
     });
 
     dgWs.on('open', () => {
-      console.log('[deepgram] connected');
+      console.log('[deepgram] connected, sending settings');
 
-      // Build settings with CORRECT think field format per Deepgram API spec:
-      // - model goes INSIDE provider (not at think level)
-      // - use "prompt" not "instructions"
       const settings = {
         type: 'Settings',
         audio: {
@@ -93,8 +87,12 @@ export function setupWebSocket(server: Server) {
 
     dgWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
-        // Raw PCM audio from Deepgram - forward to client
-        const b64 = data.toString('base64');
+        console.log('[deepgram] binary audio frame, bytes:', (data as Buffer).length);
+        if (!agentSpeaking) {
+          agentSpeaking = true;
+          sendToClient('agent_state', { state: 'RESPONDING' });
+        }
+        const b64 = (data as Buffer).toString('base64');
         sendToClient('audio_out', { data: b64, mimeType: 'audio/l16', sampleRate: 16000 });
         return;
       }
@@ -120,7 +118,14 @@ export function setupWebSocket(server: Server) {
           case 'AgentStartedSpeaking':
             sendToClient('agent_state', { state: 'RESPONDING' });
             break;
+          case 'AgentAudioDone':
+            console.log('[deepgram] agent audio done - flushing to client');
+            agentSpeaking = false;
+            sendToClient('audio_out_done');
+            sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
+            break;
           case 'AgentFinishedSpeaking':
+            agentSpeaking = false;
             sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
             sendToClient('audio_out_done');
             break;
@@ -182,18 +187,6 @@ export function setupWebSocket(server: Server) {
       if (!isEnded) endCall();
     });
 
-    clientWs.on('error', (err) => {
-      console.error('[client] error:', err);
-      if (!isEnded) endCall();
-    });
-
-    // Safety timeout
-    setTimeout(() => {
-      if (!dgReady && !isEnded) {
-        console.error('[ws] timeout: Deepgram never became ready');
-        sendToClient('error', { message: 'Connection timeout' });
-        endCall();
-      }
-    }, 15000);
+    clientWs.on('error', (err) => console.error('[client] error:', err));
   });
 }
