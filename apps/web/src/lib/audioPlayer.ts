@@ -43,7 +43,7 @@ export function bufferAudioChunk(base64: string): void {
 
   const ctx = getAudioContext();
 
-  ctx.decodeAudioData(bytes.buffer).then((audioBuffer) => {
+  ctx.decodeAudioData(bytes.buffer as ArrayBuffer).then((audioBuffer) => {
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(ctx.destination);
