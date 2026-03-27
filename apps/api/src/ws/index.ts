@@ -24,39 +24,35 @@ export function setupWebSocket(server: Server) {
 
     if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
-    let call: { id: string; sessionId: string; presenceStyle?: string } | null = null;
+    let sessionId: string | null = null;
+    let sessionMode: string = 'quiet';
+    let systemPrompt: string = SYSTEM_PROMPTS.quiet;
+
     try {
-      call = await prisma.call.findUnique({ where: { wsTicket: ticket } });
-      if (!call) {
+      const session = await prisma.session.findUnique({
+        where: { ticket },
+        include: { user: true },
+      });
+
+      if (!session || session.expiresAt < new Date()) {
         console.warn('[ws] invalid or expired ticket');
         clientWs.close(4002, 'invalid_ticket');
         return;
       }
-      await prisma.call.update({ where: { id: call.id }, data: { wsTicket: call.id } });
 
-
-
-
-
-
+      sessionId = session.id;
+      sessionMode = session.mode || 'quiet';
+      systemPrompt = SYSTEM_PROMPTS[sessionMode] ?? SYSTEM_PROMPTS.quiet;
+      console.log('[ws] session validated, mode:', sessionMode);
     } catch (err: any) {
-      console.error('[ws] ticket validation error:', err.message);
-      clientWs.close(4000, 'internal_error');
+      console.error('[ws] session lookup error:', err.message);
+      clientWs.close(4004, 'session_error');
       return;
     }
 
-    const mode = call.presenceStyle ?? 'quiet';
-    const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.quiet;
-
-    const sendToClient = (type: string, payload: object) => {
-      if (clientWs.readyState === WebSocket.OPEN) {
-        clientWs.send(JSON.stringify({ type, ...payload }));
-      }
-    };
-
     const apiKey = process.env.DEEPGRAM_API_KEY;
     if (!apiKey) {
-      console.error('[deepgram] DEEPGRAM_API_KEY is not set');
+      console.error('[ws] DEEPGRAM_API_KEY not set');
       clientWs.close(4005, 'missing_api_key');
       return;
     }
@@ -70,6 +66,19 @@ export function setupWebSocket(server: Server) {
 
     let dgSocket: Awaited<ReturnType<InstanceType<typeof DeepgramClient>['agent']['v1']['connect']>> | null = null;
 
+    // --- Audio buffering: incoming client audio is buffered until the Deepgram
+    //     socket emits 'open' and settings have been sent. This prevents the
+    //     "Socket is not open" error that occurs when sendMedia is called before
+    //     the underlying WebSocket handshake completes. ---
+    let socketReady = false;
+    const audioBuffer: Buffer[] = [];
+
+    const sendToClient = (type: string, payload: Record<string, unknown>) => {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(JSON.stringify({ type, ...payload }));
+      }
+    };
+
     try {
       console.log('[deepgram] calling agent.v1.connect()...');
       dgSocket = await deepgram.agent.v1.connect({
@@ -78,9 +87,17 @@ export function setupWebSocket(server: Server) {
 
       console.log('[deepgram] V1Socket created');
       console.log('[deepgram] socket methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(dgSocket)));
+      console.log('[deepgram] ALL socket instance props:', Object.getOwnPropertyNames(dgSocket));
 
       dgSocket.on('open', () => {
         console.log('[deepgram] WebSocket open — sending settings (SDK v5 sendSettings)');
+
+        // Log all emittable events for debugging
+        try {
+          const emitter = (dgSocket as any);
+          const eventNames = typeof emitter.eventNames === 'function' ? emitter.eventNames() : [];
+          console.log('[deepgram] current event listeners:', JSON.stringify(eventNames));
+        } catch {}
 
         // AgentV1Settings shape (SDK v5, verified from source):
         //   type: "Settings"  ← REQUIRED
@@ -122,8 +139,28 @@ export function setupWebSocket(server: Server) {
         console.log('[deepgram] sendSettings payload type:', settings.type);
         dgSocket!.sendSettings(settings as any);
         console.log('[deepgram] settings sent');
+
+        // Mark socket as ready and flush any audio that arrived before open
+        socketReady = true;
+        console.log('[deepgram] socket ready — flushing', audioBuffer.length, 'buffered audio chunks');
+        for (const chunk of audioBuffer) {
+          dgSocket!.sendMedia(chunk as unknown as ArrayBufferView);
+        }
+        audioBuffer.length = 0;
+
         sendToClient('connected', { state: 'GREETING' });
       });
+
+      // Wildcard event logger to discover all emitted event names
+      const originalEmit = (dgSocket as any).emit?.bind(dgSocket);
+      if (originalEmit) {
+        (dgSocket as any).emit = (event: string, ...args: any[]) => {
+          if (event !== 'open' && event !== 'close' && event !== 'error') {
+            console.log('[deepgram] event emitted:', event, '| data type:', typeof args[0], '| preview:', JSON.stringify(args[0])?.substring(0, 120));
+          }
+          return originalEmit(event, ...args);
+        };
+      }
 
       dgSocket.on('message', (msg) => {
         // In SDK v5, the message event receives PARSED JSON objects (fromJson is called internally).
@@ -213,10 +250,16 @@ export function setupWebSocket(server: Server) {
 
     clientWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
-        // Forward raw PCM audio from client → Deepgram using sendMedia (proper SDK v5 API)
-        if (dgSocket) {
+        // Forward raw PCM audio from client → Deepgram using sendMedia (proper SDK v5 API).
+        // If the Deepgram socket is not yet ready, buffer the audio chunk so it can be
+        // flushed once the 'open' event fires. This prevents "Socket is not open" errors
+        // that occur when audio arrives before the WebSocket handshake completes.
+        if (socketReady && dgSocket) {
           console.log('[client] binary audio received, bytes:', (data as Buffer).length, '— forwarding via sendMedia');
           dgSocket.sendMedia(data as unknown as ArrayBufferView);
+        } else {
+          console.log('[client] binary audio received before socket ready, bytes:', (data as Buffer).length, '— buffering');
+          audioBuffer.push(data as Buffer);
         }
       } else {
         // Control messages from client
@@ -238,6 +281,9 @@ export function setupWebSocket(server: Server) {
         try { dgSocket.close(); } catch {}
         dgSocket = null;
       }
+      // Clear any pending buffered audio
+      audioBuffer.length = 0;
+      socketReady = false;
     });
 
     clientWs.on('error', (err) => {
