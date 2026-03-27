@@ -11,7 +11,7 @@ interface PresenceOrbProps {
 export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   const [mounted, setMounted] = useState(false);
   const [beatPhase, setBeatPhase] = useState(0);
-  const animRef = useRef<number>();
+  const animRef = useRef<number>(0);
   const startRef = useRef(Date.now());
 
   useEffect(() => {
