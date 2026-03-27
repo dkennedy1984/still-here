@@ -65,6 +65,7 @@ export function setupWebSocket(server: Server) {
     //     WebSocket is confirmed open and Settings have been sent. ---
     let socketReady = false;
     const audioBuffer: Buffer[] = [];
+    let dgSocket: any;
 
     const sendToClient = (type: string, payload: Record<string, unknown> = {}) => {
       if (clientWs.readyState === WebSocket.OPEN) {
@@ -131,7 +132,7 @@ export function setupWebSocket(server: Server) {
 
     try {
       console.log('[deepgram] calling agent.v1.connect()...');
-      const dgSocket = deepgram.agent.v1.connect();
+      dgSocket = deepgram.agent.v1.connect({} as any);
       console.log('[deepgram] V1Socket created');
       console.log('[deepgram] socket instance props:', Object.getOwnPropertyNames(dgSocket));
       console.log('[deepgram] socket methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(dgSocket)));
