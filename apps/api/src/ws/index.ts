@@ -24,8 +24,26 @@ export function setupWebSocket(server: Server) {
 
     if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
-    const call = await prisma.call.findUnique({ where: { wsTicket: ticket } }).catch(() => null);
-    if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
+    let call: { id: string; userId: string; presenceStyle?: string } | null = null;
+    try {
+      const wsTicket = await prisma.wsTicket.findUnique({ where: { token: ticket } });
+      if (!wsTicket || wsTicket.expiresAt < new Date()) {
+        console.warn('[ws] invalid or expired ticket');
+        clientWs.close(4002, 'invalid_ticket');
+        return;
+      }
+      call = await prisma.call.findUnique({ where: { id: wsTicket.callId } });
+      if (!call) {
+        console.warn('[ws] call not found');
+        clientWs.close(4004, 'call_not_found');
+        return;
+      }
+      await prisma.wsTicket.delete({ where: { token: ticket } });
+    } catch (err: any) {
+      console.error('[ws] ticket validation error:', err.message);
+      clientWs.close(4000, 'internal_error');
+      return;
+    }
 
     const mode = call.presenceStyle ?? 'quiet';
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS.quiet;
@@ -43,88 +61,97 @@ export function setupWebSocket(server: Server) {
       return;
     }
 
+    // SDK v5: DefaultDeepgramClient is now called DeepgramClient (Fern-generated)
+    // Access pattern: deepgram.agent.v1.connect({ Authorization: 'Token KEY' }) → V1Socket
+    const deepgram = new DeepgramClient({ apiKey });
+    console.log('[deepgram] DeepgramClient created');
+    console.log('[deepgram] agent methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(deepgram.agent)));
+    console.log('[deepgram] agent.v1 methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(deepgram.agent.v1)));
+
     let dgSocket: Awaited<ReturnType<InstanceType<typeof DeepgramClient>['agent']['v1']['connect']>> | null = null;
 
     try {
-      const deepgram = new DeepgramClient({ apiKey });
-
-      console.log('[deepgram] connecting via SDK v5...');
+      console.log('[deepgram] calling agent.v1.connect()...');
       dgSocket = await deepgram.agent.v1.connect({
         Authorization: `Token ${apiKey}`,
       });
 
-      dgSocket.on('open', () => {
-        console.log('[deepgram] WebSocket open — sending settings');
+      console.log('[deepgram] V1Socket created');
+      console.log('[deepgram] socket methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(dgSocket)));
 
-        dgSocket!.sendSettings({
+      dgSocket.on('open', () => {
+        console.log('[deepgram] WebSocket open — sending settings (SDK v5 sendSettings)');
+
+        // AgentV1Settings shape (SDK v5, verified from source):
+        //   type: "Settings"  ← REQUIRED
+        //   audio: { input: { encoding, sample_rate }, output: { encoding, sample_rate, container } }
+        //   agent: {
+        //     listen: { provider: { type: "deepgram", model?, version? } }
+        //     think: { provider: { type: "open_ai", model }, prompt? }
+        //     speak: { provider: { type: "deepgram", model } }
+        //   }
+        const settings = {
+          type: 'Settings' as const,
           audio: {
-            input: { encoding: 'linear16', sample_rate: 16000 },
-            output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
+            input: { encoding: 'linear16' as const, sample_rate: 16000 },
+            output: { encoding: 'linear16' as const, sample_rate: 16000, container: 'none' as const },
           },
           agent: {
             listen: {
               provider: {
-                type: 'deepgram',
+                type: 'deepgram' as const,
                 model: 'nova-2',
               },
             },
             think: {
               provider: {
-                type: 'open_ai',
+                type: 'open_ai' as const,
                 model: 'gpt-4o-mini',
               },
               prompt: systemPrompt,
             },
             speak: {
               provider: {
-                type: 'deepgram',
+                type: 'deepgram' as const,
                 model: 'aura-athena-en',
               },
             },
           },
-        } as any);
+        };
 
+        console.log('[deepgram] sendSettings payload type:', settings.type);
+        dgSocket!.sendSettings(settings as any);
         console.log('[deepgram] settings sent');
         sendToClient('connected', { state: 'GREETING' });
       });
 
       dgSocket.on('message', (msg) => {
-        // Binary audio frames come through as Buffer/Uint8Array
-        if (msg instanceof Buffer || msg instanceof Uint8Array) {
-          const buf = Buffer.from(msg);
-          console.log('[deepgram] audio chunk received, bytes:', buf.length);
-          if (clientWs.readyState === WebSocket.OPEN && buf.length > 0) {
-            const b64 = buf.toString('base64');
-            sendToClient('audio_out', { data: b64, mimeType: 'audio/l16', sampleRate: 16000 });
-          }
-          return;
-        }
-
-        // Typed JSON messages
+        // In SDK v5, the message event receives PARSED JSON objects (fromJson is called internally).
+        // Binary audio frames DO NOT come through this event — they come through the underlying socket.
+        // All messages here are typed JSON objects from Deepgram.
         const data = msg as any;
-        const msgType: string = typeof data === 'string' ? JSON.parse(data).type : data?.type ?? '';
-        const payload = typeof data === 'string' ? JSON.parse(data) : data;
-
-        console.log('[deepgram] message:', msgType, JSON.stringify(payload));
+        const msgType: string = data?.type ?? (typeof data === 'string' ? JSON.parse(data)?.type : '');
+        console.log('[deepgram] message event type:', msgType, '| raw:', JSON.stringify(data)?.substring(0, 200));
 
         if (msgType === 'Welcome') {
-          console.log('[deepgram] session welcomed');
+          console.log('[deepgram] session welcomed — agent is ready');
         } else if (msgType === 'SettingsApplied') {
-          console.log('[deepgram] settings applied — injecting greeting');
+          console.log('[deepgram] settings applied — injecting greeting after 500ms');
           setTimeout(() => {
             if (dgSocket) {
-              dgSocket.sendInjectAgentMessage({ message: GREETING } as any);
-              console.log('[deepgram] greeting injected');
+              // AgentV1InjectAgentMessage requires { type: "InjectAgentMessage", message: string }
+              dgSocket.sendInjectAgentMessage({ type: 'InjectAgentMessage', message: GREETING });
+              console.log('[deepgram] greeting injected:', GREETING);
             }
           }, 500);
         } else if (msgType === 'ConversationText') {
-          const role = payload.role;
-          const content = payload.content;
+          const role = data?.role;
+          const content = data?.content;
           if (role === 'user') {
             console.log('[deepgram] user said:', content);
             const lower = (content || '').toLowerCase();
             if (SAFETY_KEYWORDS.some(kw => lower.includes(kw))) {
-              console.log('[deepgram] SAFETY keyword detected');
+              console.warn('[deepgram] SAFETY keyword detected in user speech');
               sendToClient('safety_alert', { message: content });
             }
           } else if (role === 'assistant') {
@@ -137,8 +164,10 @@ export function setupWebSocket(server: Server) {
         } else if (msgType === 'AgentAudioDone') {
           sendToClient('agent_done', {});
         } else if (msgType === 'Error') {
-          console.error('[deepgram] error message:', JSON.stringify(payload));
-          sendToClient('error', { message: JSON.stringify(payload) });
+          console.error('[deepgram] error message:', JSON.stringify(data));
+          sendToClient('error', { message: JSON.stringify(data) });
+        } else {
+          console.log('[deepgram] unhandled message type:', msgType);
         }
       });
 
@@ -155,6 +184,27 @@ export function setupWebSocket(server: Server) {
         }
       });
 
+      // Also listen on the underlying WebSocket for binary audio frames.
+      // SDK v5 routes JSON messages through dgSocket.on('message'), but raw binary
+      // audio from the agent (TTS output) may come through the underlying socket.
+      const underlyingSocket = (dgSocket as any).socket;
+      if (underlyingSocket) {
+        console.log('[deepgram] attaching binary audio listener to underlying socket');
+        underlyingSocket.addEventListener('message', (event: any) => {
+          const raw = event.data;
+          if (raw instanceof ArrayBuffer || Buffer.isBuffer(raw) || raw instanceof Uint8Array) {
+            const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+            console.log('[deepgram] binary audio chunk received, bytes:', buf.length);
+            if (clientWs.readyState === WebSocket.OPEN && buf.length > 0) {
+              const b64 = buf.toString('base64');
+              sendToClient('audio_out', { data: b64, mimeType: 'audio/l16', sampleRate: 16000 });
+            }
+          }
+        });
+      } else {
+        console.warn('[deepgram] no underlying socket found for binary audio — audio output may not work');
+      }
+
     } catch (err: any) {
       console.error('[deepgram] failed to connect:', err.message);
       clientWs.close(4003, 'deepgram_connect_failed');
@@ -163,9 +213,10 @@ export function setupWebSocket(server: Server) {
 
     clientWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
-        // Forward raw PCM audio from client to Deepgram
+        // Forward raw PCM audio from client → Deepgram using sendMedia (proper SDK v5 API)
         if (dgSocket) {
-          (dgSocket as any).sendBinary(data as any);
+          console.log('[client] binary audio received, bytes:', (data as Buffer).length, '— forwarding via sendMedia');
+          dgSocket.sendMedia(data as unknown as ArrayBufferView);
         }
       } else {
         // Control messages from client
@@ -173,18 +224,19 @@ export function setupWebSocket(server: Server) {
           const msg = JSON.parse(data.toString()) as { type: string };
           console.log('[client] message:', msg.type);
           if (msg.type === 'disconnect') {
-            clientWs.close();
+            clientWs.close(1000, 'client_disconnect');
           }
         } catch {
-          // ignore unparseable client messages
+          console.warn('[client] failed to parse message');
         }
       }
     });
 
-    clientWs.on('close', () => {
-      console.log('[ws] client disconnected');
+    clientWs.on('close', (code, reason) => {
+      console.log('[ws] client disconnected:', code, reason.toString());
       if (dgSocket) {
-        dgSocket.socket.close();
+        try { dgSocket.close(); } catch {}
+        dgSocket = null;
       }
     });
 
