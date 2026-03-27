@@ -11,7 +11,7 @@ export class AgentStateMachine {
   private style: PresenceStyle = 'quiet';
   private audioChunks: Buffer[] = [];
   private audioTimer: NodeJS.Timeout | null = null;
-  private currentMimeType = 'audio/webm;codecs=opus';
+  private currentMimeType = 'audio/l16';
   private checkInTimer: NodeJS.Timeout | null = null;
   private startTime = Date.now();
 
@@ -48,11 +48,11 @@ export class AgentStateMachine {
     this.transition('THINKING');
     console.log('[stt] sending', audio.length, 'bytes to Deepgram');
     try {
-      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true&encoding=opus&container=webm&sample_rate=48000&channels=1', {
+      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true&encoding=linear16&sample_rate=16000&channels=1', {
         method: 'POST',
         headers: {
           'Authorization': 'Token ' + process.env.DEEPGRAM_API_KEY,
-          'Content-Type': 'audio/webm',
+          'Content-Type': 'audio/l16',
         },
         body: audio,
       });
@@ -98,7 +98,9 @@ export class AgentStateMachine {
       }),
     });
     const json = await res.json() as any;
-    return json.choices?.[0]?.message?.content?.trim() || "I am here.";
+    if (!res.ok) { console.error('[llm] OpenAI error:', res.status, JSON.stringify(json)); }
+    console.log('[llm] response:', JSON.stringify(json.choices?.[0]?.message?.content));
+    return json.choices?.[0]?.message?.content?.trim() || "I hear you. I'm still here.";
   }
 
   private async speak(text: string) {

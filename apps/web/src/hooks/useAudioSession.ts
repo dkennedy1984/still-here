@@ -34,7 +34,9 @@ export function useAudioSession(
   });
 
   const wsRef = useRef<WebSocket | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const keepaliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const isSpeakingRef = useRef(false);
@@ -151,9 +153,17 @@ export function useAudioSession(
         wsRef.current.close();
         wsRef.current = null;
       }
-      if (recorderRef.current && recorderRef.current.state !== "inactive") {
-        recorderRef.current.stop();
-        recorderRef.current.stream.getTracks().forEach((t) => t.stop());
+      if (processorRef.current) {
+        processorRef.current.disconnect();
+        processorRef.current = null;
+      }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+        audioCtxRef.current = null;
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
       }
     };
   }, [callId, wsTicket]);
@@ -161,66 +171,55 @@ export function useAudioSession(
   async function startMicCapture(ws: WebSocket) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-      // Set up AnalyserNode for Voice Activity Detection
-      const audioCtx = new AudioContext();
+      // Create AudioContext at 16kHz for LINEAR16 PCM
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      audioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+
+      // VAD analyser
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0.3;
+      analyser.fftSize = 256;
       source.connect(analyser);
       analyserRef.current = analyser;
+      let isSpeaking = false;
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-      // Start a VAD polling loop
-      const dataArray = new Float32Array(analyser.fftSize);
-      let wasSpeaking = false;
-      function checkVAD() {
-        if (!analyserRef.current) return;
-        analyserRef.current.getFloatTimeDomainData(dataArray);
-        // Calculate RMS energy
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i] * dataArray[i];
+      processor.onaudioprocess = (e) => {
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+        // VAD check
+        analyser.getByteFrequencyData(dataArray);
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        const speaking = avg > 15;
+
+        if (speaking && !isSpeaking) {
+          isSpeaking = true;
+          isSpeakingRef.current = true;
+          wsRef.current.send(JSON.stringify({ type: 'speech_start' }));
+        } else if (!speaking && isSpeaking) {
+          isSpeaking = false;
+          isSpeakingRef.current = false;
+          wsRef.current.send(JSON.stringify({ type: 'speech_end' }));
         }
-        const rms = Math.sqrt(sum / dataArray.length);
-        const speaking = rms > VAD_THRESHOLD;
-        isSpeakingRef.current = speaking;
-        if (speaking && !wasSpeaking) { wasSpeaking = true; if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'speech_start' })); }
-        else if (!speaking && wasSpeaking) { wasSpeaking = false; if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'speech_end' })); }
-        requestAnimationFrame(checkVAD);
-      }
-      checkVAD();
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
+        // Only send audio when speaking
+        if (!isSpeaking && !speaking) return;
 
-      const recorder = new MediaRecorder(stream, { mimeType });
-      recorderRef.current = recorder;
-
-      recorder.ondataavailable = async (e) => {
-        if (e.data.size === 0) return;
-        if (ws.readyState !== WebSocket.OPEN) return;
-
-        // Only send audio when VAD detects speech
-        if (!isSpeakingRef.current) return;
-
-        console.log("[audio] sending chunk, size:", e.data.size);
-
-        const buffer = await e.data.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-
-        console.log("[ws] sending audio_chunk");
-        ws.send(
-          JSON.stringify({
-            type: "audio_chunk",
-            data: base64,
-            mimeType,
-          })
-        );
+        // Convert float32 to int16 PCM
+        const float32 = e.inputBuffer.getChannelData(0);
+        const int16 = new Int16Array(float32.length);
+        for (let i = 0; i < float32.length; i++) {
+          int16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+        }
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(int16.buffer)));
+        wsRef.current.send(JSON.stringify({ type: 'audio_chunk', data: base64, mimeType: 'audio/l16' }));
       };
-
-      recorder.start(250); // send chunks every 250ms
     } catch (err) {
       console.error("[useAudioSession] Microphone access denied or unavailable:", err);
       setState((prev) => ({
@@ -236,9 +235,17 @@ export function useAudioSession(
       wsRef.current.send(JSON.stringify({ type: "hangup" }));
       wsRef.current.close();
     }
-    if (recorderRef.current && recorderRef.current.state !== "inactive") {
-      recorderRef.current.stop();
-      recorderRef.current.stream.getTracks().forEach((t) => t.stop());
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     }
     if (analyserRef.current) {
       analyserRef.current = null;
