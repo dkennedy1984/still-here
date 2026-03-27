@@ -29,19 +29,19 @@ export function setupWebSocket(server: Server) {
     let systemPrompt: string = SYSTEM_PROMPTS.quiet;
 
     try {
-      const session = await prisma.session.findUnique({
-        where: { ticket },
-        include: { user: true },
+      const call = await prisma.call.findUnique({
+        where: { wsTicket: ticket },
+        include: { session: true },
       });
 
-      if (!session || session.expiresAt < new Date()) {
+      if (!call) {
         console.warn('[ws] invalid or expired ticket');
         clientWs.close(4002, 'invalid_ticket');
         return;
       }
 
-      sessionId = session.id;
-      sessionMode = session.mode || 'quiet';
+      sessionId = call.session.id;
+      sessionMode = call.presenceStyle || 'quiet';
       systemPrompt = SYSTEM_PROMPTS[sessionMode] ?? SYSTEM_PROMPTS.quiet;
       console.log('[ws] session validated, mode:', sessionMode);
     } catch (err: any) {
