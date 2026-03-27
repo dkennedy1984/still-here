@@ -28,13 +28,10 @@ export class AgentStateMachine {
 
   handleAudio(chunk: Buffer, mimeType: string) {
     if (this.state === 'ENDED' || this.state === 'RESPONDING') return;
-    // Skip very small chunks (likely silence or empty frames)
-    if (chunk.length < 200) return;
     this.audioChunks.push(chunk);
     this.currentMimeType = mimeType;
-    if (this.state !== 'LISTENING') this.transition('LISTENING');
     if (this.audioTimer) clearTimeout(this.audioTimer);
-    this.audioTimer = setTimeout(() => this.flushAudio(), 1500);
+    this.audioTimer = setTimeout(() => this.flushAudio(), 3000);
   }
 
   private async flushAudio() {
@@ -42,26 +39,25 @@ export class AgentStateMachine {
     if (this.state === 'ENDED' || this.state === 'RESPONDING') return;
     const audio = Buffer.concat(this.audioChunks);
     this.audioChunks = [];
+    if (audio.length < 5000) { this.transition('LISTENING'); return; }
     this.transition('THINKING');
     console.log('[stt] sending', audio.length, 'bytes to Deepgram');
     try {
-      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true', {
+      const res = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true&encoding=opus&container=webm&sample_rate=48000&channels=1', {
         method: 'POST',
-        headers: { 'Authorization': 'Token ' + process.env.DEEPGRAM_API_KEY, 'Content-Type': this.currentMimeType },
+        headers: {
+          'Authorization': 'Token ' + process.env.DEEPGRAM_API_KEY,
+          'Content-Type': 'audio/webm',
+        },
         body: audio,
       });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => 'unknown');
-        console.error('[stt] Deepgram API error:', res.status, errText);
-        this.transition('SILENT_PRESENCE');
-        return;
-      }
       const json = await res.json() as any;
+      if (!res.ok) { console.error('[stt] Deepgram error:', res.status, JSON.stringify(json)); this.transition('SILENT_PRESENCE'); return; }
       const transcript = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript?.trim() || '';
       console.log('[stt] transcript:', JSON.stringify(transcript));
       if (transcript) { await this.onTranscript(transcript); } else { this.transition('LISTENING'); }
     } catch (err) {
-      console.error('[stt] error:', err);
+      console.error('[stt] fetch error:', err);
       this.transition('SILENT_PRESENCE');
     }
   }
