@@ -71,9 +71,9 @@ export default function HomePage() {
 
       {showSheet && (
         <PresenceStyleSheet
-          current={presenceStyle}
-          onChange={(s) => {
-            setPresenceStyle(s as "silent" | "check-ins" | "talk");
+          selected={presenceStyle}
+          onSelect={(s) => {
+            setPresenceStyle(s);
             setShowSheet(false);
           }}
           onClose={() => setShowSheet(false)}
