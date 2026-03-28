@@ -76,7 +76,7 @@ export function setupWebSocket(server: Server) {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'mp3', sample_rate: 24000, bitrate: 48000 },
+          output: { encoding: 'linear16', sample_rate: 16000 },
         },
         agent: {
           listen: {
@@ -105,7 +105,7 @@ export function setupWebSocket(server: Server) {
         console.log('[deepgram] BINARY AUDIO received, bytes:', data.length);
         // Compressed mp3 audio from Deepgram - forward to client
         const b64 = data.toString('base64');
-        sendToClient('audio_out', { data: b64, mimeType: 'audio/mpeg' });
+        sendToClient('audio_out', { data: b64, mimeType: 'audio/l16' });
         return;
       }
 
