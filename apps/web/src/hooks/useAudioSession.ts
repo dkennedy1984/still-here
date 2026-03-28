@@ -23,6 +23,7 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const connectedRef = useRef(false); // prevent double WebSocket connection
   const wasConnectedRef = useRef(false); // track whether we ever reached 'connected' state
+  const wakeLockRef = useRef<any>(null);
   const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [agentState, setAgentState] = useState<AgentState>('GREETING');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -133,11 +134,10 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
         console.log('[useAudioSession] mic active, status=connected');
 
         // Keep screen awake during call
-        let wakeLock: any = null;
         if ('wakeLock' in navigator) {
           (navigator as any).wakeLock.request('screen')
             .then((wl: any) => {
-              wakeLock = wl;
+              wakeLockRef.current = wl;
               console.log('[wakelock] screen wake lock acquired');
             })
             .catch((err: Error) => console.log('[wakelock] not available:', err.message));
@@ -198,8 +198,9 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
       sourceRef.current?.disconnect();
       streamRef.current?.getTracks().forEach(track => track.stop());
       audioCtxRef.current?.close().catch(() => {});
-      if (wakeLock) {
-        wakeLock.release().catch(() => {});
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
         console.log('[wakelock] released');
       }
       ws.close();
