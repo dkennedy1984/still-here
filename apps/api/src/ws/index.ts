@@ -215,6 +215,12 @@ export function setupWebSocket(server: Server) {
           resetCheckInTimer();
           // Use ElevenLabs for greeting instead of Deepgram TTS
           speakWithElevenLabs(GREETING).catch(err => console.error('[tts] greeting error:', err));
+          // Clear greeting mute after ElevenLabs greeting audio finishes playing
+          // Estimate ~4 seconds for greeting + 1 second echo buffer
+          setTimeout(() => {
+            greetingPlaying = false;
+            console.log('[dg] greeting echo window closed, now accepting speech');
+          }, 5000);
           break;
 
         case 'UserStartedSpeaking':
@@ -233,10 +239,6 @@ export function setupWebSocket(server: Server) {
           break;
 
         case 'AgentAudioDone':
-          if (greetingPlaying) {
-            // Greeting finished playing — wait 1s for echo to die down before accepting speech
-            setTimeout(() => { greetingPlaying = false; console.log('[dg] greeting echo window closed, now accepting speech'); }, 1000);
-          }
           // ElevenLabs handles audio completion
           break;
 
