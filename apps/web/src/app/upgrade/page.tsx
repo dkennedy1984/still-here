@@ -73,7 +73,8 @@ export default function UpgradePage() {
         Be here, whenever you need.
       </h1>
 
-      <ul className="space-y-4 text-left w-full max-w-xs mx-auto mb-8">
+      <div className="flex justify-center">
+        <ul className="space-y-3">
         {[
           "Up to 60 minutes together per session",
           "Gentle support if you ask for it",
@@ -85,6 +86,7 @@ export default function UpgradePage() {
           </li>
         ))}
       </ul>
+      </div>
 
       <div className="text-center mt-10 mb-8">
         <p className="text-lg text-slate-300">£8 per month</p>
