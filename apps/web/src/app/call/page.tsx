@@ -20,7 +20,7 @@ function CallPageInner() {
   // the user hears audio, no matter how many chunks there are.
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
 
-  const { state, hangup, changeStyle, preferSilence } = useAudioSession({
+  const { state, hangup, changeStyle } = useAudioSession({
     callId,
     wsTicket: ticket,
     presenceStyle,
@@ -89,12 +89,6 @@ function CallPageInner() {
             End Call
           </button>
 
-          <button
-            onClick={() => { console.log("[call/page] preferSilence clicked"); preferSilence(); }}
-            className="w-full rounded-full bg-slate-700 px-6 py-4 text-base font-medium text-slate-200 transition-all duration-200 hover:bg-slate-600 active:scale-[0.98]"
-          >
-            Prefer Silence
-          </button>
 
           <div className="flex gap-3">
             {(["quiet", "check-ins", "talk"] as const).map((style) => (
@@ -108,7 +102,7 @@ function CallPageInner() {
                     : "bg-slate-700 text-slate-300 hover:bg-slate-600"
                 )}
               >
-                {style}
+                {style === 'quiet' ? 'Quiet' : style === 'check-ins' ? 'Check-ins' : 'Talk'}
               </button>
             ))}
           </div>
