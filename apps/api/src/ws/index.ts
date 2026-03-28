@@ -88,6 +88,7 @@ export function setupWebSocket(server: Server) {
     let checkInTimer: ReturnType<typeof setTimeout> | null = null;
     let speakTimeout: ReturnType<typeof setTimeout> | null = null;
     let pendingText = '';
+    let isSpeakingTTS = false;
     let currentStyle = mode;
     const audioBuffer: Buffer[] = [];
 
@@ -108,6 +109,7 @@ export function setupWebSocket(server: Server) {
       const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
       if (!apiKey) { console.error('[tts] ELEVENLABS_API_KEY not set'); return; }
 
+      isSpeakingTTS = true;
       sendToClient('agent_state', { state: 'RESPONDING' });
       try {
         const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -129,11 +131,14 @@ export function setupWebSocket(server: Server) {
         if (!res.ok) { console.error('[tts] ElevenLabs error:', res.status); return; }
         const buffer = Buffer.from(await res.arrayBuffer());
         console.log('[tts] ElevenLabs audio bytes:', buffer.length);
-        sendToClient('audio_out', { data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
-        sendToClient('audio_out_done');
+        if (isSpeakingTTS) {
+          sendToClient('audio_out', { data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
+          sendToClient('audio_out_done');
+        }
       } catch (err) {
         console.error('[tts] fetch error:', err);
       } finally {
+        isSpeakingTTS = false;
         sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
       }
     }
@@ -202,6 +207,13 @@ export function setupWebSocket(server: Server) {
           break;
 
         case 'UserStartedSpeaking':
+          console.log('[dg] user started speaking');
+          // Stop any TTS in progress - barge-in
+          if (isSpeakingTTS) {
+            console.log('[dg] barge-in: stopping TTS playback');
+            sendToClient('audio_stop'); // tell client to stop playing
+            isSpeakingTTS = false;
+          }
           sendToClient('agent_state', { state: 'LISTENING' });
           break;
 
@@ -225,7 +237,7 @@ export function setupWebSocket(server: Server) {
                 console.log('[tts] speaking via ElevenLabs:', textToSpeak.substring(0, 60));
                 speakWithElevenLabs(textToSpeak).catch(err => console.error('[tts] error:', err));
               }
-            }, 150);
+            }, 400);
           }
           if (msg.role === 'user' && msg.content) {
             const userText = String(msg.content);

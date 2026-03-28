@@ -23,6 +23,13 @@ export function setAudioCallbacks(onStart: () => void, onEnd: () => void) {
   onEndCb = onEnd;
 }
 
+export function stopAudioPlayback() {
+  chunkBuffer = [];
+  isPlaying = false;
+  playQueue = Promise.resolve();
+  onEndCb?.();
+}
+
 export function resetAudioPlayer() {
   chunkBuffer = [];
   isPlaying = false;

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks } from '../lib/audioPlayer';
+import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks, stopAudioPlayback } from '../lib/audioPlayer';
 
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'ended' | 'error';
 type AgentState = 'GREETING' | 'SILENT_PRESENCE' | 'LISTENING' | 'THINKING' | 'RESPONDING' | 'ENDED';
@@ -133,6 +133,9 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
             break;
           case 'audio_out_done':
             await flushAudioBuffer();
+            break;
+          case 'audio_stop':
+            stopAudioPlayback();
             break;
           case 'time_remaining':
             setRemainingSeconds(msg.seconds as number);
