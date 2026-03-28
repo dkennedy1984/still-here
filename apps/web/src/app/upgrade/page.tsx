@@ -161,6 +161,10 @@ export default function UpgradePage() {
           </form>
         )}
       </div>
+
+      <p className="text-xs text-slate-600 mt-8">
+        Need help? <a href="mailto:support@sitwithyou.app" className="text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2">support@sitwithyou.app</a>
+      </p>
     </main>
   );
 }

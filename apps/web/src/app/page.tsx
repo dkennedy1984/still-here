@@ -32,6 +32,13 @@ function HomePageContent() {
 
   const searchParams = useSearchParams();
   const upgraded = searchParams?.get("upgraded") === "true";
+  const [showUpgraded, setShowUpgraded] = useState(upgraded);
+  useEffect(() => {
+    if (upgraded) {
+      const t = setTimeout(() => setShowUpgraded(false), 8000);
+      return () => clearTimeout(t);
+    }
+  }, [upgraded]);
 
 
   useEffect(() => {
@@ -63,9 +70,13 @@ function HomePageContent() {
 
   return (
     <main className="min-h-screen flex flex-col bg-slate-950 px-6">
-      {upgraded && (
-        <div className="absolute top-8 left-0 right-0 text-center text-sm text-green-400/80 animate-fade-in z-10">
-          You're all set. I'm here whenever you need.
+      {showUpgraded && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-fade-in z-10">
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-400/10 border border-green-400/20">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-sm text-green-400/90">You're all set</span>
+          </div>
+          <p className="text-xs text-slate-500">I'm here whenever you need.</p>
         </div>
       )}
 

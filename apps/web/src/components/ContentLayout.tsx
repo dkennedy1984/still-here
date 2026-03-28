@@ -108,8 +108,14 @@ export function ContentLayout({ children, sources, ctaButton = "I'm ready", ctaM
           )}
 
           {/* Footer */}
-          <footer className="mt-16 pt-8 border-t border-white/5 text-xs text-slate-600">
-            <p>© 2025 Sit With You. Made for the hard days.</p>
+          <footer className="border-t border-white/5 py-8 mt-16">
+            <div className="max-w-2xl mx-auto px-6 flex flex-wrap gap-6 text-xs text-slate-600">
+              <Link href="/how-it-works" className="hover:text-slate-400 transition-colors">How it works</Link>
+              <Link href="/why" className="hover:text-slate-400 transition-colors">Why</Link>
+              <Link href="/vs-focusmate" className="hover:text-slate-400 transition-colors">vs Focusmate</Link>
+              <a href="mailto:support@sitwithyou.app" className="hover:text-slate-400 transition-colors">Support</a>
+              <span className="ml-auto">© {new Date().getFullYear()} Sit With You</span>
+            </div>
           </footer>
         </main>
       </div>
