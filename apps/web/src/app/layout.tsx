@@ -5,8 +5,10 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Still Here",
-  description: "ADHD body-doubling companion. I'll just sit with you.",
+  title: "Sit With You — Quiet body doubling for when starting is hard",
+  description:
+    "Quiet company when you need it. Sit With You lets you call for presence and start gently — no pressure, no productivity talk.",
+  alternates: { canonical: "https://sitwithyou.app" },
 };
 
 export const viewport: Viewport = {
