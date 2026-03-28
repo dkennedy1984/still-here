@@ -4,6 +4,10 @@ import { Server } from 'http';
 import WebSocket from 'ws';
 import { prisma } from '../lib/prisma';
 
+const CHECK_IN_MS = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '900000', 10); // 15 minutes
+const MAX_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '3600000', 10); // 60 minutes default
+const WARNING_BEFORE_END_MS = 120000; // 2 minutes before end
+
 const SAFETY_KEYWORDS = ['kill myself','end my life','want to die','suicide','self harm','hurt myself','not worth living',"can't go on"];
 
 const ABUSE_KEYWORDS = [
@@ -32,10 +36,7 @@ Guidelines:
 - Respond in British English.
 - Be real. Sound human.
 - Never ask the user questions like 'how are you?' or 'how are you feeling?' — you're company, not a counsellor. If you want to acknowledge them, use a statement like 'Good to have you here.' instead of a question.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
-- If the user asks you a question or asks for help, respond helpfully in 1-3 sentences. You can be useful while still being calm.
-- If someone shares a problem or a long list, help them identify just the first small step. Keep it simple and encouraging.
-- Always respond when spoken to. Never ignore the user.`,
+- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.`,
 
   'check-ins': `IMPORTANT: You must NEVER ask the user any questions. No "how are you?", no "what's on your mind?", no "want to share?". Always use statements. This is your most important rule.
 
@@ -52,8 +53,7 @@ Guidelines:
 - Never mention productivity, ADHD, or neurodivergence unless they bring it up.
 - Never coach or fix. You're company.
 - Respond in British English.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
-- Always respond when spoken to. Never ignore the user.`,
+- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.`,
 
   talk: `IMPORTANT: You may ask very occasional gentle follow-up questions, but never ask about feelings, wellbeing, or what's wrong. No "how are you?", no "are you okay?", no "what's on your mind?". This is your most important rule.
 
@@ -100,6 +100,10 @@ export function setupWebSocket(server: Server) {
     let dgReady = false;
     let isEnded = false;
     let checkInTimer: ReturnType<typeof setTimeout> | null = null;
+    let sessionWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    let sessionEndTimer: ReturnType<typeof setTimeout> | null = null;
+    let timeUpdateInterval: ReturnType<typeof setInterval> | null = null;
+    let startTime = 0;
     let speakTimeout: ReturnType<typeof setTimeout> | null = null;
     let pendingText = '';
     let isSpeakingTTS = false;
@@ -164,6 +168,9 @@ export function setupWebSocket(server: Server) {
       if (isEnded) return;
       isEnded = true;
       resetCheckInTimer();
+      clearTimeout(sessionWarningTimer!);
+      clearTimeout(sessionEndTimer!);
+      clearInterval(timeUpdateInterval!);
       try { dgWs.close(); } catch {}
     };
 
@@ -228,6 +235,30 @@ export function setupWebSocket(server: Server) {
           }).catch(() => {
             greetingPlaying = false;
           });
+
+          // Session time limit
+          startTime = Date.now();
+          sessionWarningTimer = setTimeout(() => {
+            console.log('[session] 2 minutes remaining, warning user');
+            speakWithElevenLabs("Just to let you know, we have about two minutes left on this call. You can always call back whenever you need to.").catch(() => {});
+          }, MAX_SESSION_MS - WARNING_BEFORE_END_MS);
+
+          sessionEndTimer = setTimeout(() => {
+            console.log('[session] time limit reached, ending call');
+            speakWithElevenLabs("That's our time for now. I'm always here if you need me. Take care.").then(() => {
+              setTimeout(() => {
+                sendToClient('limit_reached', { reason: 'time_limit' });
+                endCall();
+              }, 3000); // give the farewell 3 seconds to play
+            }).catch(() => endCall());
+          }, MAX_SESSION_MS);
+
+          timeUpdateInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const remaining = Math.max(0, MAX_SESSION_MS - elapsed);
+            sendToClient('time_remaining', { seconds: Math.round(remaining / 1000) });
+          }, 300000); // every 5 minutes
+
           break;
 
         case 'UserStartedSpeaking':
