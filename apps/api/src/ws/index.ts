@@ -94,7 +94,7 @@ export function setupWebSocket(server: Server) {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
+          output: { encoding: 'linear16', sample_rate: 16000 },
         },
         agent: {
           listen: { provider: { type: 'deepgram', model: 'nova-2', language: 'en-GB' } },
@@ -103,7 +103,12 @@ export function setupWebSocket(server: Server) {
             model: 'gpt-4o-mini',
             instructions: systemPrompt,
           },
-          speak: { model: 'aura-2-andromeda-en' },
+          speak: {
+            provider: {
+              type: 'deepgram',
+              model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en',
+            }
+          },
         },
       };
       dgWs.send(JSON.stringify(settings));
