@@ -38,7 +38,7 @@ STRICT RULES:
 - Respond in British English.`,
 };
 
-const GREETING = "Hi. I'm here. You don't have to talk — I'll just sit with you.";
+const GREETING = "Hi. I'm here. You don't have to talk at all. I'll just sit with you.";
 const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 export function setupWebSocket(server: Server) {
@@ -94,12 +94,12 @@ export function setupWebSocket(server: Server) {
             text,
             model_id: modelId,
             voice_settings: {
-              stability: 0.85,
-              similarity_boost: 0.75,
-              style: 0.0,
-              use_speaker_boost: false,
-              speed: 0.9,
-            },
+        stability: 0.92,
+        similarity_boost: 0.75,
+        style: 0.0,
+        use_speaker_boost: false,
+        speed: 0.82,
+      },
             output_format: 'mp3_22050_32',
           }),
         });
