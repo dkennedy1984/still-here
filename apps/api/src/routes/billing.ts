@@ -47,40 +47,41 @@ async function invalidateTokensForEmail(email: string) {
 
 // ── POST /api/billing/create-checkout ────────────────────────────────────
 
-billingRouter.post(
-  "/create-checkout",
-  async (req: Request, res: Response) => {
-    try {
-      const sessionId = req.cookies?.sh_session || req.body.sessionId;
-      if (!sessionId) return res.status(400).json({ error: "No session" });
+billingRouter.post("/create-checkout", async (req: Request, res: Response) => {
+  try {
+    const priceId = process.env.STRIPE_PRICE_ID;
+    if (!priceId) return res.status(500).json({ error: "Stripe not configured" });
 
-      const session = await prisma.session.findUnique({
-        where: { id: sessionId },
-      });
-      if (!session) return res.status(404).json({ error: "Session not found" });
-
-      const priceId = process.env.STRIPE_PRICE_ID;
-      if (!priceId)
-        return res.status(500).json({ error: "Stripe not configured" });
-
-      const checkoutSession = await stripe.checkout.sessions.create({
-        mode: "subscription",
-        payment_method_types: ["card"],
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${FRONTEND_URL}/?upgraded=true`,
-        cancel_url: `${FRONTEND_URL}/upgrade?cancelled=true`,
-        metadata: { sessionId: session.id },
-        ...(session.email ? { customer_email: session.email } : {}),
-      });
-
-      console.log("[billing] checkout session created:", checkoutSession.id);
-      return res.json({ url: checkoutSession.url });
-    } catch (err) {
-      console.error("[billing] create-checkout error:", err);
-      return res.status(500).json({ error: "Failed to create checkout" });
+    // Try to get session for email pre-fill, but don't require it
+    const sessionId =
+      req.signedCookies?.sh_session ||
+      req.cookies?.sh_session ||
+      req.body?.sessionId;
+    let customerEmail: string | undefined;
+    if (sessionId) {
+      const session = await prisma.session.findUnique({ where: { id: sessionId } });
+      customerEmail = session?.email || undefined;
     }
+
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      payment_method_types: ["card"],
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${FRONTEND_URL}/?upgraded=true`,
+      cancel_url: `${FRONTEND_URL}/upgrade?cancelled=true`,
+      metadata: { sessionId: sessionId || "anonymous" },
+      ...(customerEmail ? { customer_email: customerEmail } : {}),
+    });
+
+    console.log("[billing] checkout session created:", checkoutSession.id);
+    return res.json({ url: checkoutSession.url });
+  } catch (err) {
+    console.error("[billing] create-checkout error:", err);
+    return res.status(500).json({ error: "Failed to create checkout" });
   }
-);
+});
+
+
 
 // ── POST /api/billing/webhook — Stripe webhook handler ───────────────────
 

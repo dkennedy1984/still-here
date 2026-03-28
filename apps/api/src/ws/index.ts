@@ -7,7 +7,8 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 
 const CHECK_IN_MS = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '900000', 10); // 15 minutes
-const MAX_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '3600000', 10); // 60 minutes default
+const FREE_SESSION_MS = parseInt(process.env.FREE_SESSION_MS || '600000', 10); // 10 minutes
+const PAID_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '3600000', 10); // 60 minutes
 const WARNING_BEFORE_END_MS = 120000; // 2 minutes before end
 
 const SAFETY_KEYWORDS = ['kill myself','end my life','want to die','suicide','self harm','hurt myself','not worth living',"can't go on"];
@@ -101,6 +102,10 @@ export function setupWebSocket(server: Server) {
 
     const mode = (call as any).presenceStyle || 'quiet';
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS['quiet'];
+
+    const tier = (call.session as any)?.tier || 'FREE';
+    const maxSessionMs = tier === 'PAID' ? PAID_SESSION_MS : FREE_SESSION_MS;
+    const warningMs = maxSessionMs - WARNING_BEFORE_END_MS;
 
     // Decode voice choice from JWT ticket (not stored in DB to avoid migration)
     let voiceChoice = 'her';
@@ -262,21 +267,24 @@ export function setupWebSocket(server: Server) {
           sessionWarningTimer = setTimeout(() => {
             console.log('[session] 2 minutes remaining, warning user');
             speakWithElevenLabs("Just to let you know, we have about two minutes left on this call. You can always call back whenever you need to.").catch(() => {});
-          }, MAX_SESSION_MS - WARNING_BEFORE_END_MS);
+          }, warningMs);
 
           sessionEndTimer = setTimeout(() => {
             console.log('[session] time limit reached, ending call');
-            speakWithElevenLabs("That's our time for now. I'm always here if you need me. Take care.").then(() => {
+            const farewell = tier === 'PAID'
+              ? "That's our time for now. I'm always here if you need me. Take care."
+              : "I've enjoyed sitting with you. Longer sessions are part of the paid plan.";
+            speakWithElevenLabs(farewell).then(() => {
               setTimeout(() => {
-                sendToClient('limit_reached', { reason: 'time_limit' });
+                sendToClient('limit_reached', { reason: 'time_limit', tier });
                 endCall();
               }, 3000); // give the farewell 3 seconds to play
             }).catch(() => endCall());
-          }, MAX_SESSION_MS);
+          }, maxSessionMs);
 
           timeUpdateInterval = setInterval(() => {
             const elapsed = Date.now() - startTime;
-            const remaining = Math.max(0, MAX_SESSION_MS - elapsed);
+            const remaining = Math.max(0, maxSessionMs - elapsed);
             sendToClient('time_remaining', { seconds: Math.round(remaining / 1000) });
           }, 300000); // every 5 minutes
 

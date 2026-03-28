@@ -86,6 +86,9 @@ export default function UpgradePage() {
         ))}
       </ul>
 
+      <p className="text-base text-slate-400 mt-4">£8 per month</p>
+      <p className="text-xs text-slate-500 mt-1">Cancel anytime</p>
+
       {linkError && (
         <p className="text-sm text-red-400 mb-4">
           {linkError === "expired"
