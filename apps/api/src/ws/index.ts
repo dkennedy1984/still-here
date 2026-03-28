@@ -12,8 +12,9 @@ const SYSTEM_PROMPTS: Record<string, string> = {
   talk: `You are a warm, calm companion. Happy to chat when spoken to. Maximum 2 sentences. Never mention productivity, ADHD, or neurodivergence unless the user brings it up. Be warm but not effusive. Respond in British English.`,
 };
 
-const GREETING = "Hi. I'm here. You don't have to talk — we can just sit quietly.";
+const GREETING = "Hi, I'm here. You don't have to talk. We can just sit quietly.";
 const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
+const speakModel = process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en';
 
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -75,7 +76,7 @@ export function setupWebSocket(server: Server) {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'linear16', sample_rate: 16000 },
+          output: { encoding: 'mp3', sample_rate: 24000, bitrate: 48000 },
         },
         agent: {
           listen: {
@@ -89,7 +90,7 @@ export function setupWebSocket(server: Server) {
             prompt: systemPrompt,
           },
           speak: {
-            provider: { type: 'deepgram', model: 'aura-athena-en' },
+            provider: { type: 'deepgram', model: speakModel },
           },
         },
       };
@@ -102,9 +103,9 @@ export function setupWebSocket(server: Server) {
     dgWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
         console.log('[deepgram] BINARY AUDIO received, bytes:', data.length);
-        // Raw linear16 audio from Deepgram - forward to client
+        // Compressed mp3 audio from Deepgram - forward to client
         const b64 = data.toString('base64');
-        sendToClient('audio_out', { data: b64, mimeType: 'audio/l16', sampleRate: 16000 });
+        sendToClient('audio_out', { data: b64, mimeType: 'audio/mpeg' });
         return;
       }
 
