@@ -86,8 +86,10 @@ export default function UpgradePage() {
         ))}
       </ul>
 
-      <p className="text-base text-slate-400 mt-4">£8 per month</p>
-      <p className="text-xs text-slate-500 mt-1">Cancel anytime</p>
+      <div className="text-center mt-10 mb-8">
+        <p className="text-lg text-slate-300">£8 per month</p>
+        <p className="text-sm text-slate-500 mt-2">Cancel anytime</p>
+      </div>
 
       {linkError && (
         <p className="text-sm text-red-400 mb-4">
@@ -115,7 +117,7 @@ export default function UpgradePage() {
 
       <button
         onClick={() => router.push("/")}
-        className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+        className="mt-6 text-sm text-slate-500 hover:text-slate-300 transition-colors"
       >
         Maybe later
       </button>
