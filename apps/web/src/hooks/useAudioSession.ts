@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks } from '../lib/audioPlayer';
+import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks, getCtx } from '../lib/audioPlayer';
 
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'ended' | 'error';
 type AgentState = 'GREETING' | 'SILENT_PRESENCE' | 'LISTENING' | 'THINKING' | 'RESPONDING' | 'ENDED';
@@ -83,14 +83,24 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
           video: false,
         });
 
-        // Force audio to speaker, not earpiece
-        // Creating a silent Audio element with the stream tricks iOS/Android
-        // into using the media playback route (speaker) instead of voice call route (earpiece)
-        const forceAudio = new Audio();
-        forceAudio.srcObject = stream;
-        forceAudio.volume = 0.001; // near-silent but not muted (muted doesn't work on iOS)
-        forceAudio.setAttribute('playsinline', 'true');
-        forceAudio.play().catch(() => {});
+        // Force speaker: play a data URI through Audio element
+        // This combats iOS/Android switching to earpiece after getUserMedia
+        const speakerFix = new Audio();
+        speakerFix.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+        speakerFix.volume = 0.01;
+        speakerFix.setAttribute('playsinline', 'true');
+        await speakerFix.play().catch(() => {});
+
+        // Also try setSinkId if available (Chrome Android supports this)
+        if (typeof (speakerFix as any).setSinkId === 'function') {
+          try {
+            await (speakerFix as any).setSinkId('default');
+            console.log('[audio] setSinkId to default (speaker)');
+          } catch {}
+        }
+
+        // Pre-warm the audio player context while still in user gesture chain
+        getCtx();
 
         if (destroyed) { stream.getTracks().forEach(t => t.stop()); return; }
 

@@ -66,11 +66,30 @@ function HomePageContent() {
     }
     callingRef.current = true;
     setLoading(true);
+
     try {
-      const { callId, wsTicket } = await startCall(presenceStyle, voice);
+      // Pre-initialise audio output to speaker BEFORE getUserMedia
+      // This must happen in a user gesture handler (click)
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      source.start(0);
+
+      // Also create an Audio element to establish media route
+      const audio = new Audio();
+      audio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+      audio.volume = 0.01;
+      await audio.play().catch(() => {});
+
+      // Store the audioCtx for the call page to reuse
+      (window as any).__swyAudioCtx = audioCtx;
+
+      const { callId, wsTicket } = await startCall(presenceStyle === 'silent' ? 'quiet' : presenceStyle, voice);
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     } catch (err) {
-      console.error("Failed to start call:", err);
+      console.error('Failed to start call:', err);
       callingRef.current = false;
       setLoading(false);
     }

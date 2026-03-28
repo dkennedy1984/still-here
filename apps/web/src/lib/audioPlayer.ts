@@ -5,13 +5,19 @@ let chunkBuffer: Uint8Array[] = [];
 let isPlaying = false;
 let playQueue: Promise<void> = Promise.resolve();
 
-function getCtx(): AudioContext {
+export function getCtx(): AudioContext {
   if (!audioCtx || audioCtx.state === 'closed') {
-    // Use 'playback' category to route to speaker not earpiece
-    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
-      latencyHint: 'interactive',
-    });
-    // Play silent buffer to initialise audio path through speaker
+    // Try to reuse the AudioContext created on Call button tap
+    // This ensures we're on the media playback route, not voice call route
+    if (typeof window !== 'undefined' && (window as any).__swyAudioCtx) {
+      audioCtx = (window as any).__swyAudioCtx;
+      (window as any).__swyAudioCtx = null;
+    } else {
+      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
+        latencyHint: 'interactive',
+      });
+    }
+    // Play 1 second of silence to keep the route active
     const buf = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
     const src = audioCtx.createBufferSource();
     src.buffer = buf;
@@ -58,20 +64,28 @@ export async function flushAudioBuffer(): Promise<void> {
       const combined = new Uint8Array(totalBytes);
       let offset = 0;
       for (const c of chunks) { combined.set(c, offset); offset += c.length; }
-      const audioBuffer = await ctx.decodeAudioData(combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength) as ArrayBuffer);
-      if (!isPlaying) { isPlaying = true; onStartCb?.(); }
+
+      const audioBuffer = await ctx.decodeAudioData(combined.buffer);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+
+      if (!isPlaying) {
+        isPlaying = true;
+        onStartCb?.();
+      }
+
       await new Promise<void>((resolve) => {
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(ctx.destination);
         source.onended = () => resolve();
         source.start(0);
       });
-    } catch (err) {
-      console.error('[audio] playback error:', err);
-    } finally {
-      if (chunkBuffer.length === 0) { isPlaying = false; onEndCb?.(); }
+    } catch (e) {
+      console.error('[audioPlayer] decode/play error', e);
+    }
+  }).then(() => {
+    if (chunkBuffer.length === 0 && isPlaying) {
+      isPlaying = false;
+      onEndCb?.();
     }
   });
-  return playQueue;
 }
