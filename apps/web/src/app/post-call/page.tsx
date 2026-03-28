@@ -1,61 +1,64 @@
-"use client";
+'use client';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { PresenceOrb } from '../../components/PresenceOrb';
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-
-function PostCallContent() {
+export default function PostCallPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const verified = searchParams.get("verified") === "true";
+  const [isPaid, setIsPaid] = useState(false);
 
-  if (verified) {
+  useEffect(() => {
+    const tier = localStorage.getItem('swy-tier');
+    setIsPaid(tier === 'paid');
+  }, []);
+
+  if (isPaid) {
+    // Paid user - calm, no upsell
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6">
-        {/* Glowing circle */}
-        <div className="mb-8 h-20 w-20 rounded-full bg-white/10 animate-pulse-slow" />
-
-        <p className="text-lg text-white mb-2">You're all set.</p>
-        <p className="text-sm text-slate-400 mb-8">I'm here whenever you need.</p>
-
+      <main className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-6">
+        <PresenceOrb state="idle" size="sm" />
+        
+        <h1 className="text-lg text-white mt-8">I'll be here when you're ready.</h1>
+        <p className="text-sm text-slate-400 mt-2">Take your time.</p>
+        
         <button
-          onClick={() => router.push("/")}
-          className="w-full max-w-xs rounded-full bg-white px-6 py-4 text-lg font-semibold text-slate-900 transition-all duration-200 hover:bg-white/90 active:scale-[0.98]"
+          onClick={() => router.push('/')}
+          className="mt-12 px-12 py-4 rounded-full bg-white text-slate-900 text-base font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150"
         >
-          Start a session
+          Call again
+        </button>
+        
+        <button
+          onClick={() => router.push('/')}
+          className="mt-5 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          I'm done for now
         </button>
       </main>
     );
   }
 
+  // Free user - gentle upgrade prompt (keep existing content)
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6">
-      {/* Glowing circle */}
-      <div className="mb-8 h-20 w-20 rounded-full bg-white/10 animate-pulse-slow" />
-
-      <p className="text-lg text-white mb-2">I'm here whenever you need.</p>
-      <p className="text-sm text-slate-400 mb-8">Want this available anytime?</p>
-
+    <main className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-6">
+      <PresenceOrb state="idle" size="sm" />
+      
+      <h1 className="text-lg text-white mt-8">I'm here whenever you need.</h1>
+      <p className="text-sm text-slate-400 mt-2">Want this available anytime?</p>
+      
       <button
-        onClick={() => router.push("/upgrade")}
-        className="w-full max-w-xs rounded-full bg-white px-6 py-4 text-lg font-semibold text-slate-900 transition-all duration-200 hover:bg-white/90 active:scale-[0.98]"
+        onClick={() => router.push('/upgrade')}
+        className="mt-10 px-12 py-4 rounded-full bg-white text-slate-900 text-base font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150"
       >
         Stay in touch
       </button>
-
+      
       <button
-        onClick={() => router.push("/")}
-        className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+        onClick={() => router.push('/')}
+        className="mt-5 text-sm text-slate-500 hover:text-slate-300 transition-colors"
       >
         Maybe later
       </button>
     </main>
-  );
-}
-
-export default function PostCallPage() {
-  return (
-    <Suspense>
-      <PostCallContent />
-    </Suspense>
   );
 }
