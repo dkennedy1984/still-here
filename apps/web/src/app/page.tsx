@@ -105,13 +105,13 @@ function HomePageContent() {
 
       </div>
 
-      {/* Bottom controls - part of page flow, not fixed overlay */}
-      <div className="mt-auto pb-8 pt-4 flex justify-between items-center w-full px-8">
+      {/* Bottom controls - fixed with gradient background */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 pb-6 pt-4 px-8 flex justify-between items-center bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent">
         <button
           onClick={() => setShowSheet(true)}
           className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
         >
-          {presenceStyle === 'silent' ? 'Quiet' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Chatty'} ▾
+          {presenceStyle === 'quiet' ? 'Quiet' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Chatty'} ▾
         </button>
         <div className="flex items-center gap-1.5">
           <button
@@ -134,7 +134,7 @@ function HomePageContent() {
       </div>
 
       {/* Content sections - below the fold */}
-      <div className="max-w-2xl mx-auto py-24">
+      <div className="max-w-2xl mx-auto py-24 pb-20">
         <h1 className="text-2xl sm:text-3xl font-semibold text-white leading-tight mb-8">
           Quiet body doubling for when starting is hard
         </h1>
