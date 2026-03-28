@@ -61,6 +61,8 @@ export function setupWebSocket(server: Server) {
       function endCall() {
         if (isEnded) return;
         isEnded = true;
+        clearInterval(keepAliveInterval);
+        clearInterval(dgKeepAlive);
         if (checkInTimer) clearTimeout(checkInTimer);
         checkInTimer = null;
         try { dgWs.close(); } catch {}
@@ -86,6 +88,15 @@ export function setupWebSocket(server: Server) {
       dgWs.on('open', () => {
         clearTimeout(safetyTimeout);
 
+        // Keep Deepgram WebSocket alive with periodic pings
+        const dgKeepAlive = setInterval(() => {
+          if (dgWs.readyState === WebSocket.OPEN) {
+            dgWs.ping();
+          } else {
+            clearInterval(dgKeepAlive);
+          }
+        }, 10000);
+
         // Send Settings
         dgWs.send(JSON.stringify({
           type: 'Settings',
@@ -106,6 +117,21 @@ export function setupWebSocket(server: Server) {
       });
 
       console.log('[ws] step 5: event listeners attached, waiting for Deepgram open');
+
+      // Send immediate ping to prevent Render's load balancer from closing the connection
+      // Render closes idle WS connections after ~1 second without data
+      clientWs.ping();
+
+      // Keep-alive ping every 15 seconds
+      const keepAliveInterval = setInterval(() => {
+        if (clientWs.readyState === WS.OPEN) {
+          clientWs.ping();
+        } else {
+          clearInterval(keepAliveInterval);
+        }
+      }, 15000);
+
+      sendToClient('connecting', { message: 'Connecting to voice agent...' });
 
       dgWs.on('message', (data: Buffer | string, isBinary: boolean) => {
         if (isBinary) {
