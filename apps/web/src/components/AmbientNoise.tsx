@@ -63,9 +63,10 @@ function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): {
 interface AmbientNoiseProps {
   className?: string;
   disabled?: boolean; // when true, stop all audio
+  externalSound?: string; // AI-controlled sound override
 }
 
-export function AmbientNoise({ className, disabled }: AmbientNoiseProps) {
+export function AmbientNoise({ className, disabled, externalSound }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
   const [volume, setVolume] = useState(0.06);
@@ -99,6 +100,14 @@ export function AmbientNoise({ className, disabled }: AmbientNoiseProps) {
       setActive('off');
     }
   }, [disabled]);
+
+  // Respond to AI-controlled sound changes
+  useEffect(() => {
+    if (externalSound && externalSound !== active) {
+      handleSelect(externalSound);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalSound]);
 
   // Cleanup on unmount
   useEffect(() => {

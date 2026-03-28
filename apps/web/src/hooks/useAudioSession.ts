@@ -12,9 +12,10 @@ interface UseAudioSessionProps {
   presenceStyle: PresenceStyle;
   onAudioStart?: () => void;
   onAudioEnd?: () => void;
+  onAmbientControl?: (sound: string) => void;
 }
 
-export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart, onAudioEnd }: UseAudioSessionProps) {
+export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart, onAudioEnd, onAmbientControl }: UseAudioSessionProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -163,6 +164,10 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
             break;
           case 'time_remaining':
             setRemainingSeconds(msg.seconds as number);
+            break;
+          case 'ambient_control':
+            console.log('[ambient] received control:', msg.sound);
+            onAmbientControl?.(msg.sound as string);
             break;
           case 'limit_reached':
             setStatus('ended');

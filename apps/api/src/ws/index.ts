@@ -36,7 +36,8 @@ Guidelines:
 - Respond in British English.
 - Be real. Sound human.
 - Never ask the user questions like 'how are you?' or 'how are you feeling?' — you're company, not a counsellor. If you want to acknowledge them, use a statement like 'Good to have you here.' instead of a question.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.`,
+- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
+- You can control background sounds. If the user asks for rain, white noise, or brown noise, acknowledge it naturally — the sound will start automatically. If they ask to stop it, acknowledge that too.`,
 
   'check-ins': `IMPORTANT: You must NEVER ask the user any questions. No "how are you?", no "what's on your mind?", no "want to share?". Always use statements. This is your most important rule.
 
@@ -53,7 +54,8 @@ Guidelines:
 - Never mention productivity, ADHD, or neurodivergence unless they bring it up.
 - Never coach or fix. You're company.
 - Respond in British English.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.`,
+- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
+- You can control background sounds. If the user asks for rain, white noise, or brown noise, acknowledge it naturally — the sound will start automatically. If they ask to stop it, acknowledge that too.`,
 
   talk: `IMPORTANT: You may ask very occasional gentle follow-up questions, but never ask about feelings, wellbeing, or what's wrong. No "how are you?", no "are you okay?", no "what's on your mind?". This is your most important rule.
 
@@ -70,7 +72,8 @@ Guidelines:
 - Never mention productivity, ADHD, or neurodivergence unless they bring it up.
 - Never coach, fix, or give unsolicited advice.
 - Respond in British English.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.`,
+- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
+- You can control background sounds. If the user asks for rain, white noise, or brown noise, acknowledge it naturally — the sound will start automatically. If they ask to stop it, acknowledge that too.`,
 };
 
 const GREETING = "Hi. I'm here. You don't have to talk... I'll just sit with you.";
@@ -298,6 +301,35 @@ export function setupWebSocket(server: Server) {
             const userText = String(msg.content);
             console.log('[conversation] user:', userText.substring(0, 60));
             const lower = userText.toLowerCase();
+
+            // Ambient sound commands — detected before abuse/safety checks
+            const ambientCommands: Record<string, string> = {
+              'rain': 'rain',
+              'white noise': 'white',
+              'brown noise': 'brown',
+              'background noise': 'brown',
+              'ambient': 'rain',
+              'sounds': 'rain',
+              'noise on': 'brown',
+              'turn on rain': 'rain',
+              'put some rain': 'rain',
+              'stop the noise': 'off',
+              'turn off': 'off',
+              'stop the rain': 'off',
+              'stop the sound': 'off',
+              'silence': 'off',
+              'quiet please': 'off',
+              'no noise': 'off',
+            };
+
+            for (const [trigger, sound] of Object.entries(ambientCommands)) {
+              if (lower.includes(trigger)) {
+                console.log('[ambient] detected command:', trigger, '→', sound);
+                sendToClient('ambient_control', { sound });
+                break;
+              }
+            }
+
             if (ABUSE_KEYWORDS.some(kw => lower.includes(kw))) {
               console.log('[safety] abuse detected, ending call politely');
               speakWithElevenLabs("I'm going to end our call now. I hope you feel better soon.")

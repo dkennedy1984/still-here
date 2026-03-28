@@ -19,6 +19,7 @@ function CallPageInner() {
   // not server messages — so the orb stays green for the exact duration
   // the user hears audio, no matter how many chunks there are.
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [ambientSound, setAmbientSound] = useState('off');
 
   const { state, hangup, changeStyle } = useAudioSession({
     callId,
@@ -26,6 +27,7 @@ function CallPageInner() {
     presenceStyle,
     onAudioStart: () => setIsAudioPlaying(true),
     onAudioEnd: () => setIsAudioPlaying(false),
+    onAmbientControl: (sound) => setAmbientSound(sound),
   });
 
   const [showOverlay, setShowOverlay] = useState(false);
@@ -123,7 +125,7 @@ function CallPageInner() {
       <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-8 pb-10 pt-4">
         <div className="flex items-center gap-4">
           <span className="text-xs text-slate-500 tracking-wide">Still here</span>
-          <AmbientNoise disabled={state.status === 'ended'} />
+          <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />
         </div>
         <button
           onClick={handleHangup}
