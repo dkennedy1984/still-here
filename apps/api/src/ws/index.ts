@@ -26,6 +26,7 @@ export function setupWebSocket(server: Server) {
       const ticket = url.searchParams.get('ticket');
       if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
+      console.log('[ws] step 1: looking up session');
       const call = await prisma.call.findUnique({ where: { wsTicket: ticket }, include: { session: true } });
       if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
 
@@ -34,6 +35,8 @@ export function setupWebSocket(server: Server) {
       const style = call.presenceStyle || 'quiet';
       const systemPrompt = SYSTEM_PROMPTS[style] || SYSTEM_PROMPTS.quiet;
       const sessionId = call.session.id;
+
+      console.log('[ws] step 2: session found, style:', style);
 
       const apiKey = process.env.DEEPGRAM_API_KEY;
       if (!apiKey) { clientWs.close(4003, 'missing_api_key'); return; }
@@ -66,9 +69,11 @@ export function setupWebSocket(server: Server) {
       }
 
       // Open raw WebSocket to Deepgram
+      console.log('[ws] step 3: creating Deepgram WebSocket to', DG_URL);
       const dgWs = new WebSocket(DG_URL, {
         headers: { Authorization: `Token ${apiKey}` },
       });
+      console.log('[ws] step 4: Deepgram WebSocket created, readyState:', dgWs.readyState);
 
       // Safety check: close if Deepgram never connects
       const safetyTimeout = setTimeout(() => {
@@ -99,6 +104,8 @@ export function setupWebSocket(server: Server) {
           },
         }));
       });
+
+      console.log('[ws] step 5: event listeners attached, waiting for Deepgram open');
 
       dgWs.on('message', (data: Buffer | string, isBinary: boolean) => {
         if (isBinary) {
@@ -142,21 +149,6 @@ export function setupWebSocket(server: Server) {
           // Forward to client for display
           if (clientWs.readyState === WebSocket.OPEN) {
             clientWs.send(JSON.stringify({ type: 'transcript', role, text }));
-          }
-
-          return;
-        }
-
-        if (type === 'AgentAudioDone') {
-          if (clientWs.readyState === WebSocket.OPEN) {
-            clientWs.send(JSON.stringify({ type: 'agent_audio_done' }));
-          }
-          return;
-        }
-
-        if (type === 'UserStartedSpeaking') {
-          if (clientWs.readyState === WebSocket.OPEN) {
-            clientWs.send(JSON.stringify({ type: 'user_started_speaking' }));
           }
           return;
         }
@@ -213,7 +205,8 @@ export function setupWebSocket(server: Server) {
         endCall();
       });
     } catch (err) {
-      console.error('[ws] unhandled error in connection handler:', err);
+      console.error('[ws] FATAL error in handler:', err);
+      console.error('[ws] error stack:', err instanceof Error ? err.stack : String(err));
       if (clientWs.readyState === WS.OPEN) clientWs.close(4000, 'internal_error');
     }
   });
