@@ -6,6 +6,11 @@ import { prisma } from '../lib/prisma';
 
 const SAFETY_KEYWORDS = ['kill myself','end my life','want to die','suicide','self harm','hurt myself','not worth living',"can't go on"];
 
+const ABUSE_KEYWORDS = [
+  'fuck you', 'fuck off', 'you stupid', 'you useless', 'shut up', 'i hate you',
+  'kill yourself', "you're worthless", 'piece of shit', 'you suck',
+];
+
 const SYSTEM_PROMPTS: Record<string, string> = {
   quiet: `You are a silent, calm presence. A companion who simply sits with someone.
 
@@ -65,6 +70,8 @@ export function setupWebSocket(server: Server) {
     let dgReady = false;
     let isEnded = false;
     let checkInTimer: ReturnType<typeof setTimeout> | null = null;
+    let speakTimeout: ReturnType<typeof setTimeout> | null = null;
+    let pendingText = '';
     let currentStyle = mode;
     const audioBuffer: Buffer[] = [];
 
@@ -98,7 +105,7 @@ export function setupWebSocket(server: Server) {
         similarity_boost: 0.75,
         style: 0.0,
         use_speaker_boost: false,
-        speed: 0.82,
+        speed: 0.88,
       },
             output_format: 'mp3_22050_32',
           }),
@@ -192,11 +199,34 @@ export function setupWebSocket(server: Server) {
 
         case 'ConversationText':
           if (msg.role === 'assistant' && msg.content) {
-            console.log('[tts] speaking via ElevenLabs:', (msg.content as string).substring(0, 60));
-            speakWithElevenLabs(msg.content as string).catch(err => console.error('[tts] error:', err));
+            pendingText = msg.content as string;
+            if (speakTimeout) clearTimeout(speakTimeout);
+            speakTimeout = setTimeout(() => {
+              speakTimeout = null;
+              if (pendingText) {
+                const textToSpeak = pendingText;
+                pendingText = '';
+                console.log('[tts] speaking via ElevenLabs:', textToSpeak.substring(0, 60));
+                speakWithElevenLabs(textToSpeak).catch(err => console.error('[tts] error:', err));
+              }
+            }, 150);
           }
-          if (msg.role === 'user') {
-            console.log('[conversation] user:', String(msg.content).substring(0, 60));
+          if (msg.role === 'user' && msg.content) {
+            const userText = String(msg.content);
+            console.log('[conversation] user:', userText.substring(0, 60));
+            const lower = userText.toLowerCase();
+            if (ABUSE_KEYWORDS.some(kw => lower.includes(kw))) {
+              console.log('[safety] abuse detected, ending call politely');
+              speakWithElevenLabs("I'm going to end our call now. I hope you feel better soon.")
+                .then(() => {
+                  setTimeout(() => {
+                    sendToClient('limit_reached', { reason: 'abuse_detected' });
+                    endCall();
+                  }, 3000);
+                })
+                .catch(() => endCall());
+              return;
+            }
           }
           break;
 
