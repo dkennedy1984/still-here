@@ -66,7 +66,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       ctx.fill();
 
       // === ALWAYS-PRESENT IDLE RING ===
-      const idleRingR = currentR * (1.18 + Math.sin(t * 0.8) * 0.04);
+      const idleRingR = Math.min(currentR * (1.18 + Math.sin(t * 0.8) * 0.04), canvasSize * 0.35);
       ctx.beginPath();
       ctx.arc(cx, cy, idleRingR, 0, Math.PI * 2);
       ctx.strokeStyle = `rgba(200, 210, 240, ${0.045 + breathe * 0.025})`;
@@ -75,11 +75,13 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
 
       // === RIPPLE RINGS (speaking only) ===
       if (isSpeaking) {
+        // Ripple rings - ensure they fade out well within canvas bounds
+        const maxRippleR = canvasSize * 0.4; // never reach the edge
         for (let i = 0; i < 4; i++) {
-          const progress = ((t * 0.35 - i * 0.25) % 1 + 1) % 1;
-          const rR = currentR * (1.02 + progress * 1.6);
-          const rAlpha = Math.max(0, (1 - progress) * 0.225);
-          const lineW = Math.max(0.5, 2 * (1 - progress));
+          const progress = ((t * 0.55 - i * 0.25) % 1 + 1) % 1;
+          const rR = currentR * 1.02 + progress * (maxRippleR - currentR);
+          const rAlpha = Math.max(0, (1 - progress) * 0.35);
+          const lineW = Math.max(0.3, 1.5 * (1 - progress));
           ctx.beginPath();
           ctx.arc(cx, cy, rR, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(100, 235, 120, ${rAlpha})`;
@@ -177,7 +179,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   }, [state, size]);
 
   const r = size === 'lg' ? 52 : 36;
-  const canvasSize = Math.round(r * 5.5);
+  const canvasSize = Math.round(r * 7);
 
   return (
     <div style={{

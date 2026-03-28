@@ -82,6 +82,15 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
           video: false,
         });
 
+        // Force audio to speaker, not earpiece
+        // Creating a silent Audio element with the stream tricks iOS/Android
+        // into using the media playback route (speaker) instead of voice call route (earpiece)
+        const forceAudio = new Audio();
+        forceAudio.srcObject = stream;
+        forceAudio.volume = 0.001; // near-silent but not muted (muted doesn't work on iOS)
+        forceAudio.setAttribute('playsinline', 'true');
+        forceAudio.play().catch(() => {});
+
         if (destroyed) { stream.getTracks().forEach(t => t.stop()); return; }
 
         // Stream raw PCM to Deepgram via WebSocket

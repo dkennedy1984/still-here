@@ -7,8 +7,12 @@ let playQueue: Promise<void> = Promise.resolve();
 
 function getCtx(): AudioContext {
   if (!audioCtx || audioCtx.state === 'closed') {
-    audioCtx = new AudioContext();
-    const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+    // Use 'playback' category to route to speaker not earpiece
+    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({
+      latencyHint: 'interactive',
+    });
+    // Play silent buffer to initialise audio path through speaker
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
     const src = audioCtx.createBufferSource();
     src.buffer = buf;
     src.connect(audioCtx.destination);
