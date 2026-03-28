@@ -114,11 +114,11 @@ export function setupWebSocket(server: Server) {
       checkInTimer = null;
     };
 
-    async function speakWithElevenLabs(text: string): Promise<void> {
+    async function speakWithElevenLabs(text: string): Promise<number> {
       const apiKey = process.env.ELEVENLABS_API_KEY;
       const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
       const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
-      if (!apiKey) { console.error('[tts] ELEVENLABS_API_KEY not set'); return; }
+      if (!apiKey) { console.error('[tts] ELEVENLABS_API_KEY not set'); return 0; }
 
       isSpeakingTTS = true;
       sendToClient('agent_state', { state: 'RESPONDING' });
@@ -139,15 +139,17 @@ export function setupWebSocket(server: Server) {
             output_format: 'mp3_22050_32',
           }),
         });
-        if (!res.ok) { console.error('[tts] ElevenLabs error:', res.status); return; }
+        if (!res.ok) { console.error('[tts] ElevenLabs error:', res.status); return 0; }
         const buffer = Buffer.from(await res.arrayBuffer());
         console.log('[tts] ElevenLabs audio bytes:', buffer.length);
         if (isSpeakingTTS) {
           sendToClient('audio_out', { data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
           sendToClient('audio_out_done');
         }
+        return buffer.length;
       } catch (err) {
         console.error('[tts] fetch error:', err);
+        return 0;
       } finally {
         isSpeakingTTS = false;
         sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
@@ -214,13 +216,17 @@ export function setupWebSocket(server: Server) {
           sendToClient('connected', { state: 'GREETING' });
           resetCheckInTimer();
           // Use ElevenLabs for greeting instead of Deepgram TTS
-          speakWithElevenLabs(GREETING).catch(err => console.error('[tts] greeting error:', err));
-          // Clear greeting mute after ElevenLabs greeting audio finishes playing
-          // Estimate ~4 seconds for greeting + 1 second echo buffer
-          setTimeout(() => {
+          speakWithElevenLabs(GREETING).then((audioBytes) => {
+            // mp3 at 22050Hz 32kbps ≈ 4000 bytes per second
+            const durationMs = audioBytes ? Math.round((audioBytes / 4000) * 1000) : 3000;
+            const muteMs = durationMs + 500; // audio duration + 500ms echo buffer
+            setTimeout(() => {
+              greetingPlaying = false;
+              console.log('[dg] greeting mute cleared after', muteMs, 'ms');
+            }, muteMs);
+          }).catch(() => {
             greetingPlaying = false;
-            console.log('[dg] greeting echo window closed, now accepting speech');
-          }, 5000);
+          });
           break;
 
         case 'UserStartedSpeaking':
