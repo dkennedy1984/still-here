@@ -15,6 +15,34 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 const GREETING = "Hi, I'm here. You don't have to talk. We can just sit quietly.";
 const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
+async function speakWithElevenLabs(text: string, sendToClient: (type: string, data?: Record<string, unknown>) => void) {
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+  const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) { console.error('[tts] no ELEVENLABS_API_KEY'); return; }
+
+  sendToClient('agent_state', { state: 'RESPONDING' });
+
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+    method: 'POST',
+    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      model_id: modelId,
+      voice_settings: { stability: 0.75, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false },
+      output_format: 'mp3_22050_32',
+    }),
+  });
+
+  if (!res.ok) { console.error('[tts] ElevenLabs error:', res.status, await res.text()); return; }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  console.log('[tts] ElevenLabs audio ready, bytes:', buffer.length);
+  sendToClient('audio_out', { data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
+  sendToClient('audio_out_done');
+  sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
+}
+
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
@@ -25,12 +53,8 @@ export function setupWebSocket(server: Server) {
     const ticket = url.searchParams.get('ticket');
     if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
-    console.log('[ws] step 1: looking up session');
-
     const call = await prisma.call.findUnique({ where: { wsTicket: ticket }, include: { session: true } });
     if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
-
-    console.log('[ws] step 2: session found');
 
     const mode = (call as any).presenceStyle || 'quiet';
     const systemPrompt = SYSTEM_PROMPTS[mode] ?? SYSTEM_PROMPTS['quiet'];
@@ -47,7 +71,6 @@ export function setupWebSocket(server: Server) {
       }
     };
 
-    let dgReady = false;
     let isEnded = false;
     const audioBuffer: Buffer[] = [];
 
@@ -66,157 +89,133 @@ export function setupWebSocket(server: Server) {
     console.log('[ws] step 4: Deepgram WebSocket created, readyState:', dgWs.readyState);
 
     dgWs.on('open', () => {
-      console.log('[deepgram] connected');
-
-      // Build settings with CORRECT think field format per Deepgram API spec:
-      // - model goes INSIDE provider (not at think level)
-      // - use "prompt" not "instructions"
+      console.log('[dg] WebSocket open — sending Settings');
       const settings = {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'linear16', sample_rate: 16000 },
+          output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
         },
         agent: {
-          listen: {
-            provider: { type: 'deepgram', model: 'nova-2', language: 'en-GB' },
-          },
+          listen: { model: 'nova-2' },
           think: {
-            provider: {
-              type: 'open_ai',
-              model: 'gpt-4o-mini',
-            },
-            prompt: systemPrompt,
+            provider: { type: 'open_ai' },
+            model: 'gpt-4o-mini',
+            instructions: systemPrompt,
           },
-          speak: {
-            provider: {
-              type: 'deepgram',
-              model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en',
-            },
-          },
+          speak: { model: 'aura-2-andromeda-en' },
         },
       };
-
-      console.log('[deepgram] Settings:', JSON.stringify(settings, null, 2));
       dgWs.send(JSON.stringify(settings));
-      console.log('[deepgram] Settings sent');
+      console.log('[dg] Settings sent');
+
+      dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: GREETING }));
+      console.log('[dg] greeting injected');
+
+      sendToClient('ready');
     });
+
+    const keepaliveInterval = setInterval(() => {
+      if (dgWs.readyState === WebSocket.OPEN) {
+        dgWs.send(JSON.stringify({ type: 'KeepAlive' }));
+      }
+    }, 8000);
 
     dgWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
-        console.log('[deepgram] BINARY AUDIO received, bytes:', data.length);
-        // Compressed mp3 audio from Deepgram - forward to client
-        const b64 = data.toString('base64');
-        sendToClient('audio_out', { data: b64, mimeType: 'audio/l16' });
+        // Ignore Deepgram's own TTS audio - we use ElevenLabs instead
         return;
       }
 
+      const text = data.toString('utf8');
+      let msg: Record<string, unknown>;
       try {
-        const msg = JSON.parse(data.toString());
-        console.log('[deepgram] msg:', msg.type);
-
-        switch (msg.type) {
-          case 'Welcome':
-            console.log('[deepgram] welcomed');
-            break;
-          case 'SettingsApplied':
-            console.log('[deepgram] settings applied - injecting greeting');
-            dgReady = true;
-            sendToClient('connected', { state: 'GREETING' });
-            // Inject greeting now that settings are applied
-            dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: GREETING }));
-            // Flush buffered audio
-            for (const chunk of audioBuffer) dgWs.send(chunk);
-            audioBuffer.length = 0;
-            break;
-          case 'AgentStartedSpeaking':
-            sendToClient('agent_state', { state: 'RESPONDING' });
-            break;
-          case 'AgentFinishedSpeaking':
-            sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
-            sendToClient('audio_out_done');
-            break;
-          case 'UserStartedSpeaking':
-            sendToClient('agent_state', { state: 'LISTENING' });
-            break;
-          case 'ConversationText':
-            console.log('[conversation]', msg.role, ':', (msg.content || '').substring(0, 100));
-            if (msg.role === 'user') {
-              const lower = (msg.content || '').toLowerCase();
-              if (SAFETY_KEYWORDS.some(kw => lower.includes(kw))) {
-                dgWs.send(JSON.stringify({
-                  type: 'InjectAgentMessage',
-                  message: "I hear you, and I'm glad you said something. Please reach out to Samaritans on 116 123 — they're available any time.",
-                }));
-              }
-            }
-            break;
-          case 'AgentAudioDone':
-            console.log('[deepgram] AgentAudioDone - flushing audio to client');
-            sendToClient('audio_out_done');
-            sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
-            break;
-          case 'Error':
-            console.error('[deepgram] error:', msg.description, '| code:', msg.code);
-            break;
-          default:
-            console.log('[deepgram] unhandled msg type:', msg.type);
-        }
-      } catch (err) {
-        console.error('[deepgram] message parse error:', err);
-      }
-    });
-
-    dgWs.on('error', (err) => console.error('[deepgram] error:', err));
-    dgWs.on('close', (code, reason) => {
-      console.log('[deepgram] closed:', code, reason?.toString());
-      if (!isEnded) endCall();
-    });
-
-    console.log('[ws] step 5: event listeners attached, waiting for Deepgram open');
-
-    // Forward client audio to Deepgram
-    clientWs.on('message', (data: Buffer, isBinary: boolean) => {
-      if (!isBinary) {
-        // JSON control message from client
-        try {
-          const msg = JSON.parse(data.toString());
-          console.log('[client] msg:', msg.type);
-          // Could handle client-side control messages here
-        } catch {}
+        msg = JSON.parse(text);
+      } catch {
         return;
       }
 
-      // Binary = raw PCM audio from client microphone
-      if (dgReady && dgWs.readyState === WebSocket.OPEN) {
+      console.log('[dg] msg type:', msg.type);
+
+      switch (msg.type) {
+        case 'SettingsApplied':
+          console.log('[dg] settings applied');
+          break;
+
+        case 'UserStartedSpeaking':
+          sendToClient('agent_state', { state: 'LISTENING' });
+          break;
+
+        case 'AgentStartedSpeaking':
+          // ElevenLabs handles actual audio - state already set via ConversationText
+          break;
+
+        case 'AgentAudioDone':
+          // ElevenLabs handles audio completion
+          break;
+
+        case 'ConversationText':
+          if (msg.role === 'assistant') {
+            const content = (msg.content as string) || '';
+            console.log('[tts] ElevenLabs speaking:', content.substring(0, 60));
+            // Call ElevenLabs in background - don't await to avoid blocking
+            speakWithElevenLabs(content, sendToClient).catch(err => console.error('[tts] error:', err));
+          }
+          if (msg.role === 'user') {
+            console.log('[conversation] user:', String(msg.content).substring(0, 60));
+          }
+          break;
+
+        case 'Warning':
+          console.warn('[dg] warning:', msg);
+          break;
+
+        case 'Error':
+          console.error('[dg] error msg:', msg);
+          sendToClient('error', { message: String(msg.message) });
+          break;
+      }
+
+      const lowerText = JSON.stringify(msg).toLowerCase();
+      const hasSafetyKeyword = SAFETY_KEYWORDS.some(k => lowerText.includes(k));
+      if (hasSafetyKeyword) {
+        sendToClient('safety_alert');
+      }
+    });
+
+    dgWs.on('close', (code: number, reason: Buffer) => {
+      console.log(`[dg] WebSocket closed code=${code} reason=${reason.toString()}`);
+      clearInterval(keepaliveInterval);
+      if (!isEnded) sendToClient('dg_closed', { code, reason: reason.toString() });
+    });
+
+    dgWs.on('error', (err: Error) => {
+      console.error('[dg] WebSocket error:', err.message);
+      sendToClient('error', { message: err.message });
+    });
+
+    clientWs.on('message', (data: Buffer) => {
+      if (dgWs.readyState === WebSocket.OPEN) {
         dgWs.send(data);
       } else {
-        audioBuffer.push(data as Buffer);
-        if (audioBuffer.length > 500) audioBuffer.shift(); // cap buffer
+        audioBuffer.push(data);
       }
     });
 
     clientWs.on('close', () => {
-      console.log('[client] disconnected');
-      if (!isEnded) endCall();
+      console.log('[ws] client disconnected');
+      clearInterval(keepaliveInterval);
+      endCall();
     });
 
-    clientWs.on('error', (err) => {
-      console.error('[client] error:', err);
-      if (!isEnded) endCall();
+    clientWs.on('error', (err: Error) => {
+      console.error('[ws] client error:', err.message);
+      endCall();
     });
 
-    // Safety timeout
-    setTimeout(() => {
-      if (!dgReady && !isEnded) {
-        console.error('[ws] timeout: Deepgram never became ready');
-        sendToClient('error', { message: 'Connection timeout' });
-        endCall();
-      }
-    }, 15000);
     } catch (err) {
-      console.error('[ws] FATAL error in handler:', err);
-      if (clientWs.readyState === WS.OPEN) clientWs.close(4000, 'internal_error');
+      console.error('[ws] connection setup error:', err);
+      clientWs.close(1011, 'internal_error');
     }
   });
 }

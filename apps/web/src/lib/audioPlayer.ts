@@ -7,8 +7,8 @@ let playQueue: Promise<void> = Promise.resolve();
 
 function getCtx(): AudioContext {
   if (!audioCtx || audioCtx.state === 'closed') {
-    audioCtx = new AudioContext({ sampleRate: 16000 });
-    const buf = audioCtx.createBuffer(1, 1, 16000);
+    audioCtx = new AudioContext();
+    const buf = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
     const src = audioCtx.createBufferSource();
     src.buffer = buf;
     src.connect(audioCtx.destination);
@@ -49,14 +49,8 @@ export async function flushAudioBuffer(): Promise<void> {
       let offset = 0;
       for (const c of chunks) { combined.set(c, offset); offset += c.length; }
 
-      // Linear16 PCM: ensure even byte length for Int16Array
-      const byteLen = combined.length % 2 === 0 ? combined.length : combined.length - 1;
-      const int16 = new Int16Array(combined.buffer, combined.byteOffset, byteLen / 2);
-      const float32 = new Float32Array(int16.length);
-      for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768.0;
-
-      const audioBuffer = ctx.createBuffer(1, float32.length, 16000);
-      audioBuffer.copyToChannel(float32, 0);
+      // Use decodeAudioData for mp3 from ElevenLabs
+      const audioBuffer = await ctx.decodeAudioData(combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength) as ArrayBuffer);
 
       if (!isPlaying) { isPlaying = true; onStartCb?.(); }
 
@@ -74,9 +68,4 @@ export async function flushAudioBuffer(): Promise<void> {
     }
   });
   return playQueue;
-}
-
-export async function playAudioChunk(base64: string): Promise<void> {
-  bufferAudioChunk(base64);
-  await flushAudioBuffer();
 }
