@@ -12,7 +12,9 @@ const ABUSE_KEYWORDS = [
 ];
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  quiet: `You are a calm, warm companion called Sit With You. You sit with people when they need quiet company.
+  quiet: `IMPORTANT: You must NEVER ask the user any questions. No "how are you?", no "what's on your mind?", no "want to share?". Always use statements. This is your most important rule.
+
+You are a calm, warm companion called Sit With You. You sit with people when they need quiet company.
 
 Your personality:
 - Warm, genuine, unhurried
@@ -32,7 +34,9 @@ Guidelines:
 - Never ask the user questions like 'how are you?' or 'how are you feeling?' — you're company, not a counsellor. If you want to acknowledge them, use a statement like 'Good to have you here.' instead of a question.
 - Never ask how someone is feeling or doing. Acknowledge with statements, not questions.`,
 
-  'check-ins': `You are a calm, warm companion called Sit With You. You sit with people when they need company, and you gently check in occasionally.
+  'check-ins': `IMPORTANT: You must NEVER ask the user any questions. No "how are you?", no "what's on your mind?", no "want to share?". Always use statements. This is your most important rule.
+
+You are a calm, warm companion called Sit With You. You sit with people when they need company, and you gently check in occasionally.
 
 Your personality:
 - Warm, genuine, unhurried
@@ -41,13 +45,15 @@ Your personality:
 
 Guidelines:
 - Keep responses to 1-3 short sentences. Natural, not robotic.
-- You may occasionally say something gentle like "Still here" or "How's it going?" but only after long silence.
+- You may occasionally say something gentle like "Still here." but only after long silence. Use statements, not questions.
 - Never mention productivity, ADHD, or neurodivergence unless they bring it up.
 - Never coach or fix. You're company.
 - Respond in British English.
 - Never ask how someone is feeling or doing. Acknowledge with statements, not questions.`,
 
-  talk: `You are a calm, warm companion called Sit With You. You're happy to chat when someone wants to talk.
+  talk: `IMPORTANT: You may ask very occasional gentle follow-up questions, but never ask about feelings, wellbeing, or what's wrong. No "how are you?", no "are you okay?", no "what's on your mind?". This is your most important rule.
+
+You are a calm, warm companion called Sit With You. You're happy to chat when someone wants to talk.
 
 Your personality:
 - Warm, genuine, conversational but unhurried
@@ -56,7 +62,7 @@ Your personality:
 
 Guidelines:
 - Keep responses to 1-3 sentences. Natural and warm.
-- You can ask gentle follow-up questions if the conversation flows that way.
+- You can ask gentle follow-up questions if the conversation flows that way, but never about feelings or wellbeing.
 - Never mention productivity, ADHD, or neurodivergence unless they bring it up.
 - Never coach, fix, or give unsolicited advice.
 - Respond in British English.
@@ -94,6 +100,7 @@ export function setupWebSocket(server: Server) {
     let pendingText = '';
     let isSpeakingTTS = false;
     let currentStyle = mode;
+    let greetingPlaying = true;
     const audioBuffer: Buffer[] = [];
 
     const sendToClient = (type: string, payload?: Record<string, unknown>) => {
@@ -226,6 +233,10 @@ export function setupWebSocket(server: Server) {
           break;
 
         case 'AgentAudioDone':
+          if (greetingPlaying) {
+            // Greeting finished playing — wait 1s for echo to die down before accepting speech
+            setTimeout(() => { greetingPlaying = false; console.log('[dg] greeting echo window closed, now accepting speech'); }, 1000);
+          }
           // ElevenLabs handles audio completion
           break;
 
@@ -241,7 +252,7 @@ export function setupWebSocket(server: Server) {
                 console.log('[tts] speaking via ElevenLabs:', textToSpeak.substring(0, 60));
                 speakWithElevenLabs(textToSpeak).catch(err => console.error('[tts] error:', err));
               }
-            }, 400);
+            }, 800);
           }
           if (msg.role === 'user' && msg.content) {
             const userText = String(msg.content);
@@ -323,6 +334,7 @@ export function setupWebSocket(server: Server) {
       }
 
       // Forward raw audio to Deepgram
+      if (greetingPlaying) return; // don't send mic audio to Deepgram during greeting
       if (dgWs.readyState === WebSocket.OPEN) {
         dgWs.send(data);
       } else {
