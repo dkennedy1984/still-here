@@ -72,8 +72,8 @@ export default function HomePage() {
 
       {showSheet && (
         <PresenceStyleSheet
-          current={presenceStyle}
-          onChange={(style) => { setPresenceStyle(style); setShowSheet(false); }}
+          selected={presenceStyle}
+          onSelect={(style) => { setPresenceStyle(style); setShowSheet(false); }}
           onClose={() => setShowSheet(false)}
         />
       )}
