@@ -17,6 +17,7 @@ export function getCtx(): AudioContext {
         latencyHint: 'interactive',
       });
     }
+    if (!audioCtx) throw new Error('Failed to create AudioContext');
     // Play 1 second of silence to keep the route active
     const buf = audioCtx.createBuffer(1, audioCtx.sampleRate, audioCtx.sampleRate);
     const src = audioCtx.createBufferSource();
