@@ -38,7 +38,7 @@ STRICT RULES:
 - Respond in British English.`,
 };
 
-const GREETING = "Hi, I'm here.";
+const GREETING = "Hi. I'm here. You don't have to talk — I'll just sit with you.";
 const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 export function setupWebSocket(server: Server) {
