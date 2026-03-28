@@ -29,6 +29,7 @@ function HomePageContent() {
   const [presenceStyle, setPresenceStyle] = useState<"silent" | "check-ins" | "talk">("check-ins");
   const [voice, setVoice] = useState<'her' | 'him'>('her');
   const callingRef = useRef(false);
+  const [scrolled, setScrolled] = useState(false);
 
   const searchParams = useSearchParams();
   const upgraded = searchParams?.get('upgraded') === 'true';
@@ -51,6 +52,11 @@ function HomePageContent() {
       return () => clearTimeout(t);
     }
   }, [upgraded]);
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 50);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   async function handleCall() {
     console.log('[home] handleCall fired, callingRef:', callingRef.current);
@@ -105,8 +111,8 @@ function HomePageContent() {
 
       </div>
 
-      {/* Bottom controls - fixed with gradient background */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 pb-6 pt-4 px-8 flex justify-between items-center bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent">
+      {/* Bottom controls - fixed, hide on scroll */}
+      <div className={`fixed bottom-0 left-0 right-0 z-40 pb-6 pt-4 px-8 flex justify-between items-center transition-opacity duration-300 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         <button
           onClick={() => setShowSheet(true)}
           className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
