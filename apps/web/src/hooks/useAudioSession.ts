@@ -9,13 +9,12 @@ type PresenceStyle = 'quiet' | 'check-ins' | 'talk';
 interface UseAudioSessionProps {
   callId: string;
   wsTicket: string;
-  presenceStyle: PresenceStyle;
   onAudioStart?: () => void;
   onAudioEnd?: () => void;
   onAmbientControl?: (sound: string) => void;
 }
 
-export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart, onAudioEnd, onAmbientControl }: UseAudioSessionProps) {
+export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, onAmbientControl }: UseAudioSessionProps) {
   const wsRef = useRef<WebSocket | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);

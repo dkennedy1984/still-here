@@ -24,7 +24,6 @@ function CallPageInner() {
   const { state, hangup, changeStyle } = useAudioSession({
     callId,
     wsTicket: ticket,
-    presenceStyle,
     onAudioStart: () => setIsAudioPlaying(true),
     onAudioEnd: () => setIsAudioPlaying(false),
     onAmbientControl: (sound) => setAmbientSound(sound),
@@ -96,7 +95,7 @@ function CallPageInner() {
             {(["quiet", "check-ins", "talk"] as const).map((style) => (
               <button
                 key={style}
-                onClick={() => { console.log("[call/page] style change clicked:", style); setPresenceStyle(style); changeStyle(style); }}
+                onClick={() => { setPresenceStyle(style); changeStyle(style); setShowOverlay(false); }}
                 className={clsx(
                   "flex-1 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
                   presenceStyle === style
