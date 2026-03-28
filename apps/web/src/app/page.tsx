@@ -76,13 +76,6 @@ export default function HomePage() {
           Prefer silence?
         </button>
 
-        {/* Subtle scroll indicator */}
-        <div className="absolute bottom-8 flex flex-col items-center animate-fade-in">
-          <span className="text-[10px] text-slate-700 mb-2">scroll for context</span>
-          <svg className="w-4 h-4 text-slate-700 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7" />
-          </svg>
-        </div>
       </div>
 
       {/* Content sections - below the fold */}
