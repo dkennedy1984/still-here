@@ -61,8 +61,6 @@ export function setupWebSocket(server: Server) {
       function endCall() {
         if (isEnded) return;
         isEnded = true;
-        clearInterval(keepAliveInterval);
-        clearInterval(dgKeepAlive);
         if (checkInTimer) clearTimeout(checkInTimer);
         checkInTimer = null;
         try { dgWs.close(); } catch {}
@@ -77,6 +75,30 @@ export function setupWebSocket(server: Server) {
       });
       console.log('[ws] step 4: Deepgram WebSocket created, readyState:', dgWs.readyState);
 
+      // Diagnostic: poll readyState every 500ms until it leaves CONNECTING
+      const dgStateInterval = setInterval(() => {
+        console.log('[deepgram] readyState check:', dgWs.readyState, '(0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED)');
+        if (dgWs.readyState !== 0) clearInterval(dgStateInterval); // stop polling once it's not connecting
+      }, 500);
+
+      dgWs.on('unexpected-response', (_req: any, res: any) => {
+        console.error('[deepgram] unexpected HTTP response:', res.statusCode, res.statusMessage);
+        let body = '';
+        res.on('data', (chunk: any) => body += chunk);
+        res.on('end', () => console.error('[deepgram] response body:', body));
+      });
+
+      dgWs.on('error', (err: Error) => {
+        console.error('[deepgram] WebSocket error:', err.message);
+        console.error('[deepgram] error details:', JSON.stringify(err));
+      });
+
+      // Diagnostic: 5-second timeout just for logging (does not close the connection)
+      const dgDiagTimeout = setTimeout(() => {
+        console.error('[deepgram] DIAG: 5s elapsed, readyState still:', dgWs.readyState);
+        console.error('[deepgram] DIAG: This means Deepgram WS never opened from Render');
+      }, 5000);
+
       // Safety check: close if Deepgram never connects
       const safetyTimeout = setTimeout(() => {
         if (!isEnded && dgWs.readyState !== WebSocket.OPEN) {
@@ -87,15 +109,8 @@ export function setupWebSocket(server: Server) {
 
       dgWs.on('open', () => {
         clearTimeout(safetyTimeout);
-
-        // Keep Deepgram WebSocket alive with periodic pings
-        const dgKeepAlive = setInterval(() => {
-          if (dgWs.readyState === WebSocket.OPEN) {
-            dgWs.ping();
-          } else {
-            clearInterval(dgKeepAlive);
-          }
-        }, 10000);
+        clearTimeout(dgDiagTimeout);
+        clearInterval(dgStateInterval);
 
         // Send Settings
         dgWs.send(JSON.stringify({
@@ -117,21 +132,6 @@ export function setupWebSocket(server: Server) {
       });
 
       console.log('[ws] step 5: event listeners attached, waiting for Deepgram open');
-
-      // Send immediate ping to prevent Render's load balancer from closing the connection
-      // Render closes idle WS connections after ~1 second without data
-      clientWs.ping();
-
-      // Keep-alive ping every 15 seconds
-      const keepAliveInterval = setInterval(() => {
-        if (clientWs.readyState === WS.OPEN) {
-          clientWs.ping();
-        } else {
-          clearInterval(keepAliveInterval);
-        }
-      }, 15000);
-
-      sendToClient('connecting', { message: 'Connecting to voice agent...' });
 
       dgWs.on('message', (data: Buffer | string, isBinary: boolean) => {
         if (isBinary) {
