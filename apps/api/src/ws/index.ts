@@ -111,7 +111,7 @@ export function setupWebSocket(server: Server) {
           think: {
             provider: { type: 'open_ai' },
             model: 'gpt-4o-mini',
-            instructions: systemPrompt,
+            prompt: systemPrompt,
           },
           speak: { provider: { type: 'deepgram', model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en' } },
         },
