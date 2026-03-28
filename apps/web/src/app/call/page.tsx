@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAudioSession } from "@/hooks/useAudioSession";
 import { PresenceOrb } from "@/components/PresenceOrb";
@@ -36,10 +36,19 @@ function CallPageInner() {
     return () => clearTimeout(timer);
   }, [showOverlay]);
 
-  // Navigate to post-call when ended
+  // Only navigate to /post-call when ended AND we were previously connected
+  // This prevents a remount/failed connection attempt from bouncing the user away
+  const wasConnected = useRef(false);
   useEffect(() => {
+    if (state.status === "connected") {
+      wasConnected.current = true;
+      console.log("[call/page] status=connected, wasConnected set to true");
+    }
     if (state.status === "ended") {
-      router.push("/post-call");
+      console.log("[call/page] status=ended, wasConnected:", wasConnected.current);
+      if (wasConnected.current) {
+        router.push("/post-call");
+      }
     }
   }, [state.status, router]);
 
@@ -52,70 +61,69 @@ function CallPageInner() {
     setShowOverlay((prev) => !prev);
   }, []);
 
-  // orbState is driven by actual audio playback — green = AI is speaking in the browser
-  const orbState: 'idle' | 'listening' | 'speaking' | 'greeting' = (() => {
-    if (isAudioPlaying) return 'speaking';
-    switch (state.agentState) {
-      case 'RESPONDING':
-        return 'speaking';
-      case 'LISTENING':
-        return 'listening';
-      default:
-        return 'idle';
-    }
-  })();
+  // orbState is driven by actual audio playback — green = AI is speaking in real-time
+  const orbState = isAudioPlaying ? "speaking" : state.status === "connected" ? "listening" : "idle";
 
   return (
-    <div
-      className="min-h-screen bg-black flex flex-col items-center justify-center relative"
+    <main
+      className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950"
       onClick={toggleOverlay}
     >
+      {/* Presence orb */}
       <PresenceOrb state={orbState} size="lg" />
 
-      {/* Slide-up overlay with controls */}
+      {/* Overlay: controls */}
       <div
         className={clsx(
-          "fixed bottom-20 left-0 right-0 flex justify-center gap-4 px-6 pb-4 pt-2 transition-all duration-300",
-          showOverlay ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0 pointer-events-none"
+          "absolute inset-0 flex flex-col items-center justify-end pb-16 transition-opacity duration-500",
+          showOverlay ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
-        <button
-          onClick={() => { preferSilence(); setShowOverlay(false); }}
-          className="px-4 py-2 rounded-full border border-slate-600/40 text-slate-400 text-sm
-                     hover:bg-slate-800/60 active:scale-95 transition-all duration-150"
-        >
-          Prefer silence
-        </button>
-        <button
-          onClick={() => { changeStyle("talk"); setShowOverlay(false); }}
-          className="px-4 py-2 rounded-full border border-slate-600/40 text-slate-400 text-sm
-                     hover:bg-slate-800/60 active:scale-95 transition-all duration-150"
-        >
-          Talk
-        </button>
-        <button
-          onClick={() => { setShowOverlay(false); }}
-          className="px-4 py-2 rounded-full border border-slate-600/40 text-slate-400 text-sm
-                     hover:bg-slate-800/60 active:scale-95 transition-all duration-150"
-        >
-          Music ▾
-        </button>
+        <div className="flex flex-col gap-4 w-full max-w-xs px-6">
+          <button
+            onClick={handleHangup}
+            className="w-full rounded-full bg-red-600 px-6 py-4 text-lg font-semibold text-white transition-all duration-200 hover:bg-red-500 active:scale-[0.98]"
+          >
+            End Call
+          </button>
+
+          <button
+            onClick={() => { preferSilence(); }}
+            className="w-full rounded-full bg-slate-700 px-6 py-4 text-base font-medium text-slate-200 transition-all duration-200 hover:bg-slate-600 active:scale-[0.98]"
+          >
+            Prefer Silence
+          </button>
+
+          <div className="flex gap-3">
+            {(["quiet", "check-ins", "talk"] as const).map((style) => (
+              <button
+                key={style}
+                onClick={() => { setPresenceStyle(style); changeStyle(style); }}
+                className={clsx(
+                  "flex-1 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
+                  presenceStyle === style
+                    ? "bg-white text-slate-900"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                )}
+              >
+                {style}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Always visible footer */}
-      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-8 pb-10 pt-4"
-           onClick={e => e.stopPropagation()}>
-        <span className="text-xs text-slate-500 tracking-wide">Still here</span>
-        <button
-          onClick={handleHangup}
-          className="px-5 py-2.5 rounded-full border border-red-400/30 text-red-400 text-sm
-                     hover:bg-red-400/10 active:scale-95 transition-all duration-150"
-        >
-          End
-        </button>
-      </div>
-    </div>
+      {/* Status indicator */}
+      {state.status === "connecting" && (
+        <p className="absolute bottom-8 text-slate-500 text-sm">Connecting...</p>
+      )}
+      {state.remainingSeconds !== null && state.remainingSeconds <= 60 && (
+        <p className="absolute bottom-8 text-slate-400 text-sm">
+          {state.remainingSeconds}s remaining
+        </p>
+      )}
+    </main>
   );
 }
 

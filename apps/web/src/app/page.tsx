@@ -14,7 +14,11 @@ export default function HomePage() {
   const callingRef = useRef(false);
 
   async function handleCall() {
-    if (callingRef.current) return; // prevent double-click / double-tap
+    console.log('[home] handleCall fired, callingRef:', callingRef.current);
+    if (callingRef.current) {
+      console.log('[home] BLOCKED double call');
+      return; // prevent double-click / double-tap
+    }
     callingRef.current = true;
     setLoading(true);
     try {
@@ -51,31 +55,25 @@ export default function HomePage() {
       <p className="mt-4 text-slate-400 text-sm">I'll just sit with you.</p>
 
       {/* Bottom corners */}
-      <div className="absolute bottom-8 left-6">
+      <div className="absolute bottom-8 left-6 right-6 flex justify-between">
+        <button
+          onClick={() => setShowSheet(true)}
+          className="text-slate-500 text-sm hover:text-slate-300 transition-colors"
+        >
+          Presence style
+        </button>
         <button
           onClick={handlePreferSilence}
-          className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
+          className="text-slate-500 text-sm hover:text-slate-300 transition-colors"
         >
           Prefer silence
         </button>
       </div>
 
-      <div className="absolute bottom-8 right-6">
-        <button
-          onClick={() => setShowSheet(true)}
-          className="text-sm text-slate-500 hover:text-slate-300 transition-colors"
-        >
-          Change style
-        </button>
-      </div>
-
       {showSheet && (
         <PresenceStyleSheet
-          selected={presenceStyle}
-          onSelect={(s) => {
-            setPresenceStyle(s);
-            setShowSheet(false);
-          }}
+          current={presenceStyle}
+          onChange={(style) => { setPresenceStyle(style); setShowSheet(false); }}
           onClose={() => setShowSheet(false)}
         />
       )}

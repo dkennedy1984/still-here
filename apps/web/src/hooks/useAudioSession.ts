@@ -22,6 +22,7 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
   const streamRef = useRef<MediaStream | null>(null);
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const connectedRef = useRef(false); // prevent double WebSocket connection
+  const wasConnectedRef = useRef(false); // track whether we ever reached 'connected' state
   const [status, setStatus] = useState<ConnectionStatus>('idle');
   const [agentState, setAgentState] = useState<AgentState>('GREETING');
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
@@ -104,37 +105,26 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
           const input = e.inputBuffer.getChannelData(0);
           const pcm = new Int16Array(input.length);
           for (let i = 0; i < input.length; i++) {
-            pcm[i] = Math.max(-32768, Math.min(32767, Math.round(input[i] * 32767)));
+            pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
           }
           ws.send(pcm.buffer);
         };
         source.connect(processor);
         processor.connect(audioCtx.destination);
+
+        wasConnectedRef.current = true;
         setStatus('connected');
+        console.log('[useAudioSession] mic active, status=connected');
       } catch (err) {
-        console.error('[useAudioSession] mic error:', err);
+        console.error('[useAudioSession] mic error', err);
         if (!destroyed) setStatus('error');
       }
     };
 
-    ws.onmessage = async (evt) => {
+    ws.onmessage = async (event) => {
       try {
-        // Handle binary audio from Deepgram (raw PCM)
-        if (evt.data instanceof Blob) {
-          const buffer = await evt.data.arrayBuffer();
-          const b64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-          bufferAudioChunk(b64);
-          return;
-        }
-
-        const msg = JSON.parse(evt.data);
-        const type = msg.type || msg.event;
-
-        switch (type) {
-          case 'connected':
-          case 'session_ready':
-            setStatus('connected');
-            break;
+        const msg = JSON.parse(event.data as string);
+        switch (msg.type) {
           case 'agent_state':
             setAgentState(msg.state as AgentState);
             break;
@@ -160,7 +150,13 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
       }
     };
 
-    ws.onclose = () => { if (!destroyed) setStatus('ended'); };
+    ws.onclose = (event) => {
+      console.log('[useAudioSession] WS closed, code:', event.code, 'wasConnected:', wasConnectedRef.current);
+      if (!destroyed) {
+        // Only set ended if we actually connected - don't end on failed connection attempts
+        setStatus(wasConnectedRef.current ? 'ended' : 'error');
+      }
+    };
     ws.onerror = () => { if (!destroyed) setStatus('error'); };
 
     const pingInterval = setInterval(() => {
