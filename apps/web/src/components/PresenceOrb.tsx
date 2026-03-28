@@ -43,7 +43,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       // Current radius - orb breathes in size slightly
       const currentR = isSpeaking
         ? r * (1.0 + pulse * 0.06)
-        : r * (0.97 + breathe * 0.04);
+        : r * (0.93 + breathe * 0.08); // more visible breathing
 
       // === OUTER AMBIENT GLOW ===
       const glowR = currentR * (isSpeaking ? 2.8 + pulse * 0.4 : 2.2 + breathe * 0.2);
@@ -137,7 +137,19 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       ctx.fillStyle = sweepGrad;
       ctx.fill();
 
-      // === SPECULAR HIGHLIGHT (top-left, fixed) ===
+      // === SECOND LIGHT SWEEP (opposite direction, slower) ===
+      const sweep2Angle = -t * 0.25;
+      const sweep2X = cx + Math.cos(sweep2Angle) * currentR * 0.4;
+      const sweep2Y = cy + Math.sin(sweep2Angle) * currentR * 0.4;
+      const sweep2Grad = ctx.createRadialGradient(sweep2X, sweep2Y, 0, sweep2X, sweep2Y, currentR * 0.6);
+      sweep2Grad.addColorStop(0, `rgba(255,255,255,${0.04 + shimmer * 0.03})`);
+      sweep2Grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
+      ctx.fillStyle = sweep2Grad;
+      ctx.fill();
+
+      // === SPECULAR HIGHLIGHT (top-left, slowly rotating) ===
       const specX = cx - currentR * 0.28;
       const specY = cy - currentR * 0.30;
       const specGrad = ctx.createRadialGradient(specX, specY, 0, specX, specY, currentR * 0.42);

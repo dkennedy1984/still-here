@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useAudioSession } from "@/hooks/useAudioSession";
 import { PresenceOrb } from "@/components/PresenceOrb";
 import clsx from "clsx";
+import { AmbientNoise } from "@/components/AmbientNoise";
 
 function CallPageInner() {
   const searchParams = useSearchParams();
@@ -123,6 +124,20 @@ function CallPageInner() {
           {state.remainingSeconds}s remaining
         </p>
       )}
+
+      {/* Always-visible footer: branding + ambient noise + hang up */}
+      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-8 pb-10 pt-4">
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-slate-500 tracking-wide">Still here</span>
+          <AmbientNoise />
+        </div>
+        <button
+          onClick={handleHangup}
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          Hang up
+        </button>
+      </div>
     </main>
   );
 }

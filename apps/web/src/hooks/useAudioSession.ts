@@ -131,6 +131,17 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
         wasConnectedRef.current = true;
         setStatus('connected');
         console.log('[useAudioSession] mic active, status=connected');
+
+        // Keep screen awake during call
+        let wakeLock: any = null;
+        if ('wakeLock' in navigator) {
+          (navigator as any).wakeLock.request('screen')
+            .then((wl: any) => {
+              wakeLock = wl;
+              console.log('[wakelock] screen wake lock acquired');
+            })
+            .catch((err: Error) => console.log('[wakelock] not available:', err.message));
+        }
       } catch (err) {
         console.error('[useAudioSession] mic error', err);
         if (!destroyed) setStatus('error');
@@ -187,6 +198,10 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
       sourceRef.current?.disconnect();
       streamRef.current?.getTracks().forEach(track => track.stop());
       audioCtxRef.current?.close().catch(() => {});
+      if (wakeLock) {
+        wakeLock.release().catch(() => {});
+        console.log('[wakelock] released');
+      }
       ws.close();
       resetAudioPlayer();
     };
