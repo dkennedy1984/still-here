@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { startCall } from "@/lib/api";
@@ -27,7 +27,17 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
   const [presenceStyle, setPresenceStyle] = useState<"silent" | "check-ins" | "talk">("check-ins");
+  const [voice, setVoice] = useState<'her' | 'him'>('her');
   const callingRef = useRef(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('swy-voice');
+    if (saved === 'her' || saved === 'him') setVoice(saved);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('swy-voice', voice);
+  }, [voice]);
 
   async function handleCall() {
     console.log('[home] handleCall fired, callingRef:', callingRef.current);
@@ -38,7 +48,7 @@ export default function HomePage() {
     callingRef.current = true;
     setLoading(true);
     try {
-      const { callId, wsTicket } = await startCall(presenceStyle);
+      const { callId, wsTicket } = await startCall(presenceStyle, voice);
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     } catch (err) {
       console.error("Failed to start call:", err);
@@ -68,13 +78,33 @@ export default function HomePage() {
         {/* Subtext */}
         <p className="mt-4 text-slate-400 text-sm">I&apos;ll just sit with you.</p>
 
-        {/* Presence preference */}
-        <button
-          onClick={() => setShowSheet(true)}
-          className="mt-6 text-xs text-slate-600 hover:text-slate-400 transition-colors underline underline-offset-2"
-        >
-          Prefer silence?
-        </button>
+        {/* Bottom controls row: presence style + voice picker */}
+        <div className="mt-6 flex items-center gap-4">
+          <button
+            onClick={() => setShowSheet(true)}
+            className="text-xs text-slate-600 hover:text-slate-400 transition-colors underline underline-offset-2"
+          >
+            Change ▾
+          </button>
+
+          <span className="text-slate-700 text-xs">·</span>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setVoice('her')}
+              className={`text-xs transition-colors ${voice === 'her' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Her
+            </button>
+            <span className="text-slate-600 text-xs">|</span>
+            <button
+              onClick={() => setVoice('him')}
+              className={`text-xs transition-colors ${voice === 'him' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Him
+            </button>
+          </div>
+        </div>
 
       </div>
 

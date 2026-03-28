@@ -3,6 +3,8 @@ import { IncomingMessage } from 'http';
 import { Server } from 'http';
 import WebSocket from 'ws';
 import { prisma } from '../lib/prisma';
+import jwt from 'jsonwebtoken';
+import { config } from '../config';
 
 const CHECK_IN_MS = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '900000', 10); // 15 minutes
 const MAX_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '3600000', 10); // 60 minutes default
@@ -76,6 +78,11 @@ Guidelines:
 - You can control background sounds. If the user asks for rain, white noise, or brown noise, acknowledge it naturally — the sound will start automatically. If they ask to stop it, acknowledge that too.`,
 };
 
+const VOICE_MAP: Record<string, string> = {
+  her: process.env.ELEVENLABS_VOICE_FEMALE || 'XB0fDUnXU5powFXDhCwa', // Charlotte
+  him: process.env.ELEVENLABS_VOICE_MALE   || 'lUTamkMw7gOzZbFIwmq4', // James
+};
+
 const GREETING = "Hi. I'm here. You don't have to talk... I'll just sit with you.";
 const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
@@ -94,7 +101,18 @@ export function setupWebSocket(server: Server) {
 
     const mode = (call as any).presenceStyle || 'quiet';
     const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS['quiet'];
-    console.log(`[ws] mode=${mode}, sessionId=${call.session.id}`);
+
+    // Decode voice choice from JWT ticket (not stored in DB to avoid migration)
+    let voiceChoice = 'her';
+    try {
+      const decoded = jwt.verify(ticket, config.jwt.secret) as Record<string, unknown>;
+      if (decoded.voice === 'her' || decoded.voice === 'him') voiceChoice = decoded.voice as string;
+    } catch {
+      // ticket already validated by DB lookup above; safe to fall back to default
+    }
+    const voiceId = VOICE_MAP[voiceChoice] || VOICE_MAP.her;
+
+    console.log(`[ws] mode=${mode}, voice=${voiceChoice}, sessionId=${call.session.id}`);
 
     const dgWs = new WebSocket(DG_URL, {
       headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
@@ -127,7 +145,7 @@ export function setupWebSocket(server: Server) {
 
     async function speakWithElevenLabs(text: string): Promise<number> {
       const apiKey = process.env.ELEVENLABS_API_KEY;
-      const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+      // voiceId is resolved from VOICE_MAP at session setup above
       const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
       if (!apiKey) { console.error('[tts] ELEVENLABS_API_KEY not set'); return 0; }
 

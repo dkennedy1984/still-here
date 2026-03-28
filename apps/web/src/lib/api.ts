@@ -19,13 +19,14 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export async function startCall(
-  presenceStyle: string = "quiet"
+  presenceStyle: string = "quiet",
+  voice: string = "her"
 ): Promise<{ callId: string; wsTicket: string; sessionId: string }> {
   const body = await apiFetch<{ success: boolean; data: { callId: string; wsTicket: string; sessionId: string } }>(
     "/api/v1/calls/session",
     {
       method: "POST",
-      body: JSON.stringify({ presenceStyle }),
+      body: JSON.stringify({ presenceStyle, voice }),
     }
   );
   return body.data;

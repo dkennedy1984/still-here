@@ -36,6 +36,10 @@ async function ensureDailyReset(sessionId: string, minutesResetAt: Date): Promis
 callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
     const sessionId = req.sessionId;
+    const { presenceStyle: rawPresenceStyle, voice: rawVoice } = (req as any).body || {};
+    const presenceStyle = rawPresenceStyle || 'quiet';
+    const voice = rawVoice || 'her';
+
 
     let session: {
       id: string;
@@ -105,7 +109,8 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
         callerId: session.id,
         sessionId: session.id,
         callId,
-        presenceStyle: "quiet",
+        presenceStyle,
+        voice,
       },
       config.jwt.secret,
       { expiresIn: "5m" }
@@ -116,7 +121,7 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
         id: callId,
         sessionId: session.id,
         wsTicket,
-        presenceStyle: "quiet",
+        presenceStyle,
       },
     });
 
