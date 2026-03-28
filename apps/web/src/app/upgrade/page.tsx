@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function UpgradePage() {
+  const router = useRouter();
   const [showMagicForm, setShowMagicForm] = useState(false);
   const [magicEmail, setMagicEmail] = useState("");
   const [magicSent, setMagicSent] = useState(false);
@@ -43,85 +45,73 @@ export default function UpgradePage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6">
-      <h1 className="text-2xl font-bold text-white mb-8">Be here without limits</h1>
+      <h1 className="text-2xl font-bold text-white mb-8">Be here, whenever you need.</h1>
 
-      <div className="mb-8 space-y-4 w-full max-w-xs">
-        <div className="flex items-start gap-3">
-          <span className="text-green-400 mt-0.5">✓</span>
-          <span className="text-white">Unlimited time together</span>
-        </div>
-        <div className="flex items-start gap-3">
-          <span className="text-green-400 mt-0.5">✓</span>
-          <span className="text-white">Deeper support if you ask</span>
-        </div>
-        <div className="flex items-start gap-3">
-          <span className="text-green-400 mt-0.5">✓</span>
-          <span className="text-white">Choice of presence styles</span>
-        </div>
-      </div>
+      <ul className="space-y-4 text-left w-full max-w-xs mx-auto mb-8">
+        {[
+          'Up to 30 minutes together per session',
+          'Gentle support if you ask for it',
+          'Choose how present I am',
+        ].map((item) => (
+          <li key={item} className="flex items-start gap-3">
+            <span className="text-green-400 mt-0.5 flex-shrink-0">✓</span>
+            <span className="text-white text-sm">{item}</span>
+          </li>
+        ))}
+      </ul>
 
-      <button className="w-full max-w-xs rounded-full bg-white px-6 py-4 text-lg font-semibold text-slate-900 transition-all duration-200 hover:bg-white/90 active:scale-[0.98]">
-        Continue
-      </button>
-
-      <p className="mt-4 text-sm text-slate-400">£8 per month</p>
-
-      {linkError === "expired" && (
-        <p className="mt-3 text-sm text-amber-400">That link has expired. Request a new one below.</p>
+      {linkError && (
+        <p className="text-amber-400 text-sm mb-4">
+          {linkError === "expired"
+            ? "That link has expired. Please request a new one."
+            : "Something went wrong. Please try again."}
+        </p>
       )}
 
-      <button className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors">
+      {!showMagicForm && !magicSent && (
+        <button
+          onClick={() => setShowMagicForm(true)}
+          className="w-full max-w-xs bg-white text-slate-900 font-semibold py-3 px-6 rounded-full hover:bg-slate-100 transition-colors mb-4"
+        >
+          Continue with email
+        </button>
+      )}
+
+      {showMagicForm && !magicSent && (
+        <form onSubmit={handleMagicLinkSubmit} className="w-full max-w-xs space-y-3 mb-4">
+          <input
+            type="email"
+            value={magicEmail}
+            onChange={(e) => setMagicEmail(e.target.value)}
+            placeholder="your@email.com"
+            required
+            className="w-full bg-slate-800 text-white placeholder-slate-500 border border-slate-700 rounded-full py-3 px-5 focus:outline-none focus:border-slate-500"
+          />
+          {magicError && (
+            <p className="text-red-400 text-sm text-center">{magicError}</p>
+          )}
+          <button
+            type="submit"
+            disabled={magicLoading}
+            className="w-full bg-white text-slate-900 font-semibold py-3 px-6 rounded-full hover:bg-slate-100 transition-colors disabled:opacity-50"
+          >
+            {magicLoading ? "Sending…" : "Send magic link"}
+          </button>
+        </form>
+      )}
+
+      {magicSent && (
+        <p className="text-green-400 text-sm mb-4 text-center">
+          Check your email — a link is on its way.
+        </p>
+      )}
+
+      <button
+        onClick={() => router.push('/')}
+        className="text-slate-500 text-sm hover:text-slate-300 transition-colors"
+      >
         Not now
       </button>
-
-      {/* Already a member section */}
-      <div className="mt-10 border-t border-slate-800 pt-8 w-full max-w-xs text-center">
-        {!showMagicForm && !magicSent && (
-          <button
-            onClick={() => setShowMagicForm(true)}
-            className="text-sm text-slate-400 hover:text-slate-200 transition-colors"
-          >
-            Already a member? Access on this device →
-          </button>
-        )}
-
-        {showMagicForm && !magicSent && (
-          <form onSubmit={handleMagicLinkSubmit} className="space-y-3">
-            <p className="text-sm text-slate-400">Enter your email and we'll send you a link.</p>
-            <input
-              type="email"
-              value={magicEmail}
-              onChange={(e) => setMagicEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-slate-500"
-            />
-            {magicError && (
-              <p className="text-xs text-red-400">{magicError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={magicLoading}
-              className="w-full rounded-full bg-slate-700 px-6 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-slate-600 active:scale-[0.98] disabled:opacity-50"
-            >
-              {magicLoading ? "Sending\u2026" : "Send link"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowMagicForm(false)}
-              className="text-xs text-slate-500 hover:text-slate-400 transition-colors"
-            >
-              Cancel
-            </button>
-          </form>
-        )}
-
-        {magicSent && (
-          <p className="text-sm text-slate-300">
-            Check your email \u2014 we\u2019ve sent you a link.
-          </p>
-        )}
-      </div>
     </main>
   );
 }
