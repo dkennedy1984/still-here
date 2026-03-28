@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks, stopAudioPlayback } from '../lib/audioPlayer';
+import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks } from '../lib/audioPlayer';
 
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'ended' | 'error';
 type AgentState = 'GREETING' | 'SILENT_PRESENCE' | 'LISTENING' | 'THINKING' | 'RESPONDING' | 'ENDED';
@@ -100,14 +100,21 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
         audioElRef.current = audioEl;
         const processor = audioCtx.createScriptProcessor(2048, 1, 1);
         processorRef.current = processor;
+        // Send every audio frame — no client-side VAD or energy gating.
+        // Deepgram Voice Agent handles its own VAD internally.
+        let audioFrameCount = 0;
         processor.onaudioprocess = (e) => {
           if (ws.readyState !== WebSocket.OPEN) return;
-          const input = e.inputBuffer.getChannelData(0);
-          const pcm = new Int16Array(input.length);
-          for (let i = 0; i < input.length; i++) {
-            pcm[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+          audioFrameCount++;
+          if (audioFrameCount % 160 === 0) { // roughly every 10 seconds at 2048 samples / 16kHz
+            console.log('[audio] still streaming, frames sent:', audioFrameCount);
           }
-          ws.send(pcm.buffer);
+          const float32 = e.inputBuffer.getChannelData(0);
+          const int16 = new Int16Array(float32.length);
+          for (let i = 0; i < float32.length; i++) {
+            int16[i] = Math.max(-32768, Math.min(32767, float32[i] * 32768));
+          }
+          ws.send(int16.buffer);
         };
         source.connect(processor);
         processor.connect(audioCtx.destination);
@@ -133,9 +140,6 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
             break;
           case 'audio_out_done':
             await flushAudioBuffer();
-            break;
-          case 'audio_stop':
-            stopAudioPlayback();
             break;
           case 'time_remaining':
             setRemainingSeconds(msg.seconds as number);
