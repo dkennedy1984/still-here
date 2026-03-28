@@ -349,10 +349,11 @@ export function setupWebSocket(server: Server) {
           console.log('[ws] style_change received:', msg.style);
           currentStyle = msg.style;
           const newPrompt = SYSTEM_PROMPTS[msg.style] || SYSTEM_PROMPTS['quiet'];
+          console.log('[ws] sending UpdateInstructions for style:', msg.style);
           if (dgWs.readyState === WebSocket.OPEN) {
             dgWs.send(JSON.stringify({
               type: 'UpdateInstructions',
-              instructions: newPrompt,
+              prompt: newPrompt,
             }));
           }
           return;
@@ -361,10 +362,11 @@ export function setupWebSocket(server: Server) {
           console.log('[ws] prefer_silence received');
           currentStyle = 'quiet';
           const silentPrompt = SYSTEM_PROMPTS['quiet'];
+          console.log('[ws] sending UpdateInstructions for prefer_silence');
           if (dgWs.readyState === WebSocket.OPEN) {
             dgWs.send(JSON.stringify({
               type: 'UpdateInstructions',
-              instructions: silentPrompt,
+              prompt: silentPrompt,
             }));
           }
           return;

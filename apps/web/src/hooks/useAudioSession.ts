@@ -45,7 +45,7 @@ export function useAudioSession({ callId, wsTicket, presenceStyle, onAudioStart,
     setStatus('ended');
   }, [send]);
 
-  const changeStyle = useCallback((style: PresenceStyle) => send('change_style', { style }), [send]);
+  const changeStyle = useCallback((style: PresenceStyle) => send('style_change', { style }), [send]);
   const preferSilence = useCallback(() => send('prefer_silence'), [send]);
 
   useEffect(() => {

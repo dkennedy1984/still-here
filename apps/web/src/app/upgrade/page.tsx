@@ -49,7 +49,7 @@ export default function UpgradePage() {
 
       <ul className="space-y-4 text-left w-full max-w-xs mx-auto mb-8">
         {[
-          'Up to 30 minutes together per session',
+          'Up to 60 minutes together per session',
           'Gentle support if you ask for it',
           'Choose how present I am',
         ].map((item) => (
@@ -105,6 +105,9 @@ export default function UpgradePage() {
           Check your email — a link is on its way.
         </p>
       )}
+
+      <p className="text-white text-lg font-semibold mb-1">£8 per month</p>
+      <p className="text-slate-400 text-sm mb-6">You can cancel anytime.</p>
 
       <button
         onClick={() => router.push('/')}
