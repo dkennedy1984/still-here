@@ -7,17 +7,41 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function UpgradePage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
   const [showMagicForm, setShowMagicForm] = useState(false);
   const [magicEmail, setMagicEmail] = useState("");
   const [magicSent, setMagicSent] = useState(false);
   const [magicError, setMagicError] = useState("");
   const [magicLoading, setMagicLoading] = useState(false);
 
-  // Check for error param (e.g. expired magic link)
-  const searchParams = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search)
-    : null;
+  // Check for error/cancelled param
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : null;
   const linkError = searchParams?.get("error");
+  const cancelled = searchParams?.get("cancelled") === "true";
+
+  async function handleUpgrade() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/billing/create-checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error("No checkout URL returned:", data);
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error("Failed to create checkout:", err);
+      setLoading(false);
+    }
+  }
 
   async function handleMagicLinkSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,76 +69,93 @@ export default function UpgradePage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6">
-      <h1 className="text-2xl font-bold text-white mb-8">Be here, whenever you need.</h1>
+      <h1 className="text-2xl font-bold text-white mb-8">
+        Be here, whenever you need.
+      </h1>
 
       <ul className="space-y-4 text-left w-full max-w-xs mx-auto mb-8">
         {[
-          'Up to 60 minutes together per session',
-          'Gentle support if you ask for it',
-          'Choose how present I am',
+          "Up to 60 minutes together per session",
+          "Gentle support if you ask for it",
+          "Choose how present I am",
         ].map((item) => (
-          <li key={item} className="flex items-start gap-3">
-            <span className="text-green-400 mt-0.5 flex-shrink-0">✓</span>
-            <span className="text-white text-sm">{item}</span>
+          <li key={item} className="flex items-start gap-3 text-white/80">
+            <span className="mt-1 h-2 w-2 rounded-full bg-white/40 shrink-0" />
+            <span className="text-sm">{item}</span>
           </li>
         ))}
       </ul>
 
       {linkError && (
-        <p className="text-amber-400 text-sm mb-4">
+        <p className="text-sm text-red-400 mb-4">
           {linkError === "expired"
             ? "That link has expired. Please request a new one."
-            : "Something went wrong. Please try again."}
+            : linkError === "invalid"
+              ? "That link is no longer valid."
+              : "Something went wrong. Please try again."}
         </p>
       )}
 
-      {!showMagicForm && !magicSent && (
-        <button
-          onClick={() => setShowMagicForm(true)}
-          className="w-full max-w-xs bg-white text-slate-900 font-semibold py-3 px-6 rounded-full hover:bg-slate-100 transition-colors mb-4"
-        >
-          Continue with email
-        </button>
-      )}
-
-      {showMagicForm && !magicSent && (
-        <form onSubmit={handleMagicLinkSubmit} className="w-full max-w-xs space-y-3 mb-4">
-          <input
-            type="email"
-            value={magicEmail}
-            onChange={(e) => setMagicEmail(e.target.value)}
-            placeholder="your@email.com"
-            required
-            className="w-full bg-slate-800 text-white placeholder-slate-500 border border-slate-700 rounded-full py-3 px-5 focus:outline-none focus:border-slate-500"
-          />
-          {magicError && (
-            <p className="text-red-400 text-sm text-center">{magicError}</p>
-          )}
-          <button
-            type="submit"
-            disabled={magicLoading}
-            className="w-full bg-white text-slate-900 font-semibold py-3 px-6 rounded-full hover:bg-slate-100 transition-colors disabled:opacity-50"
-          >
-            {magicLoading ? "Sending…" : "Send magic link"}
-          </button>
-        </form>
-      )}
-
-      {magicSent && (
-        <p className="text-green-400 text-sm mb-4 text-center">
-          Check your email — a link is on its way.
+      {cancelled && (
+        <p className="text-sm text-slate-400 mb-4">
+          No worries — you can upgrade whenever you&apos;re ready.
         </p>
       )}
-
-      <p className="text-white text-lg font-semibold mb-1">£8 per month</p>
-      <p className="text-slate-400 text-sm mb-6">You can cancel anytime.</p>
 
       <button
-        onClick={() => router.push('/')}
-        className="text-slate-500 text-sm hover:text-slate-300 transition-colors"
+        onClick={handleUpgrade}
+        disabled={loading}
+        className="w-full max-w-xs py-4 rounded-full bg-white text-slate-900 text-lg font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50"
       >
-        Not now
+        {loading ? "..." : "Continue"}
       </button>
+
+      <button
+        onClick={() => router.push("/")}
+        className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+      >
+        Maybe later
+      </button>
+
+      {/* Magic link section for cross-device access */}
+      <div className="mt-12 border-t border-white/10 pt-8 w-full max-w-xs">
+        <p className="text-xs text-slate-500 text-center mb-3">
+          Already subscribed on another device?
+        </p>
+        {!showMagicForm ? (
+          <button
+            onClick={() => setShowMagicForm(true)}
+            className="w-full text-sm text-slate-400 hover:text-white transition-colors"
+          >
+            Send me a login link
+          </button>
+        ) : magicSent ? (
+          <p className="text-sm text-green-400/80 text-center">
+            Check your email — a link is on its way.
+          </p>
+        ) : (
+          <form onSubmit={handleMagicLinkSubmit} className="space-y-3">
+            <input
+              type="email"
+              value={magicEmail}
+              onChange={(e) => setMagicEmail(e.target.value)}
+              placeholder="your@email.com"
+              required
+              className="w-full rounded-lg bg-white/5 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-white/20"
+            />
+            {magicError && (
+              <p className="text-xs text-red-400">{magicError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={magicLoading}
+              className="w-full rounded-lg bg-white/10 py-3 text-sm text-white hover:bg-white/15 transition-colors disabled:opacity-50"
+            >
+              {magicLoading ? "Sending..." : "Send link"}
+            </button>
+          </form>
+        )}
+      </div>
     </main>
   );
 }

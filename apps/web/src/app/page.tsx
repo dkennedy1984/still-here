@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
@@ -22,13 +22,17 @@ const homeSources = [
   },
 ];
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
   const [presenceStyle, setPresenceStyle] = useState<"silent" | "check-ins" | "talk">("check-ins");
   const [voice, setVoice] = useState<'her' | 'him'>('her');
   const callingRef = useRef(false);
+
+  const searchParams = useSearchParams();
+  const upgraded = searchParams?.get("upgraded") === "true";
+
 
   useEffect(() => {
     const saved = localStorage.getItem('swy-voice');
@@ -59,6 +63,12 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen bg-slate-950 px-6">
+      {upgraded && (
+        <div className="absolute top-8 left-0 right-0 text-center text-sm text-green-400/80 animate-fade-in z-10">
+          You're all set. I'm here whenever you need.
+        </div>
+      )}
+
       {/* Hero section - full viewport, call-first */}
       <div className="flex min-h-screen flex-col items-center justify-center">
         {/* Presence orb */}
@@ -211,5 +221,13 @@ export default function HomePage() {
         />
       )}
     </main>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }

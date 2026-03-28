@@ -1,38 +1,41 @@
 import { Router, Request, Response } from "express";
+import Stripe from "stripe";
 import { prisma } from "../lib/prisma";
-import crypto from "crypto";
 
 export const billingRouter: Router = Router();
 
-const MAGIC_LINK_BASE_URL = process.env.MAGIC_LINK_BASE_URL || process.env.API_BASE_URL || "http://localhost:4000";
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+  apiVersion: "2024-12-18.acacia" as any,
+});
+
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://sitwithyou.app";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "Still Here <hello@sitwithyou.app>";
+const RESEND_FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL || "Sit With You <hello@sitwithyou.app>";
 
-function verifyStripeSignature(payload: Buffer, sigHeader: string, secret: string): any {
-  const parts = sigHeader.split(",").reduce<Record<string, string>>((acc, part) => {
-    const [k, v] = part.trim().split("=");
-    acc[k] = v;
-    return acc;
-  }, {});
+// ── helpers ──────────────────────────────────────────────────────────────
 
-  const timestamp = parts["t"];
-  const signature = parts["v1"];
+async function sendEmail(to: string, subject: string, html: string) {
+  if (!RESEND_API_KEY) {
+    console.error("[email] RESEND_API_KEY not set");
+    return;
+  }
 
-  if (!timestamp || !signature) throw new Error("Missing signature parts");
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from: RESEND_FROM_EMAIL, to, subject, html }),
+  });
 
-  const signedPayload = `${timestamp}.${payload.toString("utf8")}`;
-  const expectedSig = crypto
-    .createHmac("sha256", secret)
-    .update(signedPayload)
-    .digest("hex");
-
-  if (expectedSig !== signature) throw new Error("Signature mismatch");
-
-  const age = Math.abs(Date.now() / 1000 - parseInt(timestamp, 10));
-  if (age > 300) throw new Error("Webhook timestamp too old");
-
-  return JSON.parse(payload.toString("utf8"));
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("[email] Resend error:", res.status, err);
+  } else {
+    console.log("[email] sent to:", to, "subject:", subject);
+  }
 }
 
 async function invalidateTokensForEmail(email: string) {
@@ -42,167 +45,176 @@ async function invalidateTokensForEmail(email: string) {
   });
 }
 
-async function sendMagicLinkEmail(email: string) {
-  try {
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-    const magicToken = await prisma.magicToken.create({
-      data: { email, expiresAt },
-    });
+// ── POST /api/billing/create-checkout ────────────────────────────────────
 
-    const magicLinkUrl = `${MAGIC_LINK_BASE_URL}/api/v1/auth/verify?token=${magicToken.token}`;
+billingRouter.post(
+  "/create-checkout",
+  async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.cookies?.sh_session || req.body.sessionId;
+      if (!sessionId) return res.status(400).json({ error: "No session" });
 
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + RESEND_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: RESEND_FROM_EMAIL,
-        to: email,
-        subject: "Welcome to Still Here — access your account",
-        html:
-          "<p>Hi,</p>" +
-          "<p>Your subscription is active. Click the link below to access Still Here on this device:</p>" +
-          '<p><a href="' + magicLinkUrl + '">Open Still Here</a></p>' +
-          "<p>This link expires in 15 minutes. You can always request a new one from the app.</p>",
-      }),
-    });
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+      });
+      if (!session) return res.status(404).json({ error: "Session not found" });
 
-    console.log("[billing] magic link sent to", email);
-  } catch (err) {
-    console.error("[billing] failed to send magic link:", err);
+      const priceId = process.env.STRIPE_PRICE_ID;
+      if (!priceId)
+        return res.status(500).json({ error: "Stripe not configured" });
+
+      const checkoutSession = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        payment_method_types: ["card"],
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${FRONTEND_URL}/?upgraded=true`,
+        cancel_url: `${FRONTEND_URL}/upgrade?cancelled=true`,
+        metadata: { sessionId: session.id },
+        ...(session.email ? { customer_email: session.email } : {}),
+      });
+
+      console.log("[billing] checkout session created:", checkoutSession.id);
+      return res.json({ url: checkoutSession.url });
+    } catch (err) {
+      console.error("[billing] create-checkout error:", err);
+      return res.status(500).json({ error: "Failed to create checkout" });
+    }
   }
-}
+);
 
-// POST /api/billing/webhook
+// ── POST /api/billing/webhook — Stripe webhook handler ───────────────────
+
 // Note: this route expects express.raw() middleware — applied in index.ts
 export async function billingWebhookHandler(req: Request, res: Response) {
   const sig = req.headers["stripe-signature"] as string;
-  let event: any;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  if (!sig) {
-    return res.status(400).json({ error: "Missing stripe-signature header" });
+  if (!sig || !webhookSecret) {
+    console.error("[billing] missing signature or webhook secret");
+    return res.status(400).send("Missing signature");
   }
 
-  if (!STRIPE_WEBHOOK_SECRET || STRIPE_WEBHOOK_SECRET.startsWith("whsec_placeholder")) {
-    console.warn("[billing] STRIPE_WEBHOOK_SECRET is a placeholder — skipping signature verification");
-    try {
-      event = JSON.parse((req.body as Buffer).toString("utf8"));
-    } catch {
-      return res.status(400).json({ error: "Invalid JSON" });
-    }
-  } else {
-    try {
-      event = verifyStripeSignature(req.body as Buffer, sig, STRIPE_WEBHOOK_SECRET);
-    } catch (err: any) {
-      console.error("[billing] Stripe signature verification failed:", err.message);
-      return res.status(400).json({ error: "Invalid signature" });
-    }
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err: any) {
+    console.error(
+      "[billing] webhook signature verification failed:",
+      err.message
+    );
+    return res.status(400).send("Invalid signature");
   }
 
-  console.log("[billing] received event:", event.type);
+  console.log("[billing] webhook event:", event.type);
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const checkoutSession = event.data.object;
-        const customerEmail =
-          checkoutSession.customer_details?.email ||
-          checkoutSession.customer_email;
-        const stripeCustomerId = checkoutSession.customer as string | null;
-        const stripeSubId = checkoutSession.subscription as string | null;
+        const checkout = event.data.object as Stripe.Checkout.Session;
+        const sessionId = checkout.metadata?.sessionId;
+        const email =
+          checkout.customer_email || checkout.customer_details?.email;
+        const subscriptionId = checkout.subscription as string;
+        const customerId = checkout.customer as string;
 
-        if (!customerEmail) {
-          console.warn("[billing] checkout.session.completed: no email found");
-          break;
-        }
-
-        const normalizedEmail = customerEmail.trim().toLowerCase();
-
-        let session = await prisma.session.findFirst({
-          where: { email: normalizedEmail },
-          orderBy: { createdAt: "desc" },
-        });
-
-        if (!session) {
-          session = await prisma.session.create({
+        if (sessionId) {
+          await prisma.session.update({
+            where: { id: sessionId },
             data: {
-              email: normalizedEmail,
-              emailVerified: true,
-              emailVerifiedAt: new Date(),
-              tier: "paid",
-              subscriptionId: stripeSubId ?? undefined,
-              stripeCustomerId: stripeCustomerId ?? undefined,
+              tier: "PAID",
+              subscriptionId,
+              stripeCustomerId: customerId || undefined,
+              ...(email
+                ? { email, emailVerified: true, emailVerifiedAt: new Date() }
+                : {}),
             },
           });
-        } else {
-          session = await prisma.session.update({
-            where: { id: session.id },
-            data: {
-              tier: "paid",
-              subscriptionId: stripeSubId ?? session.subscriptionId,
-              stripeCustomerId: stripeCustomerId ?? session.stripeCustomerId,
-            },
-          });
-        }
+          console.log("[billing] session upgraded to PAID:", sessionId);
 
-        console.log("[billing] checkout completed, session", session.id, "upgraded to paid");
-        await sendMagicLinkEmail(normalizedEmail);
+          // Send welcome email
+          if (email) {
+            await sendEmail(
+              email,
+              "Welcome to Sit With You",
+              `<p>Hi,</p>
+              <p>Thanks for choosing to sit with us. Your subscription is now active.</p>
+              <p>You can start a call anytime at <a href="https://sitwithyou.app">sitwithyou.app</a>.</p>
+              <p>If you ever need to manage your subscription, just reply to this email.</p>
+              <p>Take care,<br/>Sit With You</p>`
+            ).catch((err) =>
+              console.error("[email] welcome email failed:", err)
+            );
+          }
+        }
         break;
       }
 
       case "customer.subscription.updated": {
-        const sub = event.data.object;
-        const status = sub.status as string;
-        const stripeSubId = sub.id as string;
-
+        const sub = event.data.object as Stripe.Subscription;
         const session = await prisma.session.findFirst({
-          where: { subscriptionId: stripeSubId },
+          where: { subscriptionId: sub.id },
         });
-
-        if (!session) {
-          console.warn("[billing] subscription.updated: no session found for sub", stripeSubId);
-          break;
-        }
-
-        if (status === "active" || status === "trialing") {
+        if (session) {
+          const isActive =
+            sub.status === "active" || sub.status === "trialing";
           await prisma.session.update({
             where: { id: session.id },
-            data: { tier: "paid" },
+            data: { tier: isActive ? "PAID" : "FREE" },
           });
-          console.log("[billing] subscription active, session", session.id, "tier=paid");
-        } else if (status === "canceled" || status === "past_due" || status === "unpaid") {
-          await prisma.session.update({
-            where: { id: session.id },
-            data: { tier: "free" },
-          });
-          if (session.email) await invalidateTokensForEmail(session.email);
-          console.log("[billing] subscription", status, ", downgrading session", session.id);
+          console.log(
+            "[billing] subscription updated:",
+            sub.id,
+            "status:",
+            sub.status,
+            "tier:",
+            isActive ? "PAID" : "FREE"
+          );
         }
         break;
       }
 
       case "customer.subscription.deleted": {
-        const sub = event.data.object;
-        const stripeSubId = sub.id as string;
-
+        const sub = event.data.object as Stripe.Subscription;
         const session = await prisma.session.findFirst({
-          where: { subscriptionId: stripeSubId },
+          where: { subscriptionId: sub.id },
         });
 
         if (!session) {
-          console.warn("[billing] subscription.deleted: no session found for sub", stripeSubId);
+          console.warn(
+            "[billing] subscription.deleted: no session found for sub",
+            sub.id
+          );
           break;
         }
 
         await prisma.session.update({
           where: { id: session.id },
-          data: { tier: "free" },
+          data: { tier: "FREE", subscriptionId: null },
         });
 
-        if (session.email) await invalidateTokensForEmail(session.email);
-        console.log("[billing] subscription cancelled, downgrading session", session.id);
+        // Invalidate magic tokens
+        if (session.email) {
+          await invalidateTokensForEmail(session.email);
+        }
+
+        console.log(
+          "[billing] subscription cancelled, downgrading session",
+          session.id
+        );
+
+        // Send cancellation email
+        if (session.email) {
+          await sendEmail(
+            session.email,
+            "Your Sit With You subscription",
+            `<p>Hi,</p>
+            <p>Your subscription has ended. You can still use Sit With You with the free tier.</p>
+            <p>If you'd like to come back, you can resubscribe anytime at <a href="https://sitwithyou.app/upgrade">sitwithyou.app/upgrade</a>.</p>
+            <p>Take care,<br/>Sit With You</p>`
+          ).catch((err) =>
+            console.error("[email] cancellation email failed:", err)
+          );
+        }
         break;
       }
 
