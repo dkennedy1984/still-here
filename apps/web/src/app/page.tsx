@@ -49,8 +49,8 @@ export default function HomePage() {
 
   return (
     <main className="relative min-h-screen bg-slate-950 px-6">
-      {/* Hero section */}
-      <div className="flex min-h-[80vh] flex-col items-center justify-center">
+      {/* Hero section - full viewport, call-first */}
+      <div className="flex min-h-screen flex-col items-center justify-center">
         {/* Presence orb */}
         <div className="mb-10">
           <PresenceOrb state="idle" size="lg" />
@@ -75,10 +75,18 @@ export default function HomePage() {
         >
           Prefer silence?
         </button>
+
+        {/* Subtle scroll indicator */}
+        <div className="absolute bottom-8 flex flex-col items-center animate-fade-in">
+          <span className="text-[10px] text-slate-700 mb-2">scroll for context</span>
+          <svg className="w-4 h-4 text-slate-700 animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7" />
+          </svg>
+        </div>
       </div>
 
-      {/* Content sections */}
-      <div className="max-w-2xl mx-auto py-16">
+      {/* Content sections - below the fold */}
+      <div className="max-w-2xl mx-auto py-24">
         <h1 className="text-2xl sm:text-3xl font-semibold text-white leading-tight mb-8">
           Quiet body doubling for when starting is hard
         </h1>

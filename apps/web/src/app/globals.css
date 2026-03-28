@@ -11,3 +11,40 @@
     @apply bg-slate-950 text-white antialiased;
   }
 }
+
+/* Simplified reading mode for content pages */
+.simplified-content h2,
+.simplified-content h3 {
+  @apply text-base font-medium;
+}
+
+.simplified-content h2 {
+  @apply mt-10 mb-3 text-white;
+}
+
+.simplified-content h3 {
+  @apply mt-4 mb-2 text-white/80;
+}
+
+.simplified-content p {
+  @apply text-sm leading-loose text-slate-400 mb-4;
+}
+
+.simplified-content ul,
+.simplified-content ol {
+  @apply text-sm text-slate-400 space-y-2 mb-4 pl-4;
+}
+
+.simplified-content li {
+  @apply leading-loose;
+}
+
+/* Hide non-essential content in simplified mode */
+.simplified-content h1 {
+  @apply text-lg sm:text-xl mb-6;
+}
+
+/* Increase spacing between all sections in simplified mode */
+.simplified-content > * + h2 {
+  @apply mt-14 pt-6 border-t border-white/5;
+}
