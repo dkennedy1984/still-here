@@ -75,7 +75,7 @@ export function setupWebSocket(server: Server) {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
+          output: { encoding: 'mulaw', sample_rate: 8000 },
         },
         agent: {
           listen: {
@@ -101,9 +101,10 @@ export function setupWebSocket(server: Server) {
 
     dgWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
-        // Raw PCM audio from Deepgram - forward to client
+        console.log('[deepgram] BINARY AUDIO received, bytes:', data.length);
+        // Raw mulaw audio from Deepgram - forward to client
         const b64 = data.toString('base64');
-        sendToClient('audio_out', { data: b64, mimeType: 'audio/l16', sampleRate: 16000 });
+        sendToClient('audio_out', { data: b64, mimeType: 'audio/mulaw', sampleRate: 8000 });
         return;
       }
 
@@ -146,6 +147,11 @@ export function setupWebSocket(server: Server) {
                 }));
               }
             }
+            break;
+          case 'AgentAudioDone':
+            console.log('[deepgram] AgentAudioDone - flushing audio to client');
+            sendToClient('audio_out_done');
+            sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
             break;
           case 'Error':
             console.error('[deepgram] error:', msg.description, '| code:', msg.code);
