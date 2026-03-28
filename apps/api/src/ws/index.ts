@@ -7,12 +7,38 @@ import { prisma } from '../lib/prisma';
 const SAFETY_KEYWORDS = ['kill myself','end my life','want to die','suicide','self harm','hurt myself','not worth living',"can't go on"];
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  quiet: `You are a calm, quiet presence — a companion who sits with people when they need company. You are warm but unobtrusive. Speak only when spoken to. Maximum 2 sentences per response. Never ask what they are working on. Never mention productivity, focus, ADHD, or neurodivergence unless the user specifically brings it up. Never fill silence. Never use urgency or pressure. Respond in British English. Silence is success.`,
-  'check-ins': `You are a calm, warm presence who sits with people when they need company. You may offer a gentle check-in after long silence. Maximum 2 sentences. Never ask what they are working on. Never mention productivity, ADHD, or neurodivergence unless the user brings it up. Respond in British English.`,
-  talk: `You are a warm, calm companion. Happy to chat when spoken to. Maximum 2 sentences. Never mention productivity, ADHD, or neurodivergence unless the user brings it up. Be warm but not effusive. Respond in British English.`,
+  quiet: `You are a silent, calm presence. A companion who simply sits with someone.
+
+STRICT RULES - never break these:
+- NEVER ask questions. Not even "how are you?". Never.
+- NEVER say more than 2 short sentences.
+- NEVER mention feelings, emotions, productivity, work, focus, ADHD, or neurodivergence.
+- NEVER fill silence. If the user says nothing, say nothing.
+- NEVER lead or direct the conversation.
+- ONLY speak if the user speaks first.
+- If the user says something brief like "yep" or "ok", respond with at most 4 words. Example: "I'm here." or "Mm."
+- Respond in British English.
+- You are presence, not a therapist, not a coach, not an assistant.`,
+
+  'check-ins': `You are a calm, quiet presence who occasionally offers a gentle check-in.
+
+STRICT RULES:
+- NEVER ask questions unless offering a gentle one-word check-in like "Alright?"
+- NEVER say more than 2 short sentences.
+- NEVER mention feelings, productivity, work, focus, ADHD, or neurodivergence.
+- Respond in British English.
+- You are presence, not a therapist or coach.`,
+
+  talk: `You are a warm, calm companion who is happy to chat gently.
+
+STRICT RULES:
+- NEVER say more than 2 sentences.
+- NEVER mention productivity, work focus, ADHD, or neurodivergence unless user raises it.
+- Be warm, gentle, unhurried.
+- Respond in British English.`,
 };
 
-const GREETING = "Hi, I'm here. You don't have to talk. We can just sit quietly.";
+const GREETING = "Hi, I'm here.";
 const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
 export function setupWebSocket(server: Server) {
@@ -26,27 +52,27 @@ export function setupWebSocket(server: Server) {
     if (!ticket) { clientWs.close(4001, 'missing_ticket'); return; }
 
     const call = await prisma.call.findUnique({ where: { wsTicket: ticket }, include: { session: true } });
-    if (!call) { clientWs.close(4002, 'invalid_ticket'); return; }
+    if (!call) { clientWs.close(4004, 'invalid_ticket'); return; }
 
     const mode = (call as any).presenceStyle || 'quiet';
-    const systemPrompt = SYSTEM_PROMPTS[mode] ?? SYSTEM_PROMPTS['quiet'];
-    const sessionId = call.session?.id ?? 'unknown';
+    const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS['quiet'];
+    console.log(`[ws] mode=${mode}, sessionId=${call.session.id}`);
 
-    console.log('[ws] call:', call.id, '| mode:', mode, '| session:', sessionId);
+    const dgWs = new WebSocket(DG_URL, {
+      headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
+    });
 
-    const dgKey = process.env.DEEPGRAM_API_KEY;
-    if (!dgKey) { clientWs.close(4003, 'missing_api_key'); return; }
+    let dgReady = false;
+    let isEnded = false;
+    let checkInTimer: ReturnType<typeof setTimeout> | null = null;
+    let currentStyle = mode;
+    const audioBuffer: Buffer[] = [];
 
-    const sendToClient = (type: string, data?: Record<string, unknown>) => {
+    const sendToClient = (type: string, payload?: Record<string, unknown>) => {
       if (clientWs.readyState === WS.OPEN) {
-        clientWs.send(JSON.stringify({ type, ...data }));
+        clientWs.send(JSON.stringify({ type, ...payload }));
       }
     };
-
-    let isEnded = false;
-    let dgReady = false;
-    let checkInTimer: ReturnType<typeof setTimeout> | null = null;
-    const audioBuffer: Buffer[] = [];
 
     const resetCheckInTimer = () => {
       if (checkInTimer) clearTimeout(checkInTimer);
@@ -67,7 +93,13 @@ export function setupWebSocket(server: Server) {
           body: JSON.stringify({
             text,
             model_id: modelId,
-            voice_settings: { stability: 0.75, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false },
+            voice_settings: {
+              stability: 0.85,
+              similarity_boost: 0.75,
+              style: 0.0,
+              use_speaker_boost: false,
+              speed: 0.9,
+            },
             output_format: 'mp3_22050_32',
           }),
         });
@@ -88,15 +120,7 @@ export function setupWebSocket(server: Server) {
       isEnded = true;
       resetCheckInTimer();
       try { dgWs.close(); } catch {}
-      try { clientWs.close(); } catch {}
     };
-
-    console.log('[ws] step 3: creating Deepgram WebSocket to', DG_URL);
-    // Open raw WebSocket to Deepgram (bypassing SDK EventEmitter issues)
-    const dgWs = new WebSocket(DG_URL, {
-      headers: { Authorization: `Token ${dgKey}` },
-    });
-    console.log('[ws] step 4: Deepgram WebSocket created, readyState:', dgWs.readyState);
 
     dgWs.on('open', () => {
       console.log('[dg] WebSocket open — sending Settings');
@@ -205,6 +229,38 @@ export function setupWebSocket(server: Server) {
     });
 
     clientWs.on('message', (data: Buffer) => {
+      // Try to parse as JSON for control messages first
+      try {
+        const msg = JSON.parse(data.toString('utf8'));
+        if (msg.type === 'style_change' && msg.style) {
+          console.log('[ws] style_change received:', msg.style);
+          currentStyle = msg.style;
+          const newPrompt = SYSTEM_PROMPTS[msg.style] || SYSTEM_PROMPTS['quiet'];
+          if (dgWs.readyState === WebSocket.OPEN) {
+            dgWs.send(JSON.stringify({
+              type: 'UpdateInstructions',
+              instructions: newPrompt,
+            }));
+          }
+          return;
+        }
+        if (msg.type === 'prefer_silence') {
+          console.log('[ws] prefer_silence received');
+          currentStyle = 'quiet';
+          const silentPrompt = SYSTEM_PROMPTS['quiet'];
+          if (dgWs.readyState === WebSocket.OPEN) {
+            dgWs.send(JSON.stringify({
+              type: 'UpdateInstructions',
+              instructions: silentPrompt,
+            }));
+          }
+          return;
+        }
+      } catch {
+        // Not JSON — treat as raw audio binary
+      }
+
+      // Forward raw audio to Deepgram
       if (dgWs.readyState === WebSocket.OPEN) {
         dgWs.send(data);
       } else {

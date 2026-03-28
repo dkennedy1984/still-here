@@ -39,14 +39,14 @@ function PostCallContent() {
         onClick={() => router.push("/upgrade")}
         className="w-full max-w-xs rounded-full bg-white px-6 py-4 text-lg font-semibold text-slate-900 transition-all duration-200 hover:bg-white/90 active:scale-[0.98]"
       >
-        Keep this available
+        Stay in touch
       </button>
 
       <button
         onClick={() => router.push("/")}
         className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
       >
-        Not now
+        Maybe later
       </button>
     </main>
   );

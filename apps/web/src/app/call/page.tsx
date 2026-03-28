@@ -89,7 +89,7 @@ function CallPageInner() {
           </button>
 
           <button
-            onClick={() => { preferSilence(); }}
+            onClick={() => { console.log("[call/page] preferSilence clicked"); preferSilence(); }}
             className="w-full rounded-full bg-slate-700 px-6 py-4 text-base font-medium text-slate-200 transition-all duration-200 hover:bg-slate-600 active:scale-[0.98]"
           >
             Prefer Silence
@@ -99,7 +99,7 @@ function CallPageInner() {
             {(["quiet", "check-ins", "talk"] as const).map((style) => (
               <button
                 key={style}
-                onClick={() => { setPresenceStyle(style); changeStyle(style); }}
+                onClick={() => { console.log("[call/page] style change clicked:", style); setPresenceStyle(style); changeStyle(style); }}
                 className={clsx(
                   "flex-1 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
                   presenceStyle === style
