@@ -88,34 +88,34 @@ function HomePageContent() {
         {/* Subtext */}
         <p className="mt-4 text-slate-400 text-sm">I&apos;ll just sit with you.</p>
 
-        {/* Bottom controls row: presence style + voice picker */}
-        <div className="mt-6 flex items-center gap-4">
+      </div>
+
+      {/* Bottom controls: presence style left, voice picker right */}
+      <div className="fixed bottom-8 left-0 right-0 flex justify-between items-center px-8">
+        <button
+          onClick={() => setShowSheet(true)}
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          {presenceStyle === 'silent' ? 'Quiet' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Chatty'} ▾
+        </button>
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setShowSheet(true)}
-            className="text-xs text-slate-600 hover:text-slate-400 transition-colors underline underline-offset-2"
+            onClick={() => setVoice('her')}
+            className={`text-xs px-2.5 py-1 rounded-full transition-all duration-300 ${
+              voice === 'her' ? 'bg-white/10 text-white' : 'text-slate-600 hover:text-slate-400'
+            }`}
           >
-            Change ▾
+            Her
           </button>
-
-          <span className="text-slate-700 text-xs">·</span>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setVoice('her')}
-              className={`text-xs transition-colors ${voice === 'her' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              Her
-            </button>
-            <span className="text-slate-600 text-xs">|</span>
-            <button
-              onClick={() => setVoice('him')}
-              className={`text-xs transition-colors ${voice === 'him' ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              Him
-            </button>
-          </div>
+          <button
+            onClick={() => setVoice('him')}
+            className={`text-xs px-2.5 py-1 rounded-full transition-all duration-300 ${
+              voice === 'him' ? 'bg-white/10 text-white' : 'text-slate-600 hover:text-slate-400'
+            }`}
+          >
+            Him
+          </button>
         </div>
-
       </div>
 
       {/* Content sections - below the fold */}
