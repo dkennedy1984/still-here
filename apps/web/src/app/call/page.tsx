@@ -129,7 +129,7 @@ function CallPageInner() {
       <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-8 pb-10 pt-4">
         <div className="flex items-center gap-4">
           <span className="text-xs text-slate-500 tracking-wide">Still here</span>
-          <AmbientNoise />
+          <AmbientNoise disabled={state.status === 'ended'} />
         </div>
         <button
           onClick={handleHangup}

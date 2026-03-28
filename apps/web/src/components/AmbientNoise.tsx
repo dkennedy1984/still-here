@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 
 const AMBIENT_OPTIONS = [
   { label: 'Off', value: 'off' },
@@ -46,11 +46,13 @@ function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): A
 
 interface AmbientNoiseProps {
   className?: string;
+  disabled?: boolean; // when true, stop all audio
 }
 
-export function AmbientNoise({ className }: AmbientNoiseProps) {
+export function AmbientNoise({ className, disabled }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
+  const [volume, setVolume] = useState(0.06);
   const ctxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const gainRef = useRef<GainNode | null>(null);
@@ -62,49 +64,88 @@ export function AmbientNoise({ className }: AmbientNoiseProps) {
 
   function play(type: 'white' | 'brown' | 'rain') {
     stop();
-    if (!ctxRef.current || ctxRef.current.state === 'closed') {
-      ctxRef.current = new AudioContext();
-    }
-    const ctx = ctxRef.current;
-    if (!gainRef.current) {
-      gainRef.current = ctx.createGain();
-      gainRef.current.gain.value = 0.15; // quiet background
-      gainRef.current.connect(ctx.destination);
-    }
+    const ctx = ctxRef.current ?? new AudioContext();
+    ctxRef.current = ctx;
     const source = createNoiseNode(ctx, type);
-    source.connect(gainRef.current);
-    source.start(0);
+    const gain = gainRef.current ?? ctx.createGain();
+    gain.gain.value = volume; // very quiet background - won't overwhelm mic
+    gainRef.current = gain;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start();
     sourceRef.current = source;
   }
 
-  function select(value: string) {
-    setActive(value);
+  // Stop audio when disabled changes to true (e.g. call ended)
+  useEffect(() => {
+    if (disabled) {
+      stop();
+      setActive('off');
+    }
+  }, [disabled]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      sourceRef.current?.stop();
+      sourceRef.current = null;
+      ctxRef.current?.close().catch(() => {});
+      ctxRef.current = null;
+    };
+  }, []);
+
+  // Apply volume changes to live gain node
+  useEffect(() => {
+    if (gainRef.current) gainRef.current.gain.value = volume;
+  }, [volume]);
+
+  function handleSelect(value: string) {
+    if (value === 'off') {
+      stop();
+      setActive('off');
+    } else {
+      play(value as 'white' | 'brown' | 'rain');
+      setActive(value);
+    }
     setShowMenu(false);
-    if (value === 'off') { stop(); return; }
-    play(value as 'white' | 'brown' | 'rain');
   }
 
+  const activeLabel = AMBIENT_OPTIONS.find(o => o.value === active)?.label ?? 'Off';
+
   return (
-    <div className={`relative ${className || ''}`}>
+    <div className={`relative ${className ?? ''}`}>
       <button
-        onClick={() => setShowMenu(s => !s)}
-        className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        onClick={() => setShowMenu(m => !m)}
+        className="text-xs text-slate-400 hover:text-white transition px-2 py-1 rounded hover:bg-white/10"
       >
-        {active === 'off' ? 'Ambient ▾' : `${AMBIENT_OPTIONS.find(o => o.value === active)?.label} ▾`}
+        🎵 {activeLabel}
       </button>
+
       {showMenu && (
-        <div className="absolute bottom-full mb-2 left-0 bg-slate-900 border border-white/10 rounded-lg py-1 min-w-[120px]">
+        <div className="absolute bottom-full mb-1 left-0 bg-slate-800 border border-slate-700 rounded shadow-lg z-50 min-w-[140px]">
           {AMBIENT_OPTIONS.map(opt => (
             <button
               key={opt.value}
-              onClick={() => select(opt.value)}
-              className={`block w-full text-left px-3 py-2 text-xs transition-colors ${
-                active === opt.value ? 'text-white bg-white/5' : 'text-slate-400 hover:text-white hover:bg-white/5'
-              }`}
+              onClick={() => handleSelect(opt.value)}
+              className={`block w-full text-left px-3 py-2 text-sm hover:bg-white/10 ${active === opt.value ? 'text-white' : 'text-slate-400'}`}
             >
               {opt.label}
             </button>
           ))}
+          {active !== 'off' && (
+            <div className="px-3 py-2 flex items-center gap-2">
+              <span className="text-xs text-slate-500">Vol</span>
+              <input
+                type="range"
+                min="0"
+                max="0.2"
+                step="0.01"
+                value={volume}
+                onChange={e => setVolume(parseFloat(e.target.value))}
+                className="w-16 h-1 accent-white/40"
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
