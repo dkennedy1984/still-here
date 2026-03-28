@@ -82,11 +82,11 @@ export function AmbientNoise({ className, disabled }: AmbientNoiseProps) {
     stop();
     const ctx = ctxRef.current ?? new AudioContext();
     ctxRef.current = ctx;
-    const source = createNoiseNode(ctx, type);
+    const { source, output } = createNoiseNode(ctx, type);
     const gain = gainRef.current ?? ctx.createGain();
     gain.gain.value = volume; // very quiet background - won't overwhelm mic
     gainRef.current = gain;
-    source.connect(gain);
+    output.connect(gain);
     gain.connect(ctx.destination);
     source.start();
     sourceRef.current = source;
