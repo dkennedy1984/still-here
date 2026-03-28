@@ -109,13 +109,13 @@ export function setupWebSocket(server: Server) {
         agent: {
           listen: { provider: { type: 'deepgram', model: 'nova-2', language: 'en-GB' } },
           think: {
-            provider: { type: 'open_ai' },
-            model: 'gpt-4o-mini',
+            provider: { type: 'open_ai', model: 'gpt-4o-mini' },
             prompt: systemPrompt,
           },
           speak: { provider: { type: 'deepgram', model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en' } },
         },
       };
+      console.log('[dg] Settings being sent:', JSON.stringify(settings, null, 2));
       dgWs.send(JSON.stringify(settings));
       console.log('[dg] Settings sent');
 

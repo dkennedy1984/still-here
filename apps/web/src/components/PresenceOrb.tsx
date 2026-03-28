@@ -69,21 +69,23 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       const idleRingR = currentR * (1.18 + Math.sin(t * 0.8) * 0.04);
       ctx.beginPath();
       ctx.arc(cx, cy, idleRingR, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(200, 210, 240, ${0.09 + breathe * 0.05})`;
+      ctx.strokeStyle = `rgba(200, 210, 240, ${0.045 + breathe * 0.025})`;
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // === RIPPLE RINGS ===
-      for (let i = 0; i < 4; i++) {
-        const progress = ((t * 0.55 - i * 0.25) % 1 + 1) % 1;
-        const rR = currentR * (1.02 + progress * 1.6);
-        const rAlpha = Math.max(0, (1 - progress) * 0.45);
-        const lineW = Math.max(0.5, 2 * (1 - progress));
-        ctx.beginPath();
-        ctx.arc(cx, cy, rR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(100, 235, 120, ${rAlpha})`;
-        ctx.lineWidth = lineW;
-        ctx.stroke();
+      // === RIPPLE RINGS (speaking only) ===
+      if (isSpeaking) {
+        for (let i = 0; i < 4; i++) {
+          const progress = ((t * 0.35 - i * 0.25) % 1 + 1) % 1;
+          const rR = currentR * (1.02 + progress * 1.6);
+          const rAlpha = Math.max(0, (1 - progress) * 0.225);
+          const lineW = Math.max(0.5, 2 * (1 - progress));
+          ctx.beginPath();
+          ctx.arc(cx, cy, rR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(100, 235, 120, ${rAlpha})`;
+          ctx.lineWidth = lineW;
+          ctx.stroke();
+        }
       }
 
       // === LISTENING RING ===
