@@ -17,7 +17,7 @@ const sources = [
 
 export default function WhyPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="If you want, you can try a call now.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="No pressure. No signup.">
       <ArticleSchema
         title="Why Sit With You exists — starting doesn't have to be lonely"
         description="Sit With You exists because starting is often the hardest part. You don't have to do that alone."

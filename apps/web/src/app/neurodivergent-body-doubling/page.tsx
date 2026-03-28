@@ -17,7 +17,7 @@ const sources = [
 
 export default function NeurodivergentBodyDoublingPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="Try it gently.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="Try it gently.">
       <ArticleSchema
         title="Body doubling for neurodivergent minds — no goals, no judgement"
         description="Designed for ADHD and neurodivergent users who need support without judgement, goals, or forced focus."

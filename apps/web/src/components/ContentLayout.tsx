@@ -26,7 +26,7 @@ interface ContentLayoutProps {
   ctaMicrocopy?: string;
 }
 
-export function ContentLayout({ children, sources, ctaButton = 'Call', ctaMicrocopy = "I'll just sit with you." }: ContentLayoutProps) {
+export function ContentLayout({ children, sources, ctaButton = "I'm ready", ctaMicrocopy = "No pressure. No signup." }: ContentLayoutProps) {
   const pathname = usePathname();
   const [simplified, setSimplified] = useState(false);
 
@@ -75,11 +75,14 @@ export function ContentLayout({ children, sources, ctaButton = 'Call', ctaMicroc
 
           {/* CTA */}
           <div className="mt-16 pt-8 border-t border-white/5">
-            <button className="w-full sm:w-auto px-8 py-4 bg-white text-slate-950 font-medium rounded-full hover:bg-slate-100 transition-colors text-sm">
+            <Link
+              href="/"
+              className="inline-block px-16 py-5 rounded-full bg-white text-slate-900 text-xl font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150"
+            >
               {ctaButton}
-            </button>
+            </Link>
             {ctaMicrocopy && (
-              <p className="text-slate-500 text-xs mt-3">{ctaMicrocopy}</p>
+              <p className="mt-4 text-base text-slate-400">{ctaMicrocopy}</p>
             )}
           </div>
 

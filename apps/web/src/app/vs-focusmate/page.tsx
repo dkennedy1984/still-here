@@ -16,7 +16,7 @@ const sources = [
 
 export default function VsFocusmatePage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="If you want, try one calm call.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="See how it feels.">
       <ArticleSchema
         title="Sit With You vs Focusmate — quiet presence instead of accountability"
         description="Focusmate uses accountability. Sit With You offers quiet presence. See which feels safer for your brain."

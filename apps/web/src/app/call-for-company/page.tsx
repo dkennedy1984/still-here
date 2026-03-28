@@ -16,7 +16,7 @@ const sources = [
 
 export default function CallForCompanyPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="Call now. Start whenever you're ready.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="Start whenever you like.">
       <ArticleSchema
         title="Call for company — body doubling without video or pressure"
         description="Sometimes you don't want video or talking. Sit With You works as quiet company you can call anytime."

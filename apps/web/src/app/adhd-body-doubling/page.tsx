@@ -18,7 +18,7 @@ const sources = [
 
 export default function ADHDBodyDoublingPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="If you want, you can try a call now.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="No signup needed.">
       <ArticleSchema
         title="ADHD Body Doubling — Sit with someone while you work"
         description="Body doubling for ADHD without accountability or awkward calls. Just quiet presence while you work at your own pace."

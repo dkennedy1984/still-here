@@ -17,7 +17,7 @@ const sources = [
 
 export default function VirtualBodyDoublingPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="Call for quiet company.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="Quiet company, no camera.">
       <ArticleSchema
         title="Virtual body doubling — quiet company, no pressure"
         description="A softer alternative to virtual coworking. Sit with quiet company — camera optional, conversation optional."

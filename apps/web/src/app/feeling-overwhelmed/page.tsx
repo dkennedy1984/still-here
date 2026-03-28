@@ -17,7 +17,7 @@ const sources = [
 
 export default function FeelingOverwhelmedPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="Try a quiet call.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="No pressure at all.">
       <ArticleSchema
         title="Feeling overwhelmed? Quiet company can help you begin"
         description="When everything feels too much to start, a calm presence can help. Sit With You stays quietly with you."

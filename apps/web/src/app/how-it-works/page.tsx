@@ -17,7 +17,7 @@ const sources = [
 
 export default function HowItWorksPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="Ready to try it?">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="Give it a try.">
       <ArticleSchema
         title="How Sit With You works — calm, quiet support on demand"
         description="Tap call, settle in, and start when you're ready. Sit With You is designed for calm support, not productivity pressure."

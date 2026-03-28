@@ -17,7 +17,7 @@ const sources = [
 
 export default function CantStartATaskPage() {
   return (
-    <ContentLayout sources={sources} ctaButton="Call" ctaMicrocopy="Try a call. No explaining required.">
+    <ContentLayout sources={sources} ctaButton="I'm ready" ctaMicrocopy="No explaining required.">
       <ArticleSchema
         title="Can't start a task? Sit with someone until it feels easier"
         description="Stuck and unable to begin? Sit with someone quietly until starting feels possible. No explaining, no judgement."
