@@ -31,8 +31,8 @@ function HomePageContent() {
   const callingRef = useRef(false);
 
   const searchParams = useSearchParams();
-  const upgraded = searchParams?.get("upgraded") === "true";
-
+  const upgraded = searchParams?.get('upgraded') === 'true';
+  const [showUpgraded, setShowUpgraded] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('swy-voice');
@@ -45,7 +45,10 @@ function HomePageContent() {
 
   useEffect(() => {
     if (upgraded) {
+      setShowUpgraded(true);
       localStorage.setItem('swy-tier', 'paid');
+      const t = setTimeout(() => setShowUpgraded(false), 8000);
+      return () => clearTimeout(t);
     }
   }, [upgraded]);
 
@@ -69,9 +72,14 @@ function HomePageContent() {
 
   return (
     <main className="min-h-screen flex flex-col bg-slate-950 px-6">
-      {upgraded && (
-        <div className="absolute top-8 left-0 right-0 text-center text-sm text-green-400/80 animate-fade-in z-10">
-          You're all set. I'm here whenever you need.
+      {showUpgraded && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
+          style={{ animation: 'fadeIn 0.5s ease' }}>
+          <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-green-400/10 border border-green-400/15 backdrop-blur-sm">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-sm text-green-300/90 font-medium">You're in</span>
+          </div>
+          <p className="text-xs text-slate-500">I'm here whenever you need.</p>
         </div>
       )}
 
