@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAudioSession } from "@/hooks/useAudioSession";
 import { PresenceOrb } from "@/components/PresenceOrb";
-import clsx from "clsx";
 import { AmbientNoise } from "@/components/AmbientNoise";
 
 function CallPageInner() {
@@ -68,47 +67,32 @@ function CallPageInner() {
 
   return (
     <main
-      className="relative flex min-h-screen flex-col items-center justify-center bg-slate-950"
+      className="relative flex h-[100dvh] overflow-hidden flex-col items-center justify-center bg-slate-950"
       onClick={toggleOverlay}
     >
       {/* Presence orb */}
-      <PresenceOrb state={orbState} size="lg" />
-
-      {/* Overlay: controls */}
-      <div
-        className={clsx(
-          "absolute inset-0 flex flex-col items-center justify-end pb-16 transition-opacity duration-500",
-          showOverlay ? "opacity-100" : "opacity-0 pointer-events-none"
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex flex-col gap-4 w-full max-w-xs px-6">
-          <button
-            onClick={handleHangup}
-            className="w-full rounded-full bg-red-600 px-6 py-4 text-lg font-semibold text-white transition-all duration-200 hover:bg-red-500 active:scale-[0.98]"
-          >
-            End Call
-          </button>
-
-
-          <div className="flex gap-3">
-            {(["quiet", "check-ins", "talk"] as const).map((style) => (
-              <button
-                key={style}
-                onClick={() => { setPresenceStyle(style); changeStyle(style); setShowOverlay(false); }}
-                className={clsx(
-                  "flex-1 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
-                  presenceStyle === style
-                    ? "bg-white text-slate-900"
-                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                )}
-              >
-                {style === 'quiet' ? 'Quiet' : style === 'check-ins' ? 'Check-ins' : 'Talk'}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div className="flex items-center justify-center">
+        <PresenceOrb state={orbState} size="lg" />
       </div>
+
+      {showOverlay && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center gap-3 px-6 z-30"
+             onClick={e => e.stopPropagation()}>
+          <button onClick={() => { changeStyle('quiet'); setPresenceStyle('quiet'); setShowOverlay(false); }}
+            className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
+            Quiet
+          </button>
+          <button onClick={() => { changeStyle('check-ins'); setPresenceStyle('check-ins'); setShowOverlay(false); }}
+            className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
+            Check-ins
+          </button>
+          <button onClick={() => { changeStyle('talk'); setPresenceStyle('talk'); setShowOverlay(false); }}
+            className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
+            Talk
+          </button>
+        </div>
+      )}
+
 
       {/* Status indicator */}
       {state.status === "connecting" && (
@@ -121,7 +105,8 @@ function CallPageInner() {
       )}
 
       {/* Always-visible footer: branding + ambient noise + hang up */}
-      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-8 pb-10 pt-4">
+      <div className="fixed bottom-0 left-0 right-0 pb-safe px-6 pb-6 flex justify-between items-center z-40"
+           onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-4">
           <span className="text-xs text-slate-500 tracking-wide">Still here</span>
           <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />

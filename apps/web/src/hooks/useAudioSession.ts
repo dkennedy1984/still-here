@@ -204,10 +204,21 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
       if (ws.readyState === WebSocket.OPEN) send('ping');
     }, 20000);
 
+    const speakerKeepAlive = setInterval(() => {
+      try {
+        const fix = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+        fix.volume = 0.001;
+        fix.setAttribute('playsinline', 'true');
+        fix.play().catch(() => {});
+      } catch {}
+    }, 30000);
+
+
     return () => {
       destroyed = true;
       connectedRef.current = false;
       clearInterval(pingInterval);
+      clearInterval(speakerKeepAlive);
       processorRef.current?.disconnect();
       sourceRef.current?.disconnect();
       streamRef.current?.getTracks().forEach(track => track.stop());

@@ -96,7 +96,7 @@ function HomePageContent() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col bg-slate-950 px-6">
+    <main className="relative flex flex-col items-center justify-center min-h-screen min-h-[100dvh] bg-slate-950 overflow-hidden">
       {showUpgraded && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
           style={{ animation: 'fadeIn 0.5s ease' }}>
@@ -109,9 +109,9 @@ function HomePageContent() {
       )}
 
       {/* Hero section - full viewport, call-first */}
-      <div className="flex min-h-screen flex-col items-center justify-center">
+      <div className="flex flex-col items-center justify-center">
         {/* Presence orb */}
-        <div className="mb-10">
+        <div className="flex items-center justify-center mb-10">
           <PresenceOrb state="idle" size="lg" />
         </div>
 

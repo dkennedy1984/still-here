@@ -59,6 +59,14 @@ export async function flushAudioBuffer(): Promise<void> {
   chunkBuffer = [];
   playQueue = playQueue.then(async () => {
     try {
+      // Force speaker route before every playback
+      try {
+        const fix = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+        fix.volume = 0.001;
+        fix.setAttribute('playsinline', 'true');
+        await fix.play().catch(() => {});
+      } catch {}
+
       const ctx = getCtx();
       const totalBytes = chunks.reduce((a, c) => a + c.length, 0);
       const combined = new Uint8Array(totalBytes);
