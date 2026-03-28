@@ -8,36 +8,13 @@ interface PresenceOrbProps {
   size?: 'sm' | 'lg';
 }
 
-interface Particle {
-  angle: number;
-  radius: number;
-  size: number;
-  speed: number;
-  opacity: number;
-  baseRadius: number;
-}
-
 export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const startRef = useRef(Date.now());
-  const particlesRef = useRef<Particle[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
-
-  useEffect(() => {
-    // Init particles
-    const count = 18;
-    particlesRef.current = Array.from({ length: count }, (_, i) => ({
-      angle: (i / count) * Math.PI * 2,
-      radius: 0,
-      size: Math.random() * 2.5 + 1,
-      speed: Math.random() * 0.3 + 0.15,
-      opacity: Math.random() * 0.4 + 0.2,
-      baseRadius: Math.random() * 0.25 + 0.55,
-    }));
-  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,7 +22,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const d = size === 'lg' ? 100 : 68;
+    const r = size === 'lg' ? 52 : 36;
     const W = canvas.width;
     const H = canvas.height;
     const cx = W / 2;
@@ -58,133 +35,130 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       const t = (Date.now() - startRef.current) / 1000;
       ctx.clearRect(0, 0, W, H);
 
-      // Smooth breathe and heartbeat
-      const breathe = Math.sin(t * 0.5) * 0.5 + 0.5;
-      const heartbeat = isSpeaking
-        ? Math.abs(Math.sin(t * 5.0))
-        : Math.sin(t * 0.9) * 0.5 + 0.5;
+      // Smooth waves
+      const breathe = Math.sin(t * 0.45) * 0.5 + 0.5; // 0..1 slow breathe
+      const pulse = isSpeaking ? Math.abs(Math.sin(t * 3.8)) : 0; // 0..1 fast pulse when speaking
+      const shimmer = Math.sin(t * 1.2) * 0.5 + 0.5; // slow shimmer
 
-      // Wobble factors for blob shape - more wobble when speaking
-      const wobbleAmount = isSpeaking ? 0.12 + heartbeat * 0.08 : 0.04 + breathe * 0.03;
-      const wobbleSpeed = isSpeaking ? 3.5 : 0.7;
+      // Current radius - orb breathes in size slightly
+      const currentR = isSpeaking
+        ? r * (1.0 + pulse * 0.06)
+        : r * (0.97 + breathe * 0.04);
 
-      // Draw blob as polygon with sine-distorted radius
-      const points = 120;
-      const baseR = isSpeaking
-        ? d * (0.5 + heartbeat * 0.08)
-        : isListening
-        ? d * (0.47 + breathe * 0.02)
-        : d * (0.46 + breathe * 0.05);
-
-      // Outer glow
-      const glowR = baseR * (isSpeaking ? 1.8 + heartbeat * 0.3 : 1.5 + breathe * 0.1);
-      const glowAlpha = isSpeaking ? 0.18 + heartbeat * 0.15 : 0.08 + breathe * 0.05;
-      const glowGrad = ctx.createRadialGradient(cx, cy, baseR * 0.3, cx, cy, glowR);
+      // === OUTER AMBIENT GLOW ===
+      const glowR = currentR * (isSpeaking ? 2.8 + pulse * 0.4 : 2.2 + breathe * 0.2);
+      const glowAlpha = isSpeaking ? 0.12 + pulse * 0.10 : 0.06 + breathe * 0.04;
+      const outerGlow = ctx.createRadialGradient(cx, cy, currentR * 0.5, cx, cy, glowR);
       if (isSpeaking) {
-        glowGrad.addColorStop(0, `rgba(80, 220, 100, ${glowAlpha * 1.5})`);
-        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        outerGlow.addColorStop(0, `rgba(90, 230, 110, ${glowAlpha * 2})`);
+        outerGlow.addColorStop(0.5, `rgba(60, 180, 80, ${glowAlpha})`);
+        outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+      } else if (isListening) {
+        outerGlow.addColorStop(0, `rgba(140, 170, 255, ${glowAlpha * 1.5})`);
+        outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
       } else {
-        glowGrad.addColorStop(0, `rgba(180, 190, 230, ${glowAlpha})`);
-        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        outerGlow.addColorStop(0, `rgba(200, 210, 240, ${glowAlpha * 1.2})`);
+        outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
       }
       ctx.beginPath();
       ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
-      ctx.fillStyle = glowGrad;
+      ctx.fillStyle = outerGlow;
       ctx.fill();
 
-      // Ripple rings when speaking
+      // === RIPPLE RINGS (speaking only) ===
       if (isSpeaking) {
-        for (let i = 0; i < 4; i++) {
-          const progress = ((t * 0.7 - i * 0.25) % 1 + 1) % 1;
-          const rippleR = baseR * (0.8 + progress * 1.4);
-          const alpha = Math.max(0, (1 - progress) * 0.5);
+        for (let i = 0; i < 3; i++) {
+          const progress = ((t * 0.65 - i * 0.33) % 1 + 1) % 1;
+          const rR = currentR * (1.05 + progress * 1.2);
+          const rAlpha = Math.max(0, (1 - progress) * (0.35 + pulse * 0.15));
           ctx.beginPath();
-          ctx.arc(cx, cy, rippleR, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(80, 220, 100, ${alpha})`;
+          ctx.arc(cx, cy, rR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(100, 235, 120, ${rAlpha})`;
           ctx.lineWidth = 1.5;
           ctx.stroke();
         }
       }
 
-      // Listening pulse ring
+      // === LISTENING RING ===
       if (isListening) {
-        const lR = baseR * (1.3 + Math.sin(t * 2) * 0.08);
+        const lR = currentR * (1.25 + Math.sin(t * 1.8) * 0.06);
         ctx.beginPath();
         ctx.arc(cx, cy, lR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(140, 170, 255, ${0.25 + breathe * 0.15})`;
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = `rgba(150, 180, 255, ${0.2 + breathe * 0.12})`;
+        ctx.lineWidth = 1;
         ctx.stroke();
       }
 
-      // Blob shape
-      ctx.beginPath();
-      for (let i = 0; i <= points; i++) {
-        const angle = (i / points) * Math.PI * 2;
-        const wobble1 = Math.sin(angle * 3 + t * wobbleSpeed) * wobbleAmount;
-        const wobble2 = Math.sin(angle * 5 - t * wobbleSpeed * 0.7) * wobbleAmount * 0.5;
-        const wobble3 = Math.sin(angle * 7 + t * wobbleSpeed * 1.3) * wobbleAmount * 0.3;
-        const r = baseR * (1 + wobble1 + wobble2 + wobble3);
-        const x = cx + Math.cos(angle) * r;
-        const y = cy + Math.sin(angle) * r;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-
-      // Blob fill gradient
-      const blobGrad = ctx.createRadialGradient(cx - baseR * 0.25, cy - baseR * 0.3, 0, cx, cy, baseR * 1.1);
+      // === CORE SPHERE ===
+      // Deep base layer
+      const baseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, currentR);
       if (isSpeaking) {
-        blobGrad.addColorStop(0, `rgba(230, 255, 235, 0.99)`);
-        blobGrad.addColorStop(0.4, `rgba(${70 + heartbeat * 50 | 0}, ${200 + heartbeat * 30 | 0}, ${80 + heartbeat * 40 | 0}, 0.95)`);
-        blobGrad.addColorStop(1, `rgba(20, 130, 50, 0.8)`);
+        const g = 185 + pulse * 40 | 0;
+        baseGrad.addColorStop(0, `rgba(200, 255, 210, 0.98)`);
+        baseGrad.addColorStop(0.5, `rgba(60, ${g}, 80, 0.95)`);
+        baseGrad.addColorStop(1, `rgba(20, 110, 40, 0.9)`);
       } else if (isListening) {
-        blobGrad.addColorStop(0, 'rgba(220, 228, 255, 0.97)');
-        blobGrad.addColorStop(0.4, 'rgba(140, 165, 245, 0.85)');
-        blobGrad.addColorStop(1, 'rgba(70, 95, 200, 0.6)');
+        baseGrad.addColorStop(0, 'rgba(215, 225, 255, 0.97)');
+        baseGrad.addColorStop(0.5, 'rgba(130, 155, 240, 0.88)');
+        baseGrad.addColorStop(1, 'rgba(65, 90, 195, 0.75)');
       } else {
-        const b = 195 + breathe * 25 | 0;
-        blobGrad.addColorStop(0, `rgba(255, 255, 255, ${0.92 + breathe * 0.07})`);
-        blobGrad.addColorStop(0.4, `rgba(${b}, ${b}, ${b + 18 | 0}, 0.82)`);
-        blobGrad.addColorStop(1, 'rgba(115, 120, 148, 0.5)');
+        const b = 205 + breathe * 20 | 0;
+        baseGrad.addColorStop(0, `rgba(255,255,255,${0.93 + breathe * 0.05})`);
+        baseGrad.addColorStop(0.45, `rgba(${b},${b},${b + 15 | 0},${0.82 + breathe * 0.05})`);
+        baseGrad.addColorStop(1, 'rgba(110,115,145,0.65)');
       }
-      ctx.fillStyle = blobGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
+      ctx.fillStyle = baseGrad;
       ctx.fill();
 
-      // Specular highlight
-      const specGrad = ctx.createRadialGradient(cx - baseR * 0.3, cy - baseR * 0.32, 0, cx - baseR * 0.15, cy - baseR * 0.15, baseR * 0.55);
-      specGrad.addColorStop(0, `rgba(255,255,255,${0.5 + breathe * 0.15})`);
+      // === MOVING LIGHT SWEEP (the shimmer) ===
+      // A soft light band that slowly moves across the orb surface
+      const sweepAngle = t * 0.4;
+      const sweepX = cx + Math.cos(sweepAngle) * currentR * 0.3;
+      const sweepY = cy + Math.sin(sweepAngle) * currentR * 0.3;
+      const sweepGrad = ctx.createRadialGradient(sweepX, sweepY, 0, sweepX, sweepY, currentR * 0.8);
+      const sweepAlpha = isSpeaking ? 0.12 + pulse * 0.08 : 0.07 + shimmer * 0.05;
+      sweepGrad.addColorStop(0, `rgba(255,255,255,${sweepAlpha})`);
+      sweepGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
+      ctx.fillStyle = sweepGrad;
+      ctx.fill();
+
+      // === SPECULAR HIGHLIGHT (top-left, fixed) ===
+      const specX = cx - currentR * 0.28;
+      const specY = cy - currentR * 0.30;
+      const specGrad = ctx.createRadialGradient(specX, specY, 0, specX, specY, currentR * 0.42);
+      specGrad.addColorStop(0, `rgba(255,255,255,${0.55 + breathe * 0.12})`);
+      specGrad.addColorStop(0.5, `rgba(255,255,255,${0.15 + breathe * 0.05})`);
       specGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
       ctx.fillStyle = specGrad;
       ctx.fill();
 
-      // Inner pulse flash when speaking
-      if (isSpeaking && heartbeat > 0.5) {
-        const pulseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseR * 0.65);
-        pulseGrad.addColorStop(0, `rgba(200, 255, 210, ${(heartbeat - 0.5) * 0.45})`);
-        pulseGrad.addColorStop(1, 'rgba(200,255,210,0)');
-        ctx.fillStyle = pulseGrad;
+      // === SMALL SECONDARY HIGHLIGHT (bottom-right reflection) ===
+      const spec2X = cx + currentR * 0.32;
+      const spec2Y = cy + currentR * 0.28;
+      const spec2Grad = ctx.createRadialGradient(spec2X, spec2Y, 0, spec2X, spec2Y, currentR * 0.2);
+      spec2Grad.addColorStop(0, `rgba(255,255,255,${0.12 + shimmer * 0.06})`);
+      spec2Grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.beginPath();
+      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
+      ctx.fillStyle = spec2Grad;
+      ctx.fill();
+
+      // === INNER PULSE FLASH (speaking only) ===
+      if (isSpeaking && pulse > 0.55) {
+        const flashGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, currentR * 0.7);
+        flashGrad.addColorStop(0, `rgba(180,255,195,${(pulse - 0.55) * 0.5})`);
+        flashGrad.addColorStop(1, 'rgba(180,255,195,0)');
+        ctx.beginPath();
+        ctx.arc(cx, cy, currentR * 0.7, 0, Math.PI * 2);
+        ctx.fillStyle = flashGrad;
         ctx.fill();
       }
-
-      // Particles
-      const particles = particlesRef.current;
-      particles.forEach(p => {
-        p.angle += p.speed * 0.012 * (isSpeaking ? 2.5 : 1);
-        const targetR = isSpeaking
-          ? baseR * (p.baseRadius + heartbeat * 0.4)
-          : baseR * p.baseRadius;
-        p.radius += (targetR - p.radius) * 0.08;
-
-        const px = cx + Math.cos(p.angle) * p.radius;
-        const py = cy + Math.sin(p.angle) * p.radius;
-        const alpha = p.opacity * (isSpeaking ? 0.7 + heartbeat * 0.3 : 0.3 + breathe * 0.2);
-
-        ctx.beginPath();
-        ctx.arc(px, py, p.size * (isSpeaking ? 1 + heartbeat * 0.5 : 1), 0, Math.PI * 2);
-        ctx.fillStyle = isSpeaking
-          ? `rgba(150, 255, 170, ${alpha})`
-          : `rgba(200, 210, 240, ${alpha})`;
-        ctx.fill();
-      });
 
       animRef.current = requestAnimationFrame(draw);
     };
@@ -193,23 +167,16 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
     return () => cancelAnimationFrame(animRef.current);
   }, [state, size]);
 
-  const d = size === 'lg' ? 100 : 68;
-  const canvasSize = d * 3.2;
+  const r = size === 'lg' ? 52 : 36;
+  const canvasSize = Math.round(r * 5.5);
 
   return (
-    <div
-      style={{
-        opacity: mounted ? 1 : 0,
-        transition: 'opacity 2s ease',
-        filter: 'drop-shadow(0 0 20px rgba(180,190,230,0.15))',
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        width={canvasSize}
-        height={canvasSize}
-        style={{ display: 'block' }}
-      />
+    <div style={{
+      opacity: mounted ? 1 : 0,
+      transition: 'opacity 2s ease',
+      filter: 'drop-shadow(0 0 15px rgba(170,185,220,0.12))',
+    }}>
+      <canvas ref={canvasRef} width={canvasSize} height={canvasSize} style={{ display: 'block' }} />
     </div>
   );
 }
