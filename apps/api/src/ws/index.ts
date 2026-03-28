@@ -216,14 +216,11 @@ export function setupWebSocket(server: Server) {
           sendToClient('connected', { state: 'GREETING' });
           resetCheckInTimer();
           // Use ElevenLabs for greeting instead of Deepgram TTS
-          speakWithElevenLabs(GREETING).then((audioBytes) => {
-            // mp3 at 22050Hz 32kbps ≈ 4000 bytes per second
-            const durationMs = audioBytes ? Math.round((audioBytes / 4000) * 1000) : 3000;
-            const muteMs = durationMs + 500; // audio duration + 500ms echo buffer
+          speakWithElevenLabs(GREETING).then(() => {
             setTimeout(() => {
               greetingPlaying = false;
-              console.log('[dg] greeting mute cleared after', muteMs, 'ms');
-            }, muteMs);
+              console.log('[dg] greeting mute cleared after 4s');
+            }, 4000);
           }).catch(() => {
             greetingPlaying = false;
           });
