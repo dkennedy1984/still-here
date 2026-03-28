@@ -69,7 +69,7 @@ export default function UpgradePage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-slate-950 px-6">
-      <h1 className="text-2xl font-bold text-white mb-8">
+      <h1 className="text-2xl font-bold text-white mb-6">
         Be here, whenever you need.
       </h1>
 
@@ -88,9 +88,9 @@ export default function UpgradePage() {
       </ul>
       </div>
 
-      <div className="text-center mt-10 mb-8">
+      <div className="text-center mt-6">
         <p className="text-lg text-slate-300">£8 per month</p>
-        <p className="text-sm text-slate-500 mt-2">Cancel anytime</p>
+        <p className="text-sm text-slate-500 mt-1">Cancel anytime</p>
       </div>
 
       {linkError && (
@@ -112,21 +112,21 @@ export default function UpgradePage() {
       <button
         onClick={handleUpgrade}
         disabled={loading}
-        className="w-full max-w-xs py-4 rounded-full bg-white text-slate-900 text-lg font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50"
+        className="mt-6 w-full max-w-xs py-4 rounded-full bg-white text-slate-900 text-lg font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50"
       >
         {loading ? "..." : "Continue"}
       </button>
 
       <button
         onClick={() => router.push("/")}
-        className="mt-6 text-sm text-slate-500 hover:text-slate-300 transition-colors"
+        className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
       >
         Maybe later
       </button>
 
       {/* Magic link section for cross-device access */}
-      <div className="mt-12 border-t border-white/10 pt-8 w-full max-w-xs">
-        <p className="text-xs text-slate-500 text-center mb-3">
+      <div className="mt-10 border-t border-white/10 pt-8 w-full max-w-xs">
+        <p className="text-xs text-slate-500 text-center mb-2">
           Already subscribed on another device?
         </p>
         {!showMagicForm ? (
