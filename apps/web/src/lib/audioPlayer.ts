@@ -40,7 +40,6 @@ export async function flushAudioBuffer(): Promise<void> {
   if (chunkBuffer.length === 0) return;
   const chunks = [...chunkBuffer];
   chunkBuffer = [];
-
   playQueue = playQueue.then(async () => {
     try {
       const ctx = getCtx();
@@ -48,12 +47,8 @@ export async function flushAudioBuffer(): Promise<void> {
       const combined = new Uint8Array(totalBytes);
       let offset = 0;
       for (const c of chunks) { combined.set(c, offset); offset += c.length; }
-
-      // Use decodeAudioData for mp3 from ElevenLabs
       const audioBuffer = await ctx.decodeAudioData(combined.buffer.slice(combined.byteOffset, combined.byteOffset + combined.byteLength) as ArrayBuffer);
-
       if (!isPlaying) { isPlaying = true; onStartCb?.(); }
-
       await new Promise<void>((resolve) => {
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;

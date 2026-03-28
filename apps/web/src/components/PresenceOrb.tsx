@@ -65,32 +65,26 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       ctx.fillStyle = outerGlow;
       ctx.fill();
 
-      // === RIPPLE RINGS (speaking only) ===
-      if (isSpeaking) {
-        // 4 ripple rings, evenly staggered
-        for (let i = 0; i < 4; i++) {
-          const progress = ((t * 0.55 - i * 0.25) % 1 + 1) % 1;
-          // Ring expands from orb surface outward
-          const rR = currentR * (1.02 + progress * 1.6);
-          // Fade out as it expands
-          const rAlpha = Math.max(0, (1 - progress) * 0.45);
-          // Thickness fades too
-          const lineW = Math.max(0.5, 2 * (1 - progress));
-          ctx.beginPath();
-          ctx.arc(cx, cy, rR, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(100, 235, 120, ${rAlpha})`;
-          ctx.lineWidth = lineW;
-          ctx.stroke();
-        }
-      }
-
-      // Always-present very subtle ring
-      const idleRingR = currentR * (1.15 + Math.sin(t * 0.8) * 0.04);
+      // === ALWAYS-PRESENT IDLE RING ===
+      const idleRingR = currentR * (1.18 + Math.sin(t * 0.8) * 0.04);
       ctx.beginPath();
       ctx.arc(cx, cy, idleRingR, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(200, 210, 240, ${0.08 + breathe * 0.05})`;
+      ctx.strokeStyle = `rgba(200, 210, 240, ${0.09 + breathe * 0.05})`;
       ctx.lineWidth = 1;
       ctx.stroke();
+
+      // === RIPPLE RINGS ===
+      for (let i = 0; i < 4; i++) {
+        const progress = ((t * 0.55 - i * 0.25) % 1 + 1) % 1;
+        const rR = currentR * (1.02 + progress * 1.6);
+        const rAlpha = Math.max(0, (1 - progress) * 0.45);
+        const lineW = Math.max(0.5, 2 * (1 - progress));
+        ctx.beginPath();
+        ctx.arc(cx, cy, rR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(100, 235, 120, ${rAlpha})`;
+        ctx.lineWidth = lineW;
+        ctx.stroke();
+      }
 
       // === LISTENING RING ===
       if (isListening) {

@@ -15,39 +15,11 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 const GREETING = "Hi, I'm here. You don't have to talk. We can just sit quietly.";
 const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
-async function speakWithElevenLabs(text: string, sendToClient: (type: string, data?: Record<string, unknown>) => void) {
-  const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
-  const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) { console.error('[tts] no ELEVENLABS_API_KEY'); return; }
-
-  sendToClient('agent_state', { state: 'RESPONDING' });
-
-  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-    method: 'POST',
-    headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      model_id: modelId,
-      voice_settings: { stability: 0.75, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false },
-      output_format: 'mp3_22050_32',
-    }),
-  });
-
-  if (!res.ok) { console.error('[tts] ElevenLabs error:', res.status, await res.text()); return; }
-
-  const buffer = Buffer.from(await res.arrayBuffer());
-  console.log('[tts] ElevenLabs audio ready, bytes:', buffer.length);
-  sendToClient('audio_out', { data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
-  sendToClient('audio_out_done');
-  sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
-}
-
 export function setupWebSocket(server: Server) {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', async (clientWs: WS, req: IncomingMessage) => {
-    console.log('[ws] raw connection received');
+    console.log('[ws] new connection');
     try {
     const url = new URL(req.url!, `http://${req.headers.host}`);
     const ticket = url.searchParams.get('ticket');
@@ -72,11 +44,49 @@ export function setupWebSocket(server: Server) {
     };
 
     let isEnded = false;
+    let dgReady = false;
+    let checkInTimer: ReturnType<typeof setTimeout> | null = null;
     const audioBuffer: Buffer[] = [];
+
+    const resetCheckInTimer = () => {
+      if (checkInTimer) clearTimeout(checkInTimer);
+      checkInTimer = null;
+    };
+
+    async function speakWithElevenLabs(text: string): Promise<void> {
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB';
+      const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5';
+      if (!apiKey) { console.error('[tts] ELEVENLABS_API_KEY not set'); return; }
+
+      sendToClient('agent_state', { state: 'RESPONDING' });
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: 'POST',
+          headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            model_id: modelId,
+            voice_settings: { stability: 0.75, similarity_boost: 0.75, style: 0.0, use_speaker_boost: false },
+            output_format: 'mp3_22050_32',
+          }),
+        });
+        if (!res.ok) { console.error('[tts] ElevenLabs error:', res.status); return; }
+        const buffer = Buffer.from(await res.arrayBuffer());
+        console.log('[tts] ElevenLabs audio bytes:', buffer.length);
+        sendToClient('audio_out', { data: buffer.toString('base64'), mimeType: 'audio/mpeg' });
+        sendToClient('audio_out_done');
+      } catch (err) {
+        console.error('[tts] fetch error:', err);
+      } finally {
+        sendToClient('agent_state', { state: 'SILENT_PRESENCE' });
+      }
+    }
 
     const endCall = () => {
       if (isEnded) return;
       isEnded = true;
+      resetCheckInTimer();
       try { dgWs.close(); } catch {}
       try { clientWs.close(); } catch {}
     };
@@ -94,7 +104,7 @@ export function setupWebSocket(server: Server) {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'linear16', sample_rate: 16000 },
+          output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
         },
         agent: {
           listen: { provider: { type: 'deepgram', model: 'nova-2', language: 'en-GB' } },
@@ -103,19 +113,11 @@ export function setupWebSocket(server: Server) {
             model: 'gpt-4o-mini',
             instructions: systemPrompt,
           },
-          speak: {
-            provider: {
-              type: 'deepgram',
-              model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en',
-            }
-          },
+          speak: { provider: { type: 'deepgram', model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en' } },
         },
       };
       dgWs.send(JSON.stringify(settings));
       console.log('[dg] Settings sent');
-
-      dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: GREETING }));
-      console.log('[dg] greeting injected');
 
       sendToClient('ready');
     });
@@ -128,7 +130,7 @@ export function setupWebSocket(server: Server) {
 
     dgWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
-        // Ignore Deepgram's own TTS audio - we use ElevenLabs instead
+        // Deepgram's own TTS audio - ignored, we use ElevenLabs instead
         return;
       }
 
@@ -145,6 +147,11 @@ export function setupWebSocket(server: Server) {
       switch (msg.type) {
         case 'SettingsApplied':
           console.log('[dg] settings applied');
+          dgReady = true;
+          sendToClient('connected', { state: 'GREETING' });
+          resetCheckInTimer();
+          // Use ElevenLabs for greeting instead of Deepgram TTS
+          speakWithElevenLabs(GREETING).catch(err => console.error('[tts] greeting error:', err));
           break;
 
         case 'UserStartedSpeaking':
@@ -160,11 +167,9 @@ export function setupWebSocket(server: Server) {
           break;
 
         case 'ConversationText':
-          if (msg.role === 'assistant') {
-            const content = (msg.content as string) || '';
-            console.log('[tts] ElevenLabs speaking:', content.substring(0, 60));
-            // Call ElevenLabs in background - don't await to avoid blocking
-            speakWithElevenLabs(content, sendToClient).catch(err => console.error('[tts] error:', err));
+          if (msg.role === 'assistant' && msg.content) {
+            console.log('[tts] speaking via ElevenLabs:', (msg.content as string).substring(0, 60));
+            speakWithElevenLabs(msg.content as string).catch(err => console.error('[tts] error:', err));
           }
           if (msg.role === 'user') {
             console.log('[conversation] user:', String(msg.content).substring(0, 60));
@@ -210,17 +215,13 @@ export function setupWebSocket(server: Server) {
     clientWs.on('close', () => {
       console.log('[ws] client disconnected');
       clearInterval(keepaliveInterval);
-      endCall();
-    });
-
-    clientWs.on('error', (err: Error) => {
-      console.error('[ws] client error:', err.message);
+      resetCheckInTimer();
       endCall();
     });
 
     } catch (err) {
-      console.error('[ws] connection setup error:', err);
-      clientWs.close(1011, 'internal_error');
+      console.error('[ws] connection error:', err);
+      clientWs.close(4500, 'internal_error');
     }
   });
 }
