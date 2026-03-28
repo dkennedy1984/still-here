@@ -54,12 +54,20 @@ export async function flushAudioBuffer(): Promise<void> {
       for (const chunk of chunks) { combined.set(chunk, offset); offset += chunk.length; }
 
       // Convert linear16 PCM to AudioBuffer
-      const int16 = new Int16Array(combined.buffer);
+      // Ensure even byte length for Int16Array (odd trailing byte discarded)
+      const evenBytes = combined.length % 2 === 0 ? combined : combined.slice(0, combined.length - 1);
+      const int16 = new Int16Array(evenBytes.buffer.slice(evenBytes.byteOffset, evenBytes.byteOffset + evenBytes.byteLength));
       const float32 = new Float32Array(int16.length);
       for (let i = 0; i < int16.length; i++) float32[i] = int16[i] / 32768;
 
-      const audioBuffer = ctx.createBuffer(1, float32.length, 16000);
-      audioBuffer.copyToChannel(float32, 0);
+      let audioBuffer: AudioBuffer;
+      try {
+        audioBuffer = ctx.createBuffer(1, float32.length, 16000);
+        audioBuffer.copyToChannel(float32, 0);
+      } catch (err) {
+        console.error('[audio] createBuffer error:', err, 'float32 length:', float32.length);
+        return;
+      }
 
       if (!isPlaying) { isPlaying = true; onStartCb?.(); }
 

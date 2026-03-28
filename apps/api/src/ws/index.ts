@@ -75,7 +75,7 @@ export function setupWebSocket(server: Server) {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'mulaw', sample_rate: 8000 },
+          output: { encoding: 'linear16', sample_rate: 16000 },
         },
         agent: {
           listen: {
@@ -102,9 +102,9 @@ export function setupWebSocket(server: Server) {
     dgWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
         console.log('[deepgram] BINARY AUDIO received, bytes:', data.length);
-        // Raw mulaw audio from Deepgram - forward to client
+        // Raw linear16 audio from Deepgram - forward to client
         const b64 = data.toString('base64');
-        sendToClient('audio_out', { data: b64, mimeType: 'audio/mulaw', sampleRate: 8000 });
+        sendToClient('audio_out', { data: b64, mimeType: 'audio/l16', sampleRate: 16000 });
         return;
       }
 
