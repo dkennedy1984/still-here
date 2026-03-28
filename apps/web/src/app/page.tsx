@@ -117,7 +117,7 @@ function HomePageContent() {
           onClick={() => setShowSheet(true)}
           className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
         >
-          {presenceStyle === 'quiet' ? 'Quiet' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Chatty'} ▾
+          {presenceStyle === 'silent' ? 'Quiet' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Chatty'} ▾
         </button>
         <div className="flex items-center gap-1.5">
           <button
