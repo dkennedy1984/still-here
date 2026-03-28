@@ -47,10 +47,6 @@ export default function HomePage() {
     }
   }
 
-  function handlePreferSilence() {
-    setPresenceStyle("silent");
-  }
-
   return (
     <main className="relative min-h-screen bg-slate-950 px-6">
       {/* Hero section */}
@@ -178,10 +174,9 @@ export default function HomePage() {
       {/* Presence style sheet */}
       {showSheet && (
         <PresenceStyleSheet
-          value={presenceStyle}
-          onChange={setPresenceStyle}
+          selected={presenceStyle}
+          onSelect={(style) => { setPresenceStyle(style); setShowSheet(false); }}
           onClose={() => setShowSheet(false)}
-          onPreferSilence={handlePreferSilence}
         />
       )}
     </main>
