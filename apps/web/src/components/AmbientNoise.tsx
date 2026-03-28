@@ -9,7 +9,7 @@ const AMBIENT_OPTIONS = [
 ];
 
 // Generate noise using Web Audio API — no external files needed
-function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): AudioBufferSourceNode {
+function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): { source: AudioBufferSourceNode, output: AudioNode } {
   const bufferSize = ctx.sampleRate * 4; // 4 second loop
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -23,9 +23,15 @@ function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): A
       data[i] = (last + 0.02 * white) / 1.02;
       last = data[i];
     }
-    // Normalize
-    const max = Math.max(...Array.from(data).map(Math.abs));
-    for (let i = 0; i < bufferSize; i++) data[i] /= max;
+    // Normalize without spread operator (avoids stack overflow)
+    let max = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const abs = Math.abs(data[i]);
+      if (abs > max) max = abs;
+    }
+    if (max > 0) {
+      for (let i = 0; i < bufferSize; i++) data[i] /= max;
+    }
   } else if (type === 'rain') {
     // Rain-like: filtered white noise with random droplet impulses
     let last = 0;
@@ -41,7 +47,17 @@ function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): A
   const source = ctx.createBufferSource();
   source.buffer = buffer;
   source.loop = true;
-  return source;
+
+  if (type === 'white') {
+    // Low-pass filter to remove speech frequencies — prevents mic interference
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 250; // only very low rumble passes through
+    source.connect(filter);
+    return { source, output: filter };
+  }
+
+  return { source, output: source };
 }
 
 interface AmbientNoiseProps {
