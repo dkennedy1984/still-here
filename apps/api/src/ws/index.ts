@@ -75,7 +75,7 @@ export function setupWebSocket(server: Server) {
         type: 'Settings',
         audio: {
           input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'mp3', sample_rate: 44100 },
+          output: { encoding: 'linear16', sample_rate: 16000 },
         },
         agent: {
           listen: {
@@ -90,10 +90,8 @@ export function setupWebSocket(server: Server) {
           },
           speak: {
             provider: {
-              type: 'eleven_labs',
-              model_id: process.env.ELEVENLABS_MODEL_ID || 'eleven_turbo_v2_5',
-              voice_id: process.env.ELEVENLABS_VOICE_ID || 'pNInz6obpgDQGcFmaJgB',
-              api_key: process.env.ELEVENLABS_API_KEY,
+              type: 'deepgram',
+              model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en',
             },
           },
         },
@@ -109,7 +107,7 @@ export function setupWebSocket(server: Server) {
         console.log('[deepgram] BINARY AUDIO received, bytes:', data.length);
         // Compressed mp3 audio from Deepgram - forward to client
         const b64 = data.toString('base64');
-        sendToClient('audio_out', { data: b64, mimeType: 'audio/mpeg' });
+        sendToClient('audio_out', { data: b64, mimeType: 'audio/l16' });
         return;
       }
 
