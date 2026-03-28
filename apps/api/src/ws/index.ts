@@ -102,10 +102,10 @@ export function setupWebSocket(server: Server) {
             model_id: modelId,
             voice_settings: {
         stability: 0.92,
-        similarity_boost: 0.75,
+        similarity_boost: 0.82,
         style: 0.0,
         use_speaker_boost: false,
-        speed: 0.88,
+        speed: 0.95,
       },
             output_format: 'mp3_22050_32',
           }),
