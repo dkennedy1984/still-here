@@ -39,11 +39,21 @@ function HomePageContent() {
   useEffect(() => {
     const saved = localStorage.getItem('swy-voice');
     if (saved === 'her' || saved === 'him') setVoice(saved);
+    const savedPresence = localStorage.getItem('swy-presence');
+    if (savedPresence === 'silent' || savedPresence === 'check-ins' || savedPresence === 'talk') {
+      setPresenceStyle(savedPresence as 'silent' | 'check-ins' | 'talk');
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem('swy-voice', voice);
   }, [voice]);
+
+  useEffect(() => {
+    // Map home style to call-page style and persist
+    const callStyle = presenceStyle === 'silent' ? 'quiet' : presenceStyle;
+    localStorage.setItem('swy-presence', callStyle);
+  }, [presenceStyle]);
 
   useEffect(() => {
     if (upgraded) {

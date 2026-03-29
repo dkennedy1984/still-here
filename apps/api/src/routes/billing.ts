@@ -57,46 +57,62 @@ billingRouter.post("/create-checkout", async (req: Request, res: Response) => {
     const priceId = process.env.STRIPE_PRICE_ID;
     if (!priceId) return res.status(500).json({ error: "Stripe not configured" });
 
-    // Try to get session for email pre-fill, but don't require it
     const sessionId =
       req.signedCookies?.sh_session ||
       req.cookies?.sh_session ||
       req.body?.sessionId;
-    let customerEmail: string | undefined;
     let session: any = null;
     if (sessionId) {
-      session = await prisma.session.findUnique({ where: { id: sessionId } });
-      customerEmail = session?.email || undefined;
+      session = await prisma.session.findUnique({ where: { id: sessionId } }).catch(() => null);
     }
 
-    // Duplicate signup check: if user is already PAID, send them to the portal instead
-    if (session?.tier === 'PAID') {
-      console.log('[billing] user already PAID, redirecting to portal instead');
+    // Check if this session is already paid
+    if (session?.tier === 'PAID' && session?.subscriptionId) {
+      console.log('[billing] already paid, redirecting to portal');
       try {
-        if (session.subscriptionId) {
-          const sub = await stripe.subscriptions.retrieve(session.subscriptionId);
-          const portalSession = await stripe.billingPortal.sessions.create({
+        const sub = await stripe.subscriptions.retrieve(session.subscriptionId);
+        if (sub.status === 'active') {
+          const portal = await stripe.billingPortal.sessions.create({
             customer: sub.customer as string,
             return_url: `${process.env.FRONTEND_URL || 'https://sitwithyou.app'}/`,
           });
-          return res.json({ url: portalSession.url });
+          return res.json({ url: portal.url, alreadyPaid: true });
         }
-      } catch (err) {
-        console.error('[billing] portal fallback error:', err);
+      } catch {}
+    }
+
+    // Check if email already has an active subscription in our DB
+    if (session?.email) {
+      const existingPaid = await prisma.session.findFirst({
+        where: { email: session.email, tier: 'PAID' },
+      }).catch(() => null);
+      if (existingPaid?.subscriptionId) {
+        console.log('[billing] email already has active subscription');
+        try {
+          const sub = await stripe.subscriptions.retrieve(existingPaid.subscriptionId);
+          if (sub.status === 'active') {
+            const portal = await stripe.billingPortal.sessions.create({
+              customer: sub.customer as string,
+              return_url: `${process.env.FRONTEND_URL || 'https://sitwithyou.app'}/`,
+            });
+            return res.json({ url: portal.url, alreadyPaid: true });
+          }
+        } catch {}
       }
     }
 
+    // Create new checkout session
     const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      payment_method_types: ["card"],
+      mode: 'subscription',
+      payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${FRONTEND_URL}/?upgraded=true`,
-      cancel_url: `${FRONTEND_URL}/upgrade?cancelled=true`,
-      metadata: { sessionId: sessionId || "anonymous" },
-      ...(customerEmail ? { customer_email: customerEmail } : {}),
+      success_url: `${process.env.FRONTEND_URL || 'https://sitwithyou.app'}/?upgraded=true`,
+      cancel_url: `${process.env.FRONTEND_URL || 'https://sitwithyou.app'}/upgrade?cancelled=true`,
+      metadata: { sessionId: sessionId || 'anonymous' },
+      ...(session?.email ? { customer_email: session.email } : {}),
     });
 
-    console.log("[billing] checkout session created:", checkoutSession.id);
+    console.log('[billing] checkout session created:', checkoutSession.id);
     return res.json({ url: checkoutSession.url });
   } catch (err) {
     console.error("[billing] create-checkout error:", err);

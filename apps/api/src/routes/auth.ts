@@ -17,6 +17,18 @@ authRouter.post("/magic-link", async (req: Request, res: Response) => {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
+    // Verify the email has an active paid subscription before sending a link
+    const paidSession = await prisma.session.findFirst({
+      where: { email: normalizedEmail, tier: 'PAID' },
+    }).catch(() => null);
+
+    if (!paidSession) {
+      console.log('[auth] magic link rejected - no paid subscription for:', normalizedEmail);
+      // Return success anyway to prevent email enumeration
+      return res.json({ success: true, message: 'If that email has a subscription, you will receive a link.' });
+    }
+
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
     const magicToken = await prisma.magicToken.create({

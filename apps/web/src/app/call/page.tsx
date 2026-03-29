@@ -13,7 +13,13 @@ function CallPageInner() {
   const router = useRouter();
   const callId = params?.get('callId') ?? '';
   const ticket = params?.get('ticket') ?? '';
-  const [presenceStyle, setPresenceStyle] = useState<PresenceStyle>('quiet');
+  const [presenceStyle, setPresenceStyle] = useState<PresenceStyle>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('swy-presence');
+      if (saved === 'quiet' || saved === 'check-ins' || saved === 'talk') return saved;
+    }
+    return 'quiet';
+  });
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [ambientSound, setAmbientSound] = useState('off');
   const [showControls, setShowControls] = useState(false);
@@ -29,7 +35,13 @@ function CallPageInner() {
   });
 
   useEffect(() => {
-    if (state.status === 'connected') wasConnected.current = true;
+    if (state.status === 'connected') {
+      wasConnected.current = true;
+      // Re-apply the saved presence style after connecting (server defaults to 'quiet')
+      if (presenceStyle !== 'quiet') {
+        changeStyle(presenceStyle);
+      }
+    }
     if (state.status === 'ended' && wasConnected.current) {
       router.push('/post-call');
     }
