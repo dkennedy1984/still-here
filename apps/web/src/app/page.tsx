@@ -81,11 +81,11 @@ function HomePageContent() {
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-x-hidden">
       {/* Orb - shared FixedOrb at top 35% */}
-      <FixedOrb state="idle" />
+      <FixedOrb state="idle" visible={!scrolled} />
 
 
       {/* Hero - button just below orb */}
-      <div className="fixed left-0 right-0 flex flex-col items-center" style={{ bottom: '18%', zIndex: 10 }}>
+      <div className={`fixed left-0 right-0 flex flex-col items-center transition-opacity duration-500 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ bottom: '18%', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center">
           <button
             onClick={handleCall}

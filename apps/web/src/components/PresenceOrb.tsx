@@ -164,9 +164,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   const r = size === 'lg' ? 72 : 40;
   const canvasSize = Math.round(r * 7);
 
-  if (!mounted) return null;
-
-  const wrapStyle = { display: 'inline-block', background: 'transparent', lineHeight: 0 } as React.CSSProperties;
+  const wrapStyle = { display: 'inline-block', background: 'transparent', lineHeight: 0, opacity: mounted ? 1 : 0, transition: 'opacity 0.2s ease' } as React.CSSProperties;
   const cvStyle = { display: 'block', background: 'transparent' } as React.CSSProperties;
 
   return (
