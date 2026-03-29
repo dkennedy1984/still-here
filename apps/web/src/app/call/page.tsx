@@ -17,7 +17,7 @@ function CallPageInner() {
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [ambientSound, setAmbientSound] = useState('off');
   const [showControls, setShowControls] = useState(false);
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasConnected = useRef(false);
 
   const { state, hangup, changeStyle } = useAudioSession({
