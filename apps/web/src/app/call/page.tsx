@@ -41,15 +41,15 @@ function CallPageInner() {
     : 'idle';
 
   return (
-    <main className="flex flex-col h-[100dvh] bg-slate-950 overflow-hidden select-none">
+    <main className="relative h-[100dvh] bg-slate-950 overflow-hidden select-none">
 
-      {/* Upper section — orb */}
-      <div className="flex-1 flex items-center justify-center">
+      {/* Orb - absolutely centred on screen */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <PresenceOrb state={orbState} size="lg" />
       </div>
 
-      {/* Lower section — controls */}
-      <div className="pb-10 pt-4 px-6 flex flex-col items-center gap-5">
+      {/* Controls - anchored to bottom */}
+      <div className="absolute bottom-0 left-0 right-0 pb-10 pt-4 px-6 flex flex-col items-center gap-5 z-40">
 
         {/* Presence style pills */}
         <div className="flex gap-2.5">
