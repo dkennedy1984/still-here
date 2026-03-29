@@ -14,14 +14,11 @@ export default function PostCallPage() {
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950">
-      {/* Orb - shared FixedOrb at top 28% */}
+      {/* Orb - shared FixedOrb at top 35% */}
       <FixedOrb state="idle" />
 
       {/* Content below orb */}
-      <div
-        className="relative flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[15vh]"
-        style={{ zIndex: 10 }}
-      >
+      <div className="fixed left-0 right-0 flex flex-col items-center" style={{ top: '55%', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center text-center">
           {isPaid ? (
             <>
@@ -30,7 +27,7 @@ export default function PostCallPage() {
 
               <button
                 onClick={() => router.push('/')}
-                className="mt-8 px-12 py-4 rounded-full bg-white text-slate-900 text-base font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150"
+                className="mt-8 px-16 py-4 rounded-full bg-white text-slate-900 text-lg font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 shadow-lg shadow-white/10"
               >
                 Call again
               </button>

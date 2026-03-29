@@ -112,7 +112,7 @@ export default function UpgradePage() {
       <button
         onClick={handleUpgrade}
         disabled={loading}
-        className="mt-6 w-full max-w-xs py-4 rounded-full bg-white text-slate-900 text-lg font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50"
+        className="mt-6 px-16 py-4 rounded-full bg-white text-slate-900 text-lg font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50 shadow-lg shadow-white/10"
       >
         {loading ? "..." : "Continue"}
       </button>

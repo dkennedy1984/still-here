@@ -6,7 +6,6 @@ import Link from "next/link";
 import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
 import { FixedOrb } from "@/components/FixedOrb";
-import { PresenceOrb } from "@/components/PresenceOrb";
 
 const homeSources = [
   {
@@ -81,33 +80,23 @@ function HomePageContent() {
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-x-hidden">
-      {/* Orb - shared FixedOrb at top 28% */}
+      {/* Orb - shared FixedOrb at top 35% */}
       <FixedOrb state="idle" />
 
-      {/* DEBUG: Fallback orb with inline styles + z-9999 to force visibility */}
-      <div
-        id="orb-debug"
-        style={{ position: 'fixed', top: '28%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, pointerEvents: 'none' }}
-      >
-        <PresenceOrb state="idle" size="lg" />
-      </div>
 
-      {/* Hero - button below orb */}
-      <section
-        className="relative flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[20vh]"
-        style={{ zIndex: 10 }}
-      >
+      {/* Hero - button just below orb */}
+      <div className="fixed left-0 right-0 flex flex-col items-center" style={{ top: '58%', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center">
           <button
             onClick={handleCall}
             disabled={loading}
-            className="w-full max-w-xs py-4 rounded-full bg-white text-slate-900 text-lg font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50"
+            className="px-16 py-4 rounded-full bg-white text-slate-900 text-lg font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50 shadow-lg shadow-white/10"
           >
             {loading ? '...' : 'Call'}
           </button>
           <p className="mt-4 text-sm text-slate-400">I'll just sit with you.</p>
         </div>
-      </section>
+      </div>
 
       {/* Upgraded pill */}
       {showUpgraded && (
