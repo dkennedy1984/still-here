@@ -86,7 +86,7 @@ function CallPageInner() {
           onClick={handleScreenTap}>
 
       {/* Orb - absolute, same position as home page */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
         <div className="-mt-[10vh] sm:mt-0">
           <PresenceOrb state={orbState} size="lg" />
         </div>

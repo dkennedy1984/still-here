@@ -89,32 +89,37 @@ function HomePageContent() {
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-hidden">
-      {/* Hero section — orb in normal flex flow */}
-      <section className="flex flex-col items-center justify-center min-h-screen min-h-[100dvh] px-6">
-        {showUpgraded && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
-            style={FADE_IN_STYLE}>
-            <div className="flex items-center gap-2 bg-green-950/80 border border-green-800/50 rounded-full px-4 py-2 backdrop-blur-sm">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-sm text-green-300/90 font-medium">You&apos;re in</span>
-            </div>
-            <p className="text-xs text-slate-500">I&apos;m here whenever you need.</p>
-          </div>
-        )}
-
-        <div className="mb-8 -mt-[10vh] sm:mt-0">
+      {/* Orb - absolute centre */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+        <div className="-mt-[10vh] sm:mt-0">
           <PresenceOrb state="idle" size="lg" />
         </div>
+      </div>
 
-        {/* Call button */}
-        <button
-          onClick={handleCall}
-          disabled={loading}
-          className="w-full max-w-xs rounded-full bg-white px-6 py-4 text-lg font-semibold text-slate-900 transition-all duration-200 hover:bg-white/90 active:scale-[0.98] disabled:opacity-50"
-        >
-          {loading ? "Connecting..." : "Call"}
-        </button>
-        <p className="mt-4 text-sm text-slate-400">I&apos;ll just sit with you.</p>
+      {/* Upgraded confirmation */}
+      {showUpgraded && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2"
+          style={FADE_IN_STYLE}>
+          <div className="flex items-center gap-2 bg-green-950/80 border border-green-800/50 rounded-full px-4 py-2 backdrop-blur-sm">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-sm text-green-300/90 font-medium">You&apos;re in</span>
+          </div>
+          <p className="text-xs text-slate-500">I&apos;m here whenever you need.</p>
+        </div>
+      )}
+
+      {/* Hero content - positioned in bottom third of screen, below the orb */}
+      <section className="relative z-30 flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[15vh]">
+        <div className="pointer-events-auto flex flex-col items-center">
+          <button
+            onClick={handleCall}
+            disabled={loading}
+            className="w-full max-w-xs py-4 rounded-full bg-white text-slate-900 text-lg font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50"
+          >
+            {loading ? '...' : 'Call'}
+          </button>
+          <p className="mt-4 text-sm text-slate-400">I&apos;ll just sit with you.</p>
+        </div>
       </section>
 
       {/* Bottom controls - fixed, hide on scroll */}
