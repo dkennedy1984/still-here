@@ -83,7 +83,7 @@ billingRouter.post("/create-checkout", async (req: Request, res: Response) => {
 
 // ── POST /api/billing/webhook ─────────────────────────────────────────────
 
-async function billingWebhookHandler(req: Request, res: Response) {
+export async function billingWebhookHandler(req: Request, res: Response) {
   const sig = req.headers["stripe-signature"] as string;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
