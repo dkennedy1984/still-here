@@ -68,7 +68,7 @@ function CallPageInner() {
     : 'idle';
 
   const presenceLabels: Record<PresenceStyle, string> = {
-    'quiet': 'Silent',
+    'quiet': 'Quiet',
     'check-ins': 'Check-ins',
     'talk': 'Talk',
   };
@@ -118,9 +118,11 @@ function CallPageInner() {
         {/* Hang up */}
         <button
           onClick={handleHangup}
-          className="px-10 py-3 rounded-full bg-white/10 text-white text-sm hover:bg-white/20 active:scale-95 transition-all duration-150"
+          className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 active:scale-90 transition-all duration-150 shadow-lg shadow-red-500/25"
         >
-          End
+          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 

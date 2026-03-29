@@ -49,12 +49,24 @@ export default function PostCallPage() {
                 I'm done for now
               </button>
 
-              <a
-                href="/api/billing/portal"
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/billing/portal', {
+                      method: 'POST',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                    });
+                    const data = await res.json();
+                    if (data.url) window.location.href = data.url;
+                  } catch (e) {
+                    console.error('[portal] error:', e);
+                  }
+                }}
                 className="mt-4 text-xs text-slate-600 hover:text-slate-400 transition-colors"
               >
                 Manage subscription
-              </a>
+              </button>
             </>
           ) : (
             <>

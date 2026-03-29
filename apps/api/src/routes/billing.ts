@@ -317,3 +317,38 @@ billingRouter.post("/portal", async (req: Request, res: Response) => {
     return res.json({ url: PORTAL_FALLBACK });
   }
 });
+
+// ── GET /api/billing/portal ──────────────────────────────────────────────
+billingRouter.get("/portal", async (req: Request, res: Response) => {
+  try {
+    const sessionId =
+      req.signedCookies?.sh_session ||
+      req.cookies?.sh_session;
+
+    if (!sessionId) {
+      console.log('[billing] no session cookie, using hosted portal (GET)');
+      return res.json({ url: PORTAL_FALLBACK });
+    }
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId } }).catch(() => null);
+
+    if (!session?.subscriptionId) {
+      console.log('[billing] no subscription found for session:', sessionId);
+      return res.json({ url: PORTAL_FALLBACK });
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(session.subscriptionId);
+    const customerId = subscription.customer as string;
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${process.env.FRONTEND_URL || 'https://sitwithyou.app'}/`,
+    });
+
+    return res.json({ url: portalSession.url });
+  } catch (err) {
+    console.error('[billing] portal GET error:', err);
+    // Fallback to hosted portal
+    return res.json({ url: PORTAL_FALLBACK });
+  }
+});
