@@ -25,6 +25,7 @@ function CallPageInner() {
   const [showControls, setShowControls] = useState(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasConnected = useRef(false);
+  const hasSentInitialStyle = useRef(false);
 
   const { state, hangup, changeStyle } = useAudioSession({
     callId,
@@ -35,13 +36,18 @@ function CallPageInner() {
   });
 
   useEffect(() => {
-    if (state.status === 'connected') {
+    if (state.status === 'connected' && !hasSentInitialStyle.current) {
+      hasSentInitialStyle.current = true;
       wasConnected.current = true;
-      // Re-apply the saved presence style after connecting (server defaults to 'quiet')
+      // Send saved presence style to backend immediately when connected (server defaults to 'quiet')
       if (presenceStyle !== 'quiet') {
+        console.log('[call] sending initial presence style:', presenceStyle);
         changeStyle(presenceStyle);
       }
     }
+  }, [state.status, presenceStyle, changeStyle]);
+
+  useEffect(() => {
     if (state.status === 'ended' && wasConnected.current) {
       router.push('/post-call');
     }

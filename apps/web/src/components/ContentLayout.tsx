@@ -74,7 +74,7 @@ export function ContentLayout({ children, sources, ctaButton = "I'm ready", ctaM
           {children}
 
           {/* CTA */}
-          <div className="mt-16 pt-8 border-t border-white/5">
+          <div className="mt-16 flex flex-col items-center text-center">
             <Link
               href="/"
               className="inline-block px-16 py-5 rounded-full bg-white text-slate-900 text-xl font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150"

@@ -40,8 +40,10 @@ function HomePageContent() {
     const saved = localStorage.getItem('swy-voice');
     if (saved === 'her' || saved === 'him') setVoice(saved);
     const savedPresence = localStorage.getItem('swy-presence');
-    if (savedPresence === 'silent' || savedPresence === 'check-ins' || savedPresence === 'talk') {
-      setPresenceStyle(savedPresence as 'silent' | 'check-ins' | 'talk');
+    // localStorage stores 'quiet' (the mapped value), map back to 'silent' for home screen
+    if (savedPresence === 'quiet' || savedPresence === 'silent' || savedPresence === 'check-ins' || savedPresence === 'talk') {
+      const homeVal = savedPresence === 'quiet' ? 'silent' : savedPresence;
+      setPresenceStyle(homeVal as 'silent' | 'check-ins' | 'talk');
     }
   }, []);
 
