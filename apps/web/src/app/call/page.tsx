@@ -74,7 +74,7 @@ function CallPageInner() {
 
       {/* Tap overlay - presence style buttons - only shows on tap */}
       {showOverlay && (
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 px-6 z-30"
+        <div className="absolute inset-x-0 bottom-24 flex flex-col items-center gap-4 px-6 z-30"
              onClick={e => e.stopPropagation()}>
           <button
             onClick={hangup}
