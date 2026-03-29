@@ -81,46 +81,11 @@ billingRouter.post("/create-checkout", async (req: Request, res: Response) => {
   }
 });
 
+// ── POST /api/billing/webhook ─────────────────────────────────────────────
 
-
-// ── POST /api/billing/portal — Stripe Customer Portal ────────────────────
-
-billingRouter.post("/portal", async (req: Request, res: Response) => {
-  try {
-    const sessionId = req.signedCookies?.sh_session || req.cookies?.sh_session || req.body?.sessionId;
-    if (!sessionId) return res.status(400).json({ error: 'No session' });
-
-    const session = await prisma.session.findUnique({ where: { id: sessionId } });
-    if (!session?.subscriptionId) return res.status(400).json({ error: 'No subscription found' });
-
-    // Get the Stripe customer ID from the subscription
-    const subscription = await stripe.subscriptions.retrieve(session.subscriptionId);
-    const customerId = subscription.customer as string;
-
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer: customerId,
-      return_url: `${FRONTEND_URL}/`,
-    });
-
-    return res.json({ url: portalSession.url });
-  } catch (err) {
-    console.error('[billing] portal error:', err);
-    return res.status(500).json({ error: 'Failed to create portal session' });
-  }
-});
-
-
-// ── POST /api/billing/webhook — Stripe webhook handler ───────────────────
-
-// Note: this route expects express.raw() middleware — applied in index.ts
-export async function billingWebhookHandler(req: Request, res: Response) {
+async function billingWebhookHandler(req: Request, res: Response) {
   const sig = req.headers["stripe-signature"] as string;
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-  if (!sig || !webhookSecret) {
-    console.error("[billing] missing signature or webhook secret");
-    return res.status(400).send("Missing signature");
-  }
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || "";
 
   let event: Stripe.Event;
   try {
@@ -138,26 +103,45 @@ export async function billingWebhookHandler(req: Request, res: Response) {
   try {
     switch (event.type) {
       case "checkout.session.completed": {
-        const checkout = event.data.object as Stripe.Checkout.Session;
-        const sessionId = checkout.metadata?.sessionId;
-        const email =
-          checkout.customer_email || checkout.customer_details?.email;
-        const subscriptionId = checkout.subscription as string;
-        const customerId = checkout.customer as string;
+        try {
+          const checkout = event.data.object as any;
+          const metaSessionId = checkout.metadata?.sessionId;
+          const email = checkout.customer_email || checkout.customer_details?.email || "";
+          const subscriptionId = (checkout.subscription as string) || "";
 
-        if (sessionId) {
-          await prisma.session.update({
-            where: { id: sessionId },
-            data: {
-              tier: "PAID",
-              subscriptionId,
-              stripeCustomerId: customerId || undefined,
-              ...(email
-                ? { email, emailVerified: true, emailVerifiedAt: new Date() }
-                : {}),
-            },
-          });
-          console.log("[billing] session upgraded to PAID:", sessionId);
+          let session = null;
+
+          // Try find by metadata sessionId
+          if (metaSessionId && metaSessionId !== "anonymous") {
+            session = await prisma.session.findUnique({ where: { id: metaSessionId } }).catch(() => null);
+          }
+
+          // Fallback: find by email
+          if (!session && email) {
+            session = await prisma.session.findFirst({ where: { email } }).catch(() => null);
+          }
+
+          // Last resort: create new session
+          if (!session) {
+            session = await prisma.session.create({
+              data: {
+                tier: "PAID",
+                subscriptionId,
+                ...(email ? { email, emailVerified: true } : {}),
+              },
+            });
+            console.log("[billing] created new PAID session:", session.id);
+          } else {
+            await prisma.session.update({
+              where: { id: session.id },
+              data: {
+                tier: "PAID",
+                subscriptionId,
+                ...(email ? { email, emailVerified: true } : {}),
+              },
+            });
+            console.log("[billing] upgraded session to PAID:", session.id);
+          }
 
           // Send welcome email
           if (email) {
@@ -167,13 +151,13 @@ export async function billingWebhookHandler(req: Request, res: Response) {
               `<p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">Hi,</p>
               <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">Thanks for choosing to sit with us. Your subscription is now active.</p>
               <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">You can start a call anytime at <a href="https://sitwithyou.app" style="color: #86efac;">sitwithyou.app</a>.</p>
-              <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">To manage or cancel your subscription, reply to this email or visit your <a href="https://sitwithyou.app/manage" style="color: #86efac;">account page</a>.</p>
+              <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">To manage or cancel your subscription, just reply to this email.</p>
               <p style="font-family: -apple-system, system-ui, sans-serif; color: #94a3b8; font-size: 12px; margin-top: 24px;">By subscribing you agree to our <a href="https://sitwithyou.app/terms" style="color: #94a3b8;">Terms of Service</a> and <a href="https://sitwithyou.app/privacy" style="color: #94a3b8;">Privacy Policy</a>.</p>
               <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">Take care,<br/>Sit With You</p>`
-            ).catch((err) =>
-              console.error("[email] welcome email failed:", err)
-            );
+            ).catch(err => console.error("[email] welcome email failed:", err));
           }
+        } catch (err) {
+          console.error("[billing] checkout handler error:", err);
         }
         break;
       }
@@ -250,12 +234,12 @@ export async function billingWebhookHandler(req: Request, res: Response) {
       default:
         console.log("[billing] unhandled event type:", event.type);
     }
-
-    return res.json({ received: true });
   } catch (err) {
     console.error("[billing] webhook handler error:", err);
-    return res.status(500).json({ error: "Handler error" });
   }
+
+  // Always return 200 to stop Stripe retrying
+  return res.json({ received: true });
 }
 
 billingRouter.post("/webhook", billingWebhookHandler);
