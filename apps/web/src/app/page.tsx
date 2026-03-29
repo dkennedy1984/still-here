@@ -89,13 +89,6 @@ function HomePageContent() {
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-hidden">
-      {/* Orb - absolute centre */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-        <div className="-mt-[10vh] sm:mt-0">
-          <PresenceOrb state="idle" size="lg" />
-        </div>
-      </div>
-
       {/* Upgraded confirmation */}
       {showUpgraded && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2"
@@ -108,8 +101,11 @@ function HomePageContent() {
         </div>
       )}
 
-      {/* Hero content - positioned in bottom third of screen, below the orb */}
-      <section className="relative z-30 flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[15vh]">
+      {/* Hero content */}
+      <section className="relative z-10 flex flex-col items-center justify-center min-h-screen min-h-[100dvh] px-6">
+        <div className="mb-12 -mt-[5vh]">
+          <PresenceOrb state="idle" size="lg" />
+        </div>
         <div className="pointer-events-auto flex flex-col items-center">
           <button
             onClick={handleCall}
