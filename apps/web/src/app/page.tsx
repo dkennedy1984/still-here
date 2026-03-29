@@ -145,25 +145,35 @@ function HomePageContent() {
 
       {/* Bottom controls */}
       <div
-        className={`fixed bottom-0 left-0 right-0 px-8 pb-6 pt-4 flex justify-between items-center transition-opacity duration-300 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`fixed bottom-0 left-0 right-0 pb-6 pt-4 px-8 flex justify-between items-center transition-opacity duration-300 ${
+          scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
         style={{ zIndex: 40 }}
       >
         <button
           onClick={() => setShowSheet(true)}
-          className="pointer-events-auto text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
         >
-          {presenceStyle === 'silent' ? 'Silent' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Talk'} · {voice === 'her' ? 'Her' : 'Him'}
+          {presenceStyle === 'silent' ? 'Quiet' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Chatty'} ▾
         </button>
-        {isPaid ? (
-          <span className="text-xs text-slate-600">✦ Still Here</span>
-        ) : (
-          <Link
-            href="/upgrade"
-            className="pointer-events-auto text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setVoice('her')}
+            className={`text-xs px-2.5 py-1 rounded-full transition-all duration-300 ${
+              voice === 'her' ? 'bg-white/10 text-white' : 'text-slate-600 hover:text-slate-400'
+            }`}
           >
-            Upgrade
-          </Link>
-        )}
+            Her
+          </button>
+          <button
+            onClick={() => setVoice('him')}
+            className={`text-xs px-2.5 py-1 rounded-full transition-all duration-300 ${
+              voice === 'him' ? 'bg-white/10 text-white' : 'text-slate-600 hover:text-slate-400'
+            }`}
+          >
+            Him
+          </button>
+        </div>
       </div>
 
       {/* Presence style sheet */}
