@@ -85,7 +85,7 @@ function HomePageContent() {
 
 
       {/* Hero - button just below orb */}
-      <div className="fixed left-0 right-0 flex flex-col items-center" style={{ top: '58%', zIndex: 10 }}>
+      <div className="fixed left-0 right-0 flex flex-col items-center" style={{ bottom: '18%', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center">
           <button
             onClick={handleCall}

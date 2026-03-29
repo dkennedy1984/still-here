@@ -18,7 +18,7 @@ export default function PostCallPage() {
       <FixedOrb state="idle" />
 
       {/* Content below orb */}
-      <div className="fixed left-0 right-0 flex flex-col items-center" style={{ top: '55%', zIndex: 10 }}>
+      <div className="fixed left-0 right-0 flex flex-col items-center" style={{ bottom: '15%', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center text-center">
           {isPaid ? (
             <>
