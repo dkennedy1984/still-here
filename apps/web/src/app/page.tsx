@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { startCall } from "@/lib/api";
+import api, { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
 import { PresenceOrb } from "@/components/PresenceOrb";
 
@@ -30,6 +30,7 @@ function HomePageContent() {
   const [voice, setVoice] = useState<'her' | 'him'>('her');
   const callingRef = useRef(false);
   const [scrolled, setScrolled] = useState(false);
+  const [isPaid, setIsPaid] = useState(false);
 
   const searchParams = useSearchParams();
   const upgraded = searchParams?.get('upgraded') === 'true';
@@ -52,6 +53,10 @@ function HomePageContent() {
       return () => clearTimeout(t);
     }
   }, [upgraded]);
+
+  useEffect(() => {
+    setIsPaid(localStorage.getItem('swy-tier') === 'paid');
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -250,6 +255,19 @@ function HomePageContent() {
           <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms</Link>
           <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy</Link>
           <span className="ml-auto">© {new Date().getFullYear()} Sit With You</span>
+          {isPaid && (
+            <button
+              onClick={async () => {
+                try {
+                  const res = await api.post('/api/billing/portal');
+                  if (res.data?.url) window.location.href = res.data.url;
+                } catch { }
+              }}
+              className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
+            >
+              Manage subscription
+            </button>
+          )}
         </footer>
       </section>
 

@@ -58,9 +58,27 @@ billingRouter.post("/create-checkout", async (req: Request, res: Response) => {
       req.cookies?.sh_session ||
       req.body?.sessionId;
     let customerEmail: string | undefined;
+    let session: any = null;
     if (sessionId) {
-      const session = await prisma.session.findUnique({ where: { id: sessionId } });
+      session = await prisma.session.findUnique({ where: { id: sessionId } });
       customerEmail = session?.email || undefined;
+    }
+
+    // Duplicate signup check: if user is already PAID, send them to the portal instead
+    if (session?.tier === 'PAID') {
+      console.log('[billing] user already PAID, redirecting to portal instead');
+      try {
+        if (session.subscriptionId) {
+          const sub = await stripe.subscriptions.retrieve(session.subscriptionId);
+          const portalSession = await stripe.billingPortal.sessions.create({
+            customer: sub.customer as string,
+            return_url: `${process.env.FRONTEND_URL || 'https://sitwithyou.app'}/`,
+          });
+          return res.json({ url: portalSession.url });
+        }
+      } catch (err) {
+        console.error('[billing] portal fallback error:', err);
+      }
     }
 
     const checkoutSession = await stripe.checkout.sessions.create({

@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { PresenceOrb } from '../../components/PresenceOrb';
+import api from '../../lib/api';
 
 export default function PostCallPage() {
   const router = useRouter();
@@ -34,6 +35,18 @@ export default function PostCallPage() {
         >
           I'm done for now
         </button>
+
+        <button
+          onClick={async () => {
+            try {
+              const res = await api.post('/api/billing/portal');
+              if (res.data?.url) window.location.href = res.data.url;
+            } catch { }
+          }}
+          className="mt-4 text-xs text-slate-500 hover:text-slate-300 transition-colors underline underline-offset-2"
+        >
+          Manage subscription
+        </button>
       </main>
     );
   }
@@ -50,7 +63,7 @@ export default function PostCallPage() {
         onClick={() => router.push('/upgrade')}
         className="mt-10 px-12 py-4 rounded-full bg-white text-slate-900 text-base font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150"
       >
-        Stay in touch
+        Unlock unlimited access
       </button>
       
       <button
