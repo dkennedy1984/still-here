@@ -74,20 +74,28 @@ function CallPageInner() {
 
       {/* Tap overlay - presence style buttons - only shows on tap */}
       {showOverlay && (
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center gap-3 px-6 z-30"
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 px-6 z-30"
              onClick={e => e.stopPropagation()}>
-          <button onClick={() => { changeStyle('quiet'); setPresenceStyle('quiet'); setShowOverlay(false); }}
-            className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
-            Quiet
+          <button
+            onClick={hangup}
+            className="px-8 py-2.5 rounded-full border border-red-400/40 bg-red-400/10 text-red-400 text-sm font-medium hover:bg-red-400/20 active:scale-95 transition-all duration-150"
+          >
+            Hang up
           </button>
-          <button onClick={() => { changeStyle('check-ins'); setPresenceStyle('check-ins'); setShowOverlay(false); }}
-            className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
-            Check-ins
-          </button>
-          <button onClick={() => { changeStyle('talk'); setPresenceStyle('talk'); setShowOverlay(false); }}
-            className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
-            Talk
-          </button>
+          <div className="flex gap-3">
+            <button onClick={() => { changeStyle('quiet'); setPresenceStyle('quiet'); setShowOverlay(false); }}
+              className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
+              Quiet
+            </button>
+            <button onClick={() => { changeStyle('check-ins'); setPresenceStyle('check-ins'); setShowOverlay(false); }}
+              className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
+              Check-ins
+            </button>
+            <button onClick={() => { changeStyle('talk'); setPresenceStyle('talk'); setShowOverlay(false); }}
+              className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
+              Talk
+            </button>
+          </div>
         </div>
       )}
 
