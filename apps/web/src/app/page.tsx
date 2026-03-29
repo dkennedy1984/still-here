@@ -170,13 +170,9 @@ function HomePageContent() {
       {showSheet && (
         <PresenceStyleSheet
           selected={presenceStyle}
-          voice={voice}
-          onSelect={(style, v) => {
+          onSelect={(style) => {
             setPresenceStyle(style);
-            if (v) setVoice(v);
-            // persist — map 'silent' back to 'quiet' for consistency with call page
             localStorage.setItem('swy-presence', style === 'silent' ? 'quiet' : style);
-            if (v) localStorage.setItem('swy-voice', v);
             setShowSheet(false);
           }}
           onClose={() => setShowSheet(false)}
