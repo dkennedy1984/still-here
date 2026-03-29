@@ -6,6 +6,7 @@ interface FixedOrbProps {
 }
 
 export function FixedOrb({ state = 'idle' }: FixedOrbProps) {
+  console.log('[FixedOrb] rendering, state:', state);
   return (
     <div
       className="fixed left-0 right-0 flex justify-center pointer-events-none"

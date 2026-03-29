@@ -9,6 +9,7 @@ interface PresenceOrbProps {
 }
 
 export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
+  console.log('[PresenceOrb] rendering, size:', size, 'state:', state);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const startRef = useRef(Date.now());
@@ -159,7 +160,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
 
     animRef.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animRef.current);
-  }, [size]);
+  }, [size, mounted]);
 
   const r = size === 'lg' ? 72 : 40;
   const canvasSize = Math.round(r * 7);

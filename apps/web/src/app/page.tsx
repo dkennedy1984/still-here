@@ -6,6 +6,7 @@ import Link from "next/link";
 import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
 import { FixedOrb } from "@/components/FixedOrb";
+import { PresenceOrb } from "@/components/PresenceOrb";
 
 const homeSources = [
   {
@@ -82,6 +83,14 @@ function HomePageContent() {
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-x-hidden">
       {/* Orb - shared FixedOrb at top 28% */}
       <FixedOrb state="idle" />
+
+      {/* DEBUG: Fallback orb with inline styles + z-9999 to force visibility */}
+      <div
+        id="orb-debug"
+        style={{ position: 'fixed', top: '28%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 9999, pointerEvents: 'none' }}
+      >
+        <PresenceOrb state="idle" size="lg" />
+      </div>
 
       {/* Hero - button below orb */}
       <section
