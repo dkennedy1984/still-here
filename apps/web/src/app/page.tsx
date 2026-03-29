@@ -42,15 +42,14 @@ function HomePageContent() {
     const savedPresence = localStorage.getItem('swy-presence');
     // localStorage stores 'quiet' (the mapped value), map back to 'silent' for home screen
     if (savedPresence === 'quiet' || savedPresence === 'silent' || savedPresence === 'check-ins' || savedPresence === 'talk') {
-      const homeVal = savedPresence === 'quiet' ? 'silent' : savedPresence as "silent" | "check-ins" | "talk";
-      setPresenceStyle(homeVal);
+      setPresenceStyle(savedPresence === 'quiet' ? 'silent' : savedPresence as "silent" | "check-ins" | "talk");
     }
   }, []);
 
   useEffect(() => {
     if (upgraded) {
       setShowUpgraded(true);
-      const t = setTimeout(() => setShowUpgraded(false), 5000);
+      const t = setTimeout(() => setShowUpgraded(false), 4000);
       return () => clearTimeout(t);
     }
   }, [upgraded]);
@@ -86,20 +85,15 @@ function HomePageContent() {
   }
 
 
+  const FADE_IN_STYLE = { animation: 'fadeIn 0.5s ease' };
+
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-hidden">
-      {/* Orb - absolute, same position as call page */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-        <div className="-mt-[10vh] sm:mt-0">
-          <PresenceOrb state="idle" size="lg" />
-        </div>
-      </div>
-
-      {/* Hero content - on top of orb */}
-      <section className="relative z-10 flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[25vh]">
+      {/* Hero section — orb in normal flex flow */}
+      <section className="flex flex-col items-center justify-center min-h-screen min-h-[100dvh] px-6">
         {showUpgraded && (
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
-            style={{ animation: 'fadeIn 0.5s ease' }}>
+            style={FADE_IN_STYLE}>
             <div className="flex items-center gap-2 bg-green-950/80 border border-green-800/50 rounded-full px-4 py-2 backdrop-blur-sm">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-sm text-green-300/90 font-medium">You&apos;re in</span>
@@ -107,6 +101,10 @@ function HomePageContent() {
             <p className="text-xs text-slate-500">I&apos;m here whenever you need.</p>
           </div>
         )}
+
+        <div className="mb-8 -mt-[10vh] sm:mt-0">
+          <PresenceOrb state="idle" size="lg" />
+        </div>
 
         {/* Call button */}
         <button
@@ -203,7 +201,7 @@ function HomePageContent() {
 
         {/* Sources */}
         <section className="mt-16 pt-8 border-t border-white/5">
-          <h2 className="text-xs text-slate-500 uppercase tracking-wider mb-4">Sources & further reading</h2>
+          <h2 className="text-xs text-slate-500 uppercase tracking-wider mb-4">Sources &amp; further reading</h2>
           <ul className="space-y-2">
             {homeSources.map((s) => (
               <li key={s.url}>
