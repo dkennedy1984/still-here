@@ -42,26 +42,15 @@ function HomePageContent() {
     const savedPresence = localStorage.getItem('swy-presence');
     // localStorage stores 'quiet' (the mapped value), map back to 'silent' for home screen
     if (savedPresence === 'quiet' || savedPresence === 'silent' || savedPresence === 'check-ins' || savedPresence === 'talk') {
-      const homeVal = savedPresence === 'quiet' ? 'silent' : savedPresence;
-      setPresenceStyle(homeVal as 'silent' | 'check-ins' | 'talk');
+      const homeVal = savedPresence === 'quiet' ? 'silent' : savedPresence as "silent" | "check-ins" | "talk";
+      setPresenceStyle(homeVal);
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('swy-voice', voice);
-  }, [voice]);
-
-  useEffect(() => {
-    // Map home style to call-page style and persist
-    const callStyle = presenceStyle === 'silent' ? 'quiet' : presenceStyle;
-    localStorage.setItem('swy-presence', callStyle);
-  }, [presenceStyle]);
-
-  useEffect(() => {
     if (upgraded) {
       setShowUpgraded(true);
-      localStorage.setItem('swy-tier', 'paid');
-      const t = setTimeout(() => setShowUpgraded(false), 8000);
+      const t = setTimeout(() => setShowUpgraded(false), 5000);
       return () => clearTimeout(t);
     }
   }, [upgraded]);
@@ -99,8 +88,15 @@ function HomePageContent() {
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-hidden">
-      <section className="relative flex flex-col items-center justify-center min-h-screen min-h-[100dvh] px-6">
-        {/* Upgraded pill at top */}
+      {/* Orb - absolute, same position as call page */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+        <div className="-mt-[10vh] sm:mt-0">
+          <PresenceOrb state="idle" size="lg" />
+        </div>
+      </div>
+
+      {/* Hero content - on top of orb */}
+      <section className="relative z-10 flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[25vh]">
         {showUpgraded && (
           <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
             style={{ animation: 'fadeIn 0.5s ease' }}>
@@ -111,11 +107,6 @@ function HomePageContent() {
             <p className="text-xs text-slate-500">I&apos;m here whenever you need.</p>
           </div>
         )}
-
-        {/* Orb */}
-        <div className="-mt-[10vh] sm:mt-0 mb-8">
-          <PresenceOrb state="idle" size="lg" />
-        </div>
 
         {/* Call button */}
         <button
@@ -157,7 +148,7 @@ function HomePageContent() {
       </div>
 
       {/* Content sections - below the fold */}
-      <section className="px-6 max-w-2xl mx-auto pb-20">
+      <section className="relative z-10 px-6 max-w-2xl mx-auto pb-20">
         <h1 className="text-2xl sm:text-3xl font-semibold text-white leading-tight mb-8">
           Quiet body doubling for when starting is hard
         </h1>
@@ -193,33 +184,21 @@ function HomePageContent() {
 
         <h3 className="text-base font-medium text-white/80 mt-6 mb-3">It&apos;s not accountability</h3>
         <p className="text-slate-300 leading-relaxed mb-6">
-          There&apos;s no scoring. No streaks. No guilt if you pause.
-        </p>
-        <p className="text-slate-300 leading-relaxed mb-6">
-          This is simply: company.
+          You don&apos;t owe anyone a report. You don&apos;t have to explain what you did or didn&apos;t do.
         </p>
 
-        <h2 className="text-xl font-medium text-white mt-12 mb-4">If you want a little context</h2>
+        <h3 className="text-base font-medium text-white/80 mt-6 mb-3">It&apos;s not a productivity app</h3>
         <p className="text-slate-300 leading-relaxed mb-6">
-          Some people call this body doubling — doing a task while someone else is present. It can help with ADHD, overwhelm, anxiety, and the general "stuck" feeling.
-        </p>
-        <p className="text-slate-300 leading-relaxed mb-6">
-          If you&apos;d like, you can read more — but you don&apos;t have to.
+          No timers. No streaks. No gamification.
         </p>
 
-        {/* Quiet links */}
-        <div className="mt-12 pt-8 border-t border-white/5">
-          <div className="flex flex-col gap-3">
-            <Link href="/adhd-body-doubling" className="text-sm text-slate-400 hover:text-white transition-colors">
-              What is ADHD body doubling? →
-            </Link>
-            <Link href="/how-it-works" className="text-sm text-slate-400 hover:text-white transition-colors">
-              How it works →
-            </Link>
-            <Link href="/feeling-overwhelmed" className="text-sm text-slate-400 hover:text-white transition-colors">
-              Feeling overwhelmed →
-            </Link>
-          </div>
+        <div className="mt-12 flex flex-col gap-3">
+          <Link href="/how-it-works" className="text-sm text-slate-400 hover:text-white transition-colors">
+            How it works →
+          </Link>
+          <Link href="/feeling-overwhelmed" className="text-sm text-slate-400 hover:text-white transition-colors">
+            Feeling overwhelmed →
+          </Link>
         </div>
 
         {/* Sources */}
@@ -249,32 +228,17 @@ function HomePageContent() {
           <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms</Link>
           <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy</Link>
           <span className="ml-auto">© {new Date().getFullYear()} Sit With You</span>
-          {isPaid && (
-            <button
-              onClick={async () => {
-                try {
-                  const res = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/billing/portal', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                  });
-                  const data = await res.json();
-                  if (data?.url) window.location.href = data.url;
-                } catch { }
-              }}
-              className="text-xs text-slate-600 hover:text-slate-400 transition-colors"
-            >
-              Manage subscription
-            </button>
-          )}
         </footer>
       </section>
 
-      {/* Presence style sheet */}
       {showSheet && (
         <PresenceStyleSheet
-          selected={presenceStyle}
-          onSelect={(style) => { setPresenceStyle(style); setShowSheet(false); }}
+          current={presenceStyle}
+          onSelect={(s) => {
+            setPresenceStyle(s);
+            localStorage.setItem('swy-presence', s === 'silent' ? 'quiet' : s);
+            setShowSheet(false);
+          }}
           onClose={() => setShowSheet(false)}
         />
       )}

@@ -36,8 +36,11 @@ function CallPageInner() {
   });
 
   const handleHangup = useCallback(() => {
-    router.push('/post-call');
     hangup();
+    // Navigate after a single frame to allow cleanup to start
+    requestAnimationFrame(() => {
+      router.push('/post-call');
+    });
   }, [router, hangup]);
 
   useEffect(() => {
@@ -46,7 +49,6 @@ function CallPageInner() {
       wasConnected.current = true;
       // Send saved presence style to backend immediately when connected (server defaults to 'quiet')
       if (presenceStyle !== 'quiet') {
-        console.log('[call] sending initial presence style:', presenceStyle);
         changeStyle(presenceStyle);
       }
     }
@@ -83,8 +85,8 @@ function CallPageInner() {
     <main className="relative h-[100dvh] bg-slate-950 overflow-hidden select-none"
           onClick={handleScreenTap}>
 
-      {/* Orb - centred on desktop, upper portion on mobile */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      {/* Orb - absolute, same position as home page */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
         <div className="-mt-[10vh] sm:mt-0">
           <PresenceOrb state={orbState} size="lg" />
         </div>
