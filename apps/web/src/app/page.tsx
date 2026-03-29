@@ -112,24 +112,66 @@ function HomePageContent() {
 
       {/* Below fold content */}
       <section className="relative px-6 max-w-2xl mx-auto pb-20 mt-[100vh]" style={{ zIndex: 10 }}>
-        <div className="border-t border-slate-800 pt-12">
-          <p className="text-slate-400 text-sm leading-relaxed mb-8">
-            Body doubling is a technique where having someone present — even silently — helps you focus and follow through. Originally developed for ADHD, it works for anyone who struggles with procrastination, anxiety, or getting started.
-          </p>
-          <p className="text-slate-500 text-xs mb-4 uppercase tracking-widest">Research</p>
-          <ul className="space-y-3">
-            {homeSources.map((s) => (
-              <li key={s.url}>
-                <a
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-slate-400 text-sm hover:text-white transition-colors"
-                >
-                  {s.title}
-                </a>
-              </li>
-            ))}
+  
+        <h1 className="text-2xl sm:text-3xl font-semibold text-white leading-tight mb-8">
+          Quiet body doubling for when starting is hard
+        </h1>
+
+        <p className="text-slate-300 leading-relaxed mb-6">
+          Sometimes the problem isn&apos;t motivation.<br />
+          It&apos;s starting.
+        </p>
+        <p className="text-slate-300 leading-relaxed mb-6">
+          Sit With You is quiet company you can call when you need a little help getting going.<br />
+          No pressure. No judgement. No &quot;productivity talk&quot;.
+        </p>
+
+        <h2 className="text-xl font-medium text-white mt-12 mb-4">Call for company (no pressure)</h2>
+        
+        <h3 className="text-base font-medium text-white/80 mt-6 mb-3">You don&apos;t have to talk</h3>
+        <p className="text-slate-300 leading-relaxed mb-6">
+          Silence is welcome here. If you don&apos;t want to speak, you don&apos;t have to.
+        </p>
+
+        <h3 className="text-base font-medium text-white/80 mt-6 mb-3">You don&apos;t have to explain</h3>
+        <p className="text-slate-300 leading-relaxed mb-6">
+          No goals. No reporting. No &quot;what are you working on?&quot;.<br />
+          You&apos;re allowed to arrive exactly as you are.
+        </p>
+
+        <h2 className="text-xl font-medium text-white mt-12 mb-4">What this is (and what it isn&apos;t)</h2>
+
+        <h3 className="text-base font-medium text-white/80 mt-6 mb-3">It&apos;s not productivity coaching</h3>
+        <p className="text-slate-300 leading-relaxed mb-6">
+          We won&apos;t push you, nag you, or try to optimise your day.
+        </p>
+
+        <h3 className="text-base font-medium text-white/80 mt-6 mb-3">It&apos;s not accountability</h3>
+        <p className="text-slate-300 leading-relaxed mb-6">
+          There&apos;s no scoring. No streaks. No guilt if you pause.<br /><br />
+          This is simply: company.
+        </p>
+
+        <h2 className="text-xl font-medium text-white mt-12 mb-4">If you want a little context</h2>
+        <p className="text-slate-300 leading-relaxed mb-6">
+          Some people call this body doubling &mdash; doing a task while someone else is present. It can help with ADHD, overwhelm, anxiety, and the general &quot;stuck&quot; feeling.<br /><br />
+          If you&apos;d like, you can read more &mdash; but you don&apos;t have to.
+        </p>
+
+        {/* Quiet links to other pages */}
+        <div className="mt-8 flex flex-col gap-2">
+          <a href="/adhd-body-doubling" className="text-sm text-slate-400 hover:text-white transition-colors underline underline-offset-2">What is ADHD body doubling?</a>
+          <a href="/how-it-works" className="text-sm text-slate-400 hover:text-white transition-colors underline underline-offset-2">How it works</a>
+          <a href="/feeling-overwhelmed" className="text-sm text-slate-400 hover:text-white transition-colors underline underline-offset-2">Feeling overwhelmed</a>
+        </div>
+
+        {/* Sources */}
+        <div className="mt-16 pt-8 border-t border-white/5">
+          <h2 className="text-xs text-slate-500 uppercase tracking-wider mb-4">Sources &amp; further reading</h2>
+          <ul className="space-y-2">
+            <li><a href="https://www.additudemag.com/getting-stuff-done-easier-with-a-friend-body-double/" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-400 hover:text-white transition-colors">ADDitude &mdash; Get More Done with a Body Double (Patricia Quinn, MD) &#8599;</a></li>
+            <li><a href="https://health.clevelandclinic.org/body-doubling-for-adhd" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-400 hover:text-white transition-colors">Cleveland Clinic &mdash; What Is &apos;Body Doubling&apos; and Can It Help With ADHD? &#8599;</a></li>
+            <li><a href="https://chadd.org/about-adhd/executive-function-skills/" target="_blank" rel="noopener noreferrer" className="text-sm text-slate-400 hover:text-white transition-colors">CHADD &mdash; Executive Function Skills &#8599;</a></li>
           </ul>
         </div>
       </section>
