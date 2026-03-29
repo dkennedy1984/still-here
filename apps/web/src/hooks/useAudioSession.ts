@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks, getCtx } from '../lib/audioPlayer';
+import { bufferAudioChunk, flushAudioBuffer, resetAudioPlayer, setAudioCallbacks } from '../lib/audioPlayer';
 
 type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'ended' | 'error';
 type AgentState = 'GREETING' | 'SILENT_PRESENCE' | 'LISTENING' | 'THINKING' | 'RESPONDING' | 'ENDED';
@@ -20,7 +20,6 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const connectedRef = useRef(false); // prevent double WebSocket connection
   const wasConnectedRef = useRef(false); // track whether we ever reached 'connected' state
   const wakeLockRef = useRef<any>(null);
@@ -39,14 +38,17 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
     processorRef.current?.disconnect();
     sourceRef.current?.disconnect();
     streamRef.current?.getTracks().forEach(track => track.stop());
-    if (audioElRef.current) { audioElRef.current.pause(); audioElRef.current.srcObject = null; audioElRef.current = null; }
-    audioCtxRef.current?.close();
+    audioCtxRef.current?.close().catch(() => {});
     wsRef.current?.close();
-    setStatus('ended');
   }, [send]);
 
-  const changeStyle = useCallback((style: PresenceStyle) => send('style_change', { style }), [send]);
-  const preferSilence = useCallback(() => send('prefer_silence'), [send]);
+  const changeStyle = useCallback((style: PresenceStyle) => {
+    send('change_style', { style });
+  }, [send]);
+
+  const preferSilence = useCallback(() => {
+    send('prefer_silence');
+  }, [send]);
 
   useEffect(() => {
     if (!callId || !wsTicket) return;
@@ -83,25 +85,6 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
           video: false,
         });
 
-        // Force speaker: play a data URI through Audio element
-        // This combats iOS/Android switching to earpiece after getUserMedia
-        const speakerFix = new Audio();
-        speakerFix.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
-        speakerFix.volume = 0.01;
-        speakerFix.setAttribute('playsinline', 'true');
-        await speakerFix.play().catch(() => {});
-
-        // Also try setSinkId if available (Chrome Android supports this)
-        if (typeof (speakerFix as any).setSinkId === 'function') {
-          try {
-            await (speakerFix as any).setSinkId('default');
-            console.log('[audio] setSinkId to default (speaker)');
-          } catch {}
-        }
-
-        // Pre-warm the audio player context while still in user gesture chain
-        getCtx();
-
         if (destroyed) { stream.getTracks().forEach(t => t.stop()); return; }
 
         // Stream raw PCM to Deepgram via WebSocket
@@ -111,13 +94,6 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
         sourceRef.current = source;
         streamRef.current = stream;
 
-        // Force speaker output on iOS - without this, audio routes to earpiece
-        const audioEl = document.createElement('audio');
-        audioEl.srcObject = stream;
-        audioEl.muted = true;
-        audioEl.setAttribute('playsinline', 'true');
-        audioEl.play().catch(() => {});
-        audioElRef.current = audioEl;
         const processor = audioCtx.createScriptProcessor(2048, 1, 1);
         processorRef.current = processor;
         // Send every audio frame — no client-side VAD or energy gating.
@@ -204,21 +180,10 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
       if (ws.readyState === WebSocket.OPEN) send('ping');
     }, 20000);
 
-    const speakerKeepAlive = setInterval(() => {
-      try {
-        const fix = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
-        fix.volume = 0.001;
-        fix.setAttribute('playsinline', 'true');
-        fix.play().catch(() => {});
-      } catch {}
-    }, 30000);
-
-
     return () => {
       destroyed = true;
       connectedRef.current = false;
       clearInterval(pingInterval);
-      clearInterval(speakerKeepAlive);
       processorRef.current?.disconnect();
       sourceRef.current?.disconnect();
       streamRef.current?.getTracks().forEach(track => track.stop());
