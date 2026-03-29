@@ -6,6 +6,7 @@ import Link from "next/link";
 import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
 import { FixedOrb } from "@/components/FixedOrb";
+import { FirstCallSheet } from "@/components/FirstCallSheet";
 
 const homeSources = [
   {
@@ -31,6 +32,8 @@ function HomePageContent() {
   const callingRef = useRef(false);
   const [scrolled, setScrolled] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
+  const [bottomPx, setBottomPx] = useState<number | null>(null);
+  const [showFirstCall, setShowFirstCall] = useState(false);
 
   const searchParams = useSearchParams();
   const upgraded = searchParams?.get('upgraded') === 'true';
@@ -62,8 +65,21 @@ function HomePageContent() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    // Lock button position on mount — prevents shift when mobile address bar hides
+    setBottomPx(window.innerHeight * 0.18);
+  }, []);
+
   const handleCall = async () => {
     if (callingRef.current || loading) return;
+    
+    // Check if first time
+    const hasCalledBefore = localStorage.getItem('swy-has-called');
+    if (!hasCalledBefore) {
+      setShowFirstCall(true);
+      return;
+    }
+
     callingRef.current = true;
     setLoading(true);
     try {
@@ -78,6 +94,22 @@ function HomePageContent() {
     }
   };
 
+  function handleFirstCallSelect(style: 'quiet' | 'check-ins' | 'talk') {
+    localStorage.setItem('swy-has-called', 'true');
+    localStorage.setItem('swy-presence', style);
+    setPresenceStyle(style === 'quiet' ? 'silent' : style as "silent" | "check-ins" | "talk");
+    setShowFirstCall(false);
+    callingRef.current = true;
+    setLoading(true);
+    startCall(style, voice).then(({ callId, wsTicket }) => {
+      router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
+    }).catch(err => {
+      console.error(err);
+      callingRef.current = false;
+      setLoading(false);
+    });
+  }
+
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-x-hidden">
       {/* Orb - shared FixedOrb at top 35% */}
@@ -85,7 +117,7 @@ function HomePageContent() {
 
 
       {/* Hero - button just below orb */}
-      <div className={`fixed left-0 right-0 flex flex-col items-center transition-opacity duration-500 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ bottom: '18%', zIndex: 10 }}>
+      <div className={`fixed left-0 right-0 flex flex-col items-center transition-opacity duration-500 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ bottom: bottomPx !== null ? `${bottomPx}px` : '18%', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center">
           <button
             onClick={handleCall}
@@ -111,7 +143,7 @@ function HomePageContent() {
       )}
 
       {/* Below fold content */}
-      <section className="relative px-6 max-w-2xl mx-auto pb-20 mt-[100vh]" style={{ zIndex: 10 }}>
+      <section className="relative px-6 max-w-2xl mx-auto pb-20 mt-[110vh]" style={{ zIndex: 10 }}>
   
         <h1 className="text-2xl sm:text-3xl font-semibold text-white leading-tight mb-8">
           Quiet body doubling for when starting is hard
@@ -210,6 +242,10 @@ function HomePageContent() {
       </div>
 
       {/* Presence style sheet */}
+      {showFirstCall && (
+        <FirstCallSheet onSelect={handleFirstCallSelect} />
+      )}
+
       {showSheet && (
         <PresenceStyleSheet
           selected={presenceStyle}
