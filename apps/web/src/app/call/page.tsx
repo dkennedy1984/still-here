@@ -22,6 +22,7 @@ function CallPageInner() {
   });
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [ambientSound, setAmbientSound] = useState('off');
+  const [crisisInfo, setCrisisInfo] = useState<any>(null);
   const [showControls, setShowControls] = useState(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasConnected = useRef(false);
@@ -33,6 +34,7 @@ function CallPageInner() {
     onAudioStart: () => setIsAudioPlaying(true),
     onAudioEnd: () => setIsAudioPlaying(false),
     onAmbientControl: (sound: string) => setAmbientSound(sound),
+    onCrisisInfo: (info: any) => setCrisisInfo(info),
   });
 
   const handleHangup = useCallback(() => {
@@ -135,6 +137,36 @@ function CallPageInner() {
       <div className="fixed bottom-6 right-6" style={{ zIndex: 30 }}>
         <span className="text-xs text-slate-600">Still here</span>
       </div>
+
+      {/* Crisis helpline overlay */}
+      {crisisInfo && (
+        <div className="fixed inset-0 flex items-end justify-center z-[60] pointer-events-none">
+          <div className="w-full max-w-md bg-slate-900/95 backdrop-blur rounded-t-2xl px-6 pt-5 pb-8 border-t border-white/10 pointer-events-auto mb-0">
+            <p className="text-sm text-white mb-4">{crisisInfo.message}</p>
+            <div className="flex flex-col gap-3">
+              {crisisInfo.helplines?.map((h: any) => (
+                <a
+                  key={h.number}
+                  href={`tel:${h.number.replace(/\D/g, '')}`}
+                  className="flex justify-between items-center px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  <div>
+                    <span className="text-sm text-white font-medium">{h.name}</span>
+                    <span className="block text-xs text-slate-400">{h.note}</span>
+                  </div>
+                  <span className="text-sm text-white/70">{h.number}</span>
+                </a>
+              ))}
+            </div>
+            <button
+              onClick={() => setCrisisInfo(null)}
+              className="mt-4 w-full py-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

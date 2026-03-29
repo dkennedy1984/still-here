@@ -11,7 +11,14 @@ const FREE_SESSION_MS = parseInt(process.env.FREE_SESSION_MS || '600000', 10); /
 const PAID_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '3600000', 10); // 60 minutes
 const WARNING_BEFORE_END_MS = 120000; // 2 minutes before end
 
-const SAFETY_KEYWORDS = ['kill myself','end my life','want to die','suicide','self harm','hurt myself','not worth living',"can't go on"];
+const SAFETY_KEYWORDS = [
+  'kill myself', 'end my life', 'want to die', 'suicide',
+  'self harm', 'self-harm', 'hurt myself', 'not worth living',
+  "can't go on", 'cant go on', "don't want to be here",
+  'dont want to be here', 'end it all', 'better off dead',
+  'no point in living', 'no reason to live', 'want to disappear',
+  'i give up on life', 'thinking about ending',
+];
 
 const ABUSE_KEYWORDS = [
   'fuck you', 'fuck off', 'you stupid', 'you useless', 'shut up', 'i hate you',
@@ -387,6 +394,27 @@ export function setupWebSocket(server: Server) {
               }
             }
 
+            if (SAFETY_KEYWORDS.some(kw => lower.includes(kw))) {
+              console.log('[safety] crisis keywords detected in:', msg.content?.toString().substring(0, 50));
+              // Inject supportive response via Deepgram agent
+              if (dgWs.readyState === WebSocket.OPEN) {
+                dgWs.send(JSON.stringify({
+                  type: 'InjectAgentMessage',
+                  message: "I hear you, and I'm really glad you said something. You don't have to go through this alone. Samaritans are available 24 hours a day on 116 123 — you can call or chat with them anytime. I'm still here with you.",
+                }));
+              }
+              // Send crisis info to frontend for on-screen display
+              sendToClient('crisis_info', {
+                message: "If you need support right now:",
+                helplines: [
+                  { name: 'Samaritans', number: '116 123', note: 'Free, 24/7' },
+                  { name: 'Crisis Text Line', number: 'Text SHOUT to 85258', note: 'Free, 24/7' },
+                  { name: 'Emergency', number: '999', note: 'If in immediate danger' },
+                ],
+              });
+              // Don't end the call — stay with them
+            }
+
             if (ABUSE_KEYWORDS.some(kw => lower.includes(kw))) {
               console.log('[safety] abuse detected, ending call politely');
               speakWithElevenLabs("I'm going to end our call now. I hope you feel better soon.")
@@ -415,7 +443,24 @@ export function setupWebSocket(server: Server) {
       const lowerText = JSON.stringify(msg).toLowerCase();
       const hasSafetyKeyword = SAFETY_KEYWORDS.some(k => lowerText.includes(k));
       if (hasSafetyKeyword) {
-        sendToClient('safety_alert');
+        console.log('[safety] crisis keywords detected in message type:', msg.type);
+        // Inject supportive response via Deepgram agent
+        if (dgWs.readyState === WebSocket.OPEN) {
+          dgWs.send(JSON.stringify({
+            type: 'InjectAgentMessage',
+            message: "I hear you, and I'm really glad you said something. You don't have to go through this alone. Samaritans are available 24 hours a day on 116 123 — you can call or chat with them anytime. I'm still here with you.",
+          }));
+        }
+        // Send crisis info to frontend for on-screen display
+        sendToClient('crisis_info', {
+          message: "If you need support right now:",
+          helplines: [
+            { name: 'Samaritans', number: '116 123', note: 'Free, 24/7' },
+            { name: 'Crisis Text Line', number: 'Text SHOUT to 85258', note: 'Free, 24/7' },
+            { name: 'Emergency', number: '999', note: 'If in immediate danger' },
+          ],
+        });
+        // Don't end the call — stay with them
       }
     });
 
