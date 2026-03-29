@@ -1,3 +1,11 @@
+// Set up media session so OS treats this as media playback (single volume slider)
+if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+  navigator.mediaSession.metadata = new MediaMetadata({
+    title: 'Sit With You',
+    artist: 'Calm presence',
+  });
+}
+
 let onStartCb: (() => void) | null = null;
 let onEndCb: (() => void) | null = null;
 let chunkBuffer: Uint8Array[] = [];
@@ -58,32 +66,28 @@ export async function flushAudioBuffer(): Promise<void> {
         audio.setAttribute('playsinline', 'true');
         audio.volume = 1.0;
 
+        // Force media audio category on iOS
+        if (typeof (audio as any).webkitAudioCategory !== 'undefined') {
+          (audio as any).webkitAudioCategory = 'playback';
+        }
+
         audio.onended = () => {
           URL.revokeObjectURL(url);
           resolve();
         };
         audio.onerror = (e) => {
           URL.revokeObjectURL(url);
-          console.error('[audio] playback error:', e);
           reject(e);
         };
-
-        audio.play().catch(err => {
-          URL.revokeObjectURL(url);
-          console.error('[audio] play failed:', err);
-          reject(err);
-        });
+        audio.play().catch(reject);
       });
     } catch (err) {
-      console.error('[audio] playback error:', err);
+      console.error('[audioPlayer] playback error:', err);
     } finally {
-      if (chunkBuffer.length === 0) { isPlaying = false; onEndCb?.(); }
+      if (chunkBuffer.length === 0) {
+        isPlaying = false;
+        onEndCb?.();
+      }
     }
   });
-  return playQueue;
-}
-
-export async function playAudioChunk(base64: string): Promise<void> {
-  bufferAudioChunk(base64);
-  await flushAudioBuffer();
 }

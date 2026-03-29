@@ -40,6 +40,9 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
     streamRef.current?.getTracks().forEach(track => track.stop());
     audioCtxRef.current?.close().catch(() => {});
     wsRef.current?.close();
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = 'none';
+    }
   }, [send]);
 
   const changeStyle = useCallback((style: PresenceStyle) => {
@@ -86,6 +89,11 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
         });
 
         if (destroyed) { stream.getTracks().forEach(t => t.stop()); return; }
+
+        // Signal to OS that this is media playback so the media volume rocker is used
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
 
         // Stream raw PCM to Deepgram via WebSocket
         const audioCtx = new AudioContext({ sampleRate: 16000 });

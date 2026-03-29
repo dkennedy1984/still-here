@@ -49,12 +49,14 @@ function CallPageInner() {
 
   useEffect(() => {
     if (state.status === 'ended' && wasConnected.current) {
-      router.push('/post-call');
+      const timer = setTimeout(() => router.push('/'), 3000);
+      return () => clearTimeout(timer);
     }
   }, [state.status, router]);
 
   const handleStyleChange = useCallback((style: PresenceStyle) => {
     setPresenceStyle(style);
+    localStorage.setItem('swy-presence', style);
     changeStyle(style);
   }, [changeStyle]);
 
@@ -76,54 +78,58 @@ function CallPageInner() {
     <main className="relative h-[100dvh] bg-slate-950 overflow-hidden select-none"
           onClick={handleScreenTap}>
 
-      {/* Orb - dead centre */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+      {/* Orb area - upper 60% */}
+      <div className="h-[60%] flex items-center justify-center pointer-events-none">
         <PresenceOrb state={orbState} size="lg" />
       </div>
 
-      {/* Always visible: ambient bottom-left, status bottom-right */}
-      <div className="absolute bottom-6 left-6 z-40" onClick={e => e.stopPropagation()}>
-        <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />
-      </div>
-      <div className="absolute bottom-6 right-6 z-40">
-        <span className="text-xs text-slate-600 tracking-wide">Still here</span>
-      </div>
+      {/* Controls area - lower 40% */}
+      <div className="h-[40%] flex flex-col items-center justify-end pb-12 px-6">
 
-      {/* Tap-to-show controls: presence pills + centred hang up */}
-      <div className={`absolute bottom-20 left-0 right-0 flex flex-col items-center gap-5 z-50 transition-opacity duration-300 ${
-        showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      }`} onClick={e => e.stopPropagation()}>
-        
-        {/* Presence style pills */}
-        <div className="flex gap-2.5">
-          {([
-            { key: 'quiet' as PresenceStyle, label: 'Quiet' },
-            { key: 'check-ins' as PresenceStyle, label: 'Check-ins' },
-            { key: 'talk' as PresenceStyle, label: 'Talk' },
-          ]).map(s => (
-            <button
-              key={s.key}
-              onClick={() => handleStyleChange(s.key)}
-              className={`px-4 py-2 rounded-full text-sm transition-all duration-200 ${
-                presenceStyle === s.key
-                  ? 'bg-white/15 text-white ring-1 ring-white/10'
-                  : 'bg-white/5 text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+        {/* Always visible: ambient bottom-left, status bottom-right */}
+        <div className="w-full flex justify-between items-center mb-6">
+          <div onClick={e => e.stopPropagation()}>
+            <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />
+          </div>
+          <span className="text-xs text-slate-600 tracking-wide">Still here</span>
         </div>
 
-        {/* Hang up - centred, big red circle */}
-        <button
-          onClick={hangup}
-          className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 active:scale-90 transition-all duration-150 shadow-lg shadow-red-500/20"
-        >
-          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        {/* Tap-to-show controls */}
+        <div className={`flex flex-col items-center gap-5 transition-opacity duration-300 ${
+          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`} onClick={e => e.stopPropagation()}>
+
+          {/* Presence style pills */}
+          <div className="flex gap-2.5">
+            {([
+              { key: 'quiet' as PresenceStyle, label: 'Quiet' },
+              { key: 'check-ins' as PresenceStyle, label: 'Check-ins' },
+              { key: 'talk' as PresenceStyle, label: 'Talk' },
+            ]).map(s => (
+              <button
+                key={s.key}
+                onClick={() => handleStyleChange(s.key)}
+                className={`px-4 py-2 rounded-full text-sm transition-all duration-200 ${
+                  presenceStyle === s.key
+                    ? 'bg-white/15 text-white ring-1 ring-white/10'
+                    : 'bg-white/5 text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Hang up button - centred, big red circle */}
+          <button
+            onClick={hangup}
+            className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 active:scale-90 transition-all duration-150 shadow-lg shadow-red-500/20"
+          >
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
     </main>
   );
