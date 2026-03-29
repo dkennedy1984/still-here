@@ -1,127 +1,93 @@
-"use client";
-
-import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useAudioSession } from "@/hooks/useAudioSession";
-import { PresenceOrb } from "@/components/PresenceOrb";
-import { AmbientNoise } from "@/components/AmbientNoise";
+'use client';
+import { Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useAudioSession } from '../../hooks/useAudioSession';
+import { PresenceOrb } from '../../components/PresenceOrb';
+import { AmbientNoise } from '../../components/AmbientNoise';
 
 function CallPageInner() {
-  const searchParams = useSearchParams();
+  const params = useSearchParams();
   const router = useRouter();
-  const callId = searchParams.get("callId") || "";
-  const ticket = searchParams.get("ticket") || "";
-
-  const [presenceStyle, setPresenceStyle] = useState<"quiet" | "check-ins" | "talk">("check-ins");
-
-  // isAudioPlaying is driven by actual browser AudioBufferSource playback events,
-  // not server messages — so the orb stays green for the exact duration
-  // the user hears audio, no matter how many chunks there are.
+  const callId = params?.get('callId') ?? '';
+  const ticket = params?.get('ticket') ?? '';
+  const [presenceStyle, setPresenceStyle] = useState('quiet');
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [ambientSound, setAmbientSound] = useState('off');
+  const wasConnected = useRef(false);
 
   const { state, hangup, changeStyle } = useAudioSession({
     callId,
     wsTicket: ticket,
     onAudioStart: () => setIsAudioPlaying(true),
     onAudioEnd: () => setIsAudioPlaying(false),
-    onAmbientControl: (sound) => setAmbientSound(sound),
+    onAmbientControl: (sound: string) => setAmbientSound(sound),
   });
 
-  const [showOverlay, setShowOverlay] = useState(false);
-
-  // Auto-hide overlay after 4 seconds
   useEffect(() => {
-    if (!showOverlay) return;
-    const timer = setTimeout(() => setShowOverlay(false), 4000);
-    return () => clearTimeout(timer);
-  }, [showOverlay]);
-
-  // Only navigate to /post-call when ended AND we were previously connected
-  // This prevents a remount/failed connection attempt from bouncing the user away
-  const wasConnected = useRef(false);
-  useEffect(() => {
-    if (state.status === "connected") {
-      wasConnected.current = true;
-      console.log("[call/page] status=connected, wasConnected set to true");
-    }
-    if (state.status === "ended" && wasConnected.current) {
-      router.push("/post-call");
+    if (state.status === 'connected') wasConnected.current = true;
+    if (state.status === 'ended' && wasConnected.current) {
+      router.push('/post-call');
     }
   }, [state.status, router]);
 
-  const handleHangup = useCallback(() => {
-    hangup();
-    router.push("/post-call");
-  }, [hangup, router]);
+  const handleStyleChange = useCallback((style: string) => {
+    setPresenceStyle(style);
+    changeStyle(style);
+  }, [changeStyle]);
 
-  const toggleOverlay = useCallback(() => {
-    setShowOverlay((prev) => !prev);
-  }, []);
-
-  // orbState is driven by actual audio playback — green = AI is speaking in real-time
-  const orbState = isAudioPlaying ? "speaking" : state.status === "connected" ? "listening" : "idle";
+  const orbState = isAudioPlaying ? 'speaking'
+    : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening'
+    : 'idle';
 
   return (
-    <main
-      className="relative flex flex-col items-center justify-center h-[100dvh] bg-slate-950 overflow-hidden"
-      onClick={toggleOverlay}
-    >
-      {/* Orb - centred */}
-      <div className="flex items-center justify-center">
+    <main className="flex flex-col h-[100dvh] bg-slate-950 overflow-hidden select-none">
+
+      {/* Upper section — orb */}
+      <div className="flex-1 flex items-center justify-center">
         <PresenceOrb state={orbState} size="lg" />
       </div>
 
-      {/* Tap overlay - presence style buttons - only shows on tap */}
-      {showOverlay && (
-        <div className="absolute inset-x-0 bottom-24 flex flex-col items-center gap-4 px-6 z-30"
-             onClick={e => e.stopPropagation()}>
+      {/* Lower section — controls */}
+      <div className="pb-10 pt-4 px-6 flex flex-col items-center gap-5">
+
+        {/* Presence style pills */}
+        <div className="flex gap-2.5">
+          {[
+            { key: 'quiet', label: 'Quiet' },
+            { key: 'check-ins', label: 'Check-ins' },
+            { key: 'talk', label: 'Talk' },
+          ].map(s => (
+            <button
+              key={s.key}
+              onClick={() => handleStyleChange(s.key)}
+              className={`px-4 py-2 rounded-full text-sm transition-all duration-200 ${
+                presenceStyle === s.key
+                  ? 'bg-white/15 text-white ring-1 ring-white/10'
+                  : 'bg-white/5 text-slate-500 hover:text-slate-300'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Action row — ambient + hang up */}
+        <div className="flex items-center gap-8">
+          <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />
           <button
             onClick={hangup}
-            className="px-8 py-2.5 rounded-full border border-red-400/40 bg-red-400/10 text-red-400 text-sm font-medium hover:bg-red-400/20 active:scale-95 transition-all duration-150"
+            className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 active:scale-90 transition-all duration-150 shadow-lg shadow-red-500/20"
           >
-            Hang up
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
-          <div className="flex gap-3">
-            <button onClick={() => { changeStyle('quiet'); setPresenceStyle('quiet'); setShowOverlay(false); }}
-              className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
-              Quiet
-            </button>
-            <button onClick={() => { changeStyle('check-ins'); setPresenceStyle('check-ins'); setShowOverlay(false); }}
-              className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
-              Check-ins
-            </button>
-            <button onClick={() => { changeStyle('talk'); setPresenceStyle('talk'); setShowOverlay(false); }}
-              className="px-4 py-2.5 rounded-full bg-white/10 text-white text-sm hover:bg-white/15 transition-colors">
-              Talk
-            </button>
-          </div>
         </div>
-      )}
 
-      {/* Status indicator */}
-      {state.status === "connecting" && (
-        <p className="absolute bottom-8 text-slate-500 text-sm">Connecting...</p>
-      )}
-      {state.remainingSeconds !== null && state.remainingSeconds <= 60 && (
-        <p className="absolute bottom-8 text-slate-400 text-sm">
-          {state.remainingSeconds}s remaining
-        </p>
-      )}
+        {/* Status */}
+        <span className="text-xs text-slate-500 tracking-wide">Still here</span>
 
-      {/* ALWAYS VISIBLE footer - hang up + ambient + status */}
-      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-6 pb-6 pt-3 z-50"
-           onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-slate-500 tracking-wide">Still here</span>
-          <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />
-        </div>
-        <button
-          onClick={handleHangup}
-          className="px-5 py-2.5 rounded-full border border-red-400/30 text-red-400 text-sm hover:bg-red-400/10 active:scale-95 transition-all duration-150"
-        >
-          Hang up
-        </button>
       </div>
     </main>
   );
@@ -129,7 +95,7 @@ function CallPageInner() {
 
 export default function CallPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="h-[100dvh] bg-slate-950" />}>
       <CallPageInner />
     </Suspense>
   );
