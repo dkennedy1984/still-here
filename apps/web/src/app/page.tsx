@@ -69,7 +69,7 @@ function HomePageContent() {
     try {
       // Map UI presenceStyle to API mode
       const mode = presenceStyle === 'silent' ? 'quiet' : presenceStyle;
-      const { callId, wsTicket } = await startCall({ mode, voice });
+      const { callId, wsTicket } = await startCall(mode, voice);
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     } catch (err) {
       console.error(err);
