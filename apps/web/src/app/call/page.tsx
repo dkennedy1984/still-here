@@ -63,10 +63,8 @@ function CallPageInner() {
     hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
   }, []);
 
-  const orbState = state.status === 'connected'
-    ? (isAudioPlaying ? 'speaking' : 'listening')
-    : state.status === 'connecting'
-    ? 'connecting'
+  const orbState: 'idle' | 'listening' | 'speaking' | 'greeting' = isAudioPlaying ? 'speaking'
+    : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening'
     : 'idle';
 
   const presenceLabels: Record<PresenceStyle, string> = {
