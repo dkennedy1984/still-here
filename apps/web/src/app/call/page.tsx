@@ -45,11 +45,8 @@ function CallPageInner() {
       wasConnected.current = true;
       console.log("[call/page] status=connected, wasConnected set to true");
     }
-    if (state.status === "ended") {
-      console.log("[call/page] status=ended, wasConnected:", wasConnected.current);
-      if (wasConnected.current) {
-        router.push("/post-call");
-      }
+    if (state.status === "ended" && wasConnected.current) {
+      router.push("/post-call");
     }
   }, [state.status, router]);
 
@@ -67,14 +64,15 @@ function CallPageInner() {
 
   return (
     <main
-      className="relative flex h-[100dvh] overflow-hidden flex-col items-center justify-center bg-slate-950"
+      className="relative flex flex-col items-center justify-center h-[100dvh] bg-slate-950 overflow-hidden"
       onClick={toggleOverlay}
     >
-      {/* Presence orb */}
+      {/* Orb - centred */}
       <div className="flex items-center justify-center">
         <PresenceOrb state={orbState} size="lg" />
       </div>
 
+      {/* Tap overlay - presence style buttons - only shows on tap */}
       {showOverlay && (
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center gap-3 px-6 z-30"
              onClick={e => e.stopPropagation()}>
@@ -93,7 +91,6 @@ function CallPageInner() {
         </div>
       )}
 
-
       {/* Status indicator */}
       {state.status === "connecting" && (
         <p className="absolute bottom-8 text-slate-500 text-sm">Connecting...</p>
@@ -104,16 +101,16 @@ function CallPageInner() {
         </p>
       )}
 
-      {/* Always-visible footer: branding + ambient noise + hang up */}
-      <div className="fixed bottom-0 left-0 right-0 pb-safe px-6 pb-6 flex justify-between items-center z-40"
+      {/* ALWAYS VISIBLE footer - hang up + ambient + status */}
+      <div className="fixed bottom-0 left-0 right-0 flex justify-between items-center px-6 pb-6 pt-3 z-50"
            onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <span className="text-xs text-slate-500 tracking-wide">Still here</span>
           <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />
         </div>
         <button
           onClick={handleHangup}
-          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="px-5 py-2.5 rounded-full border border-red-400/30 text-red-400 text-sm hover:bg-red-400/10 active:scale-95 transition-all duration-150"
         >
           Hang up
         </button>
