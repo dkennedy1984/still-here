@@ -259,8 +259,13 @@ function HomePageContent() {
             <button
               onClick={async () => {
                 try {
-                  const res = await api.post('/api/billing/portal');
-                  if (res.data?.url) window.location.href = res.data.url;
+                  const res = await fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/billing/portal', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                  });
+                  const data = await res.json();
+                  if (data?.url) window.location.href = data.url;
                 } catch { }
               }}
               className="text-xs text-slate-600 hover:text-slate-400 transition-colors"

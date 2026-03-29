@@ -2,7 +2,6 @@
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { PresenceOrb } from '../../components/PresenceOrb';
-import { startCall } from '../../lib/api';
 
 export default function PostCallPage() {
   const router = useRouter();
