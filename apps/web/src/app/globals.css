@@ -49,3 +49,13 @@
 .simplified-content > * + h2 {
   @apply mt-14 pt-6 border-t border-white/5;
 }
+
+/* Hide scrollbar visually, keep scroll functional */
+html::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
