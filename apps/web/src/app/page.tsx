@@ -52,8 +52,9 @@ function HomePageContent() {
       return () => clearTimeout(t);
     }
   }, [upgraded]);
+
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 50);
+    const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -96,20 +97,20 @@ function HomePageContent() {
   }
 
   return (
-    <main className="relative flex flex-col items-center justify-center min-h-screen min-h-[100dvh] bg-slate-950 overflow-hidden">
-      {showUpgraded && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
-          style={{ animation: 'fadeIn 0.5s ease' }}>
-          <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-green-400/10 border border-green-400/15 backdrop-blur-sm">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-sm text-green-300/90 font-medium">You're in</span>
+    <main className="relative bg-slate-950 overflow-x-hidden">
+      {/* Hero - fills entire viewport */}
+      <section className="flex flex-col items-center justify-center min-h-screen min-h-[100dvh] px-6 relative">
+        {showUpgraded && (
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
+            style={{ animation: 'fadeIn 0.5s ease' }}>
+            <div className="flex items-center gap-2 bg-green-950/80 border border-green-800/50 rounded-full px-4 py-2 backdrop-blur-sm">
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-sm text-green-300/90 font-medium">You're in</span>
+            </div>
+            <p className="text-xs text-slate-500">I'm here whenever you need.</p>
           </div>
-          <p className="text-xs text-slate-500">I'm here whenever you need.</p>
-        </div>
-      )}
+        )}
 
-      {/* Hero section - full viewport, call-first */}
-      <div className="flex flex-col items-center justify-center">
         {/* Presence orb */}
         <div className="flex items-center justify-center mb-10">
           <PresenceOrb state="idle" size="lg" />
@@ -126,9 +127,7 @@ function HomePageContent() {
 
         {/* Subtext */}
         <p className="mt-4 text-slate-400 text-sm">I&apos;ll just sit with you.</p>
-
-
-      </div>
+      </section>
 
       {/* Bottom controls - fixed, hide on scroll */}
       <div className={`fixed bottom-0 left-0 right-0 z-40 pb-6 pt-4 px-8 flex justify-between items-center transition-opacity duration-300 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
@@ -159,7 +158,7 @@ function HomePageContent() {
       </div>
 
       {/* Content sections - below the fold */}
-      <div className="max-w-2xl mx-auto py-24 pb-20">
+      <section className="px-6 max-w-2xl mx-auto pb-20">
         <h1 className="text-2xl sm:text-3xl font-semibold text-white leading-tight mb-8">
           Quiet body doubling for when starting is hard
         </h1>
@@ -190,7 +189,7 @@ function HomePageContent() {
 
         <h3 className="text-base font-medium text-white/80 mt-6 mb-3">It&apos;s not productivity coaching</h3>
         <p className="text-slate-300 leading-relaxed mb-6">
-          We won&apos;t push you, nag you, or try to optimise your day.
+          There&apos;s no system here. No method. No plan to optimise your day.
         </p>
 
         <h3 className="text-base font-medium text-white/80 mt-6 mb-3">It&apos;s not accountability</h3>
@@ -203,7 +202,7 @@ function HomePageContent() {
 
         <h2 className="text-xl font-medium text-white mt-12 mb-4">If you want a little context</h2>
         <p className="text-slate-300 leading-relaxed mb-6">
-          Some people call this body doubling — doing a task while someone else is present. It can help with ADHD, overwhelm, anxiety, and the general “stuck” feeling.
+          Some people call this body doubling — doing a task while someone else is present. It can help with ADHD, overwhelm, anxiety, and the general "stuck" feeling.
         </p>
         <p className="text-slate-300 leading-relaxed mb-6">
           If you&apos;d like, you can read more — but you don&apos;t have to.
@@ -248,9 +247,11 @@ function HomePageContent() {
           <Link href="/how-it-works" className="hover:text-slate-400 transition-colors">How it works</Link>
           <Link href="/why" className="hover:text-slate-400 transition-colors">Why</Link>
           <Link href="/vs-focusmate" className="hover:text-slate-400 transition-colors">vs Focusmate</Link>
+          <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms</Link>
+          <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy</Link>
           <span className="ml-auto">© {new Date().getFullYear()} Sit With You</span>
         </footer>
-      </div>
+      </section>
 
       {/* Presence style sheet */}
       {showSheet && (

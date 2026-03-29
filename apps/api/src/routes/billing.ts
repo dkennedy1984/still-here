@@ -83,6 +83,33 @@ billingRouter.post("/create-checkout", async (req: Request, res: Response) => {
 
 
 
+// ── POST /api/billing/portal — Stripe Customer Portal ────────────────────
+
+billingRouter.post("/portal", async (req: Request, res: Response) => {
+  try {
+    const sessionId = req.signedCookies?.sh_session || req.cookies?.sh_session || req.body?.sessionId;
+    if (!sessionId) return res.status(400).json({ error: 'No session' });
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session?.subscriptionId) return res.status(400).json({ error: 'No subscription found' });
+
+    // Get the Stripe customer ID from the subscription
+    const subscription = await stripe.subscriptions.retrieve(session.subscriptionId);
+    const customerId = subscription.customer as string;
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${FRONTEND_URL}/`,
+    });
+
+    return res.json({ url: portalSession.url });
+  } catch (err) {
+    console.error('[billing] portal error:', err);
+    return res.status(500).json({ error: 'Failed to create portal session' });
+  }
+});
+
+
 // ── POST /api/billing/webhook — Stripe webhook handler ───────────────────
 
 // Note: this route expects express.raw() middleware — applied in index.ts
@@ -137,11 +164,12 @@ export async function billingWebhookHandler(req: Request, res: Response) {
             await sendEmail(
               email,
               "Welcome to Sit With You",
-              `<p>Hi,</p>
-              <p>Thanks for choosing to sit with us. Your subscription is now active.</p>
-              <p>You can start a call anytime at <a href="https://sitwithyou.app">sitwithyou.app</a>.</p>
-              <p>If you ever need to manage your subscription, just reply to this email.</p>
-              <p>Take care,<br/>Sit With You</p>`
+              `<p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">Hi,</p>
+              <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">Thanks for choosing to sit with us. Your subscription is now active.</p>
+              <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">You can start a call anytime at <a href="https://sitwithyou.app" style="color: #86efac;">sitwithyou.app</a>.</p>
+              <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">To manage or cancel your subscription, reply to this email or visit your <a href="https://sitwithyou.app/manage" style="color: #86efac;">account page</a>.</p>
+              <p style="font-family: -apple-system, system-ui, sans-serif; color: #94a3b8; font-size: 12px; margin-top: 24px;">By subscribing you agree to our <a href="https://sitwithyou.app/terms" style="color: #94a3b8;">Terms of Service</a> and <a href="https://sitwithyou.app/privacy" style="color: #94a3b8;">Privacy Policy</a>.</p>
+              <p style="font-family: -apple-system, system-ui, sans-serif; color: #e2e8f0;">Take care,<br/>Sit With You</p>`
             ).catch((err) =>
               console.error("[email] welcome email failed:", err)
             );

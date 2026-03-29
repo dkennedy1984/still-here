@@ -113,6 +113,8 @@ export function ContentLayout({ children, sources, ctaButton = "I'm ready", ctaM
               <Link href="/how-it-works" className="hover:text-slate-400 transition-colors">How it works</Link>
               <Link href="/why" className="hover:text-slate-400 transition-colors">Why</Link>
               <Link href="/vs-focusmate" className="hover:text-slate-400 transition-colors">vs Focusmate</Link>
+              <Link href="/terms" className="hover:text-slate-400 transition-colors">Terms</Link>
+              <Link href="/privacy" className="hover:text-slate-400 transition-colors">Privacy</Link>
               <a href="mailto:support@sitwithyou.app" className="hover:text-slate-400 transition-colors">Support</a>
               <span className="ml-auto">© {new Date().getFullYear()} Sit With You</span>
             </div>
