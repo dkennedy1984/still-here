@@ -4,6 +4,10 @@ import { prisma } from "../lib/prisma";
 
 export const billingRouter: Router = Router();
 
+// ── GET /api/billing/health ──────────────────────────────────────────────
+
+billingRouter.get("/health", (_req, res) => res.json({ ok: true }));
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2024-12-18.acacia" as any,
 });
@@ -297,4 +301,3 @@ billingRouter.post("/portal", async (req: Request, res: Response) => {
   }
 });
 
-billingRouter.post("/webhook", billingWebhookHandler);
