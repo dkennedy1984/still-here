@@ -47,103 +47,109 @@ function CallPageInner() {
     if (state.status === 'connected' && !hasSentInitialStyle.current) {
       hasSentInitialStyle.current = true;
       wasConnected.current = true;
-      // Send saved presence style to backend immediately when connected (server defaults to 'quiet')
-      if (presenceStyle !== 'quiet') {
-        changeStyle(presenceStyle);
-      }
+      changeStyle(presenceStyle);
     }
   }, [state.status, presenceStyle, changeStyle]);
 
   useEffect(() => {
-    if (state.status === 'ended' && wasConnected.current) {
-      const timer = setTimeout(() => router.push('/'), 3000);
-      return () => clearTimeout(timer);
+    if (wasConnected.current && state.status === 'ended') {
+      router.push('/post-call');
     }
   }, [state.status, router]);
-
-  const handleStyleChange = useCallback((style: PresenceStyle) => {
-    setPresenceStyle(style);
-    localStorage.setItem('swy-presence', style);
-    changeStyle(style);
-  }, [changeStyle]);
 
   const handleScreenTap = useCallback(() => {
     setShowControls(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => setShowControls(false), 4000);
+    hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
   }, []);
 
-  useEffect(() => {
-    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
-  }, []);
-
-  const orbState = isAudioPlaying ? 'speaking'
-    : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening'
+  const orbState = state.status === 'connected'
+    ? (isAudioPlaying ? 'speaking' : 'listening')
+    : state.status === 'connecting'
+    ? 'connecting'
     : 'idle';
 
-  return (
-    <main className="relative h-[100dvh] bg-slate-950 overflow-hidden select-none"
-          onClick={handleScreenTap}>
+  const presenceLabels: Record<PresenceStyle, string> = {
+    'quiet': 'Silent',
+    'check-ins': 'Check-ins',
+    'talk': 'Talk',
+  };
 
-      {/* Orb - absolute, same position as home page */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+  return (
+    <main
+      className="relative h-[100dvh] bg-slate-950 overflow-hidden select-none"
+      onClick={handleScreenTap}
+    >
+      {/* Orb - FIXED to viewport, identical position to home and post-call */}
+      <div
+        className="fixed top-0 left-0 right-0 h-screen h-[100dvh] flex items-center justify-center pointer-events-none"
+        style={{ zIndex: 5 }}
+      >
         <div className="-mt-[10vh] sm:mt-0">
           <PresenceOrb state={orbState} size="lg" />
         </div>
       </div>
 
-      {/* Tap-to-show controls - centred bottom area */}
-      <div className={`absolute bottom-32 sm:bottom-28 left-0 right-0 flex flex-col items-center gap-5 z-30 transition-opacity duration-300 ${
-        showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
-      }`} onClick={e => e.stopPropagation()}>
-        
+      {/* Tap controls */}
+      <div
+        className={`fixed bottom-32 sm:bottom-28 left-0 right-0 flex flex-col items-center gap-5 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        style={{ zIndex: 30 }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Presence style pills */}
-        <div className="flex gap-2.5">
-          {([
-            { key: 'quiet' as PresenceStyle, label: 'Quiet' },
-            { key: 'check-ins' as PresenceStyle, label: 'Check-ins' },
-            { key: 'talk' as PresenceStyle, label: 'Talk' },
-          ]).map(s => (
+        <div className="flex gap-2">
+          {(['quiet', 'check-ins', 'talk'] as PresenceStyle[]).map((s) => (
             <button
-              key={s.key}
-              onClick={() => handleStyleChange(s.key)}
-              className={`px-4 py-2 rounded-full text-sm transition-all duration-200 ${
-                presenceStyle === s.key
-                  ? 'bg-white/15 text-white ring-1 ring-white/10'
-                  : 'bg-white/5 text-slate-500 hover:text-slate-300'
+              key={s}
+              onClick={() => {
+                setPresenceStyle(s);
+                localStorage.setItem('swy-presence', s);
+                changeStyle(s);
+              }}
+              className={`px-4 py-1.5 rounded-full text-xs transition-all duration-150 ${
+                presenceStyle === s
+                  ? 'bg-white text-slate-900'
+                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
               }`}
             >
-              {s.label}
+              {presenceLabels[s]}
             </button>
           ))}
         </div>
 
-        {/* Hang up button */}
+        {/* Hang up */}
         <button
           onClick={handleHangup}
-          className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 active:scale-90 transition-all duration-150 shadow-lg shadow-red-500/20"
+          className="px-10 py-3 rounded-full bg-white/10 text-white text-sm hover:bg-white/20 active:scale-95 transition-all duration-150"
         >
-          <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          End
         </button>
       </div>
 
-      {/* ALWAYS visible - fixed to bottom corners */}
-      <div className="fixed bottom-6 left-6 z-50" onClick={e => e.stopPropagation()}>
-        <AmbientNoise disabled={state.status === 'ended'} externalSound={ambientSound} />
+      {/* Ambient noise - bottom left */}
+      <div
+        className="fixed bottom-6 left-6"
+        style={{ zIndex: 30 }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <AmbientNoise
+          active={ambientSound !== 'off'}
+          sound={ambientSound}
+          onToggle={(sound) => setAmbientSound(sound)}
+        />
       </div>
-      <div className="fixed bottom-6 right-6 z-50">
-        <span className="text-xs text-slate-600 tracking-wide">Still here</span>
+
+      {/* Still here - bottom right */}
+      <div className="fixed bottom-6 right-6" style={{ zIndex: 30 }}>
+        <span className="text-xs text-slate-600">Still here</span>
       </div>
     </main>
   );
 }
 
-
 export default function CallPage() {
   return (
-    <Suspense fallback={<div className="h-[100dvh] bg-slate-950" />}>
+    <Suspense>
       <CallPageInner />
     </Suspense>
   );
