@@ -27,7 +27,7 @@ export default function PostCallPage() {
 
               <button
                 onClick={() => router.push('/')}
-                className="mt-8 px-16 py-4 rounded-full bg-white text-slate-900 text-lg font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 shadow-lg shadow-white/10"
+                className="mt-8 px-20 py-5 rounded-full bg-white text-slate-900 text-xl font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 shadow-lg shadow-white/10"
               >
                 Call again
               </button>

@@ -90,7 +90,7 @@ function HomePageContent() {
           <button
             onClick={handleCall}
             disabled={loading}
-            className="px-16 py-4 rounded-full bg-white text-slate-900 text-lg font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50 shadow-lg shadow-white/10"
+            className="px-20 py-5 rounded-full bg-white text-slate-900 text-xl font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 disabled:opacity-50 shadow-lg shadow-white/10"
           >
             {loading ? '...' : 'Call'}
           </button>
