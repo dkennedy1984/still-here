@@ -32,7 +32,6 @@ function HomePageContent() {
   const callingRef = useRef(false);
   const [scrolled, setScrolled] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
-  const [bottomPx, setBottomPx] = useState<number | null>(null);
   const [showFirstCall, setShowFirstCall] = useState(false);
 
   const searchParams = useSearchParams();
@@ -63,11 +62,6 @@ function HomePageContent() {
     const handleScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  useEffect(() => {
-    // Lock button position on mount — prevents shift when mobile address bar hides
-    setBottomPx(window.innerHeight * 0.18);
   }, []);
 
   const handleCall = async () => {
@@ -117,7 +111,7 @@ function HomePageContent() {
 
 
       {/* Hero - button just below orb */}
-      <div className={`fixed left-0 right-0 flex flex-col items-center transition-opacity duration-500 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ bottom: bottomPx !== null ? `${bottomPx}px` : '18%', zIndex: 10 }}>
+      <div className={`fixed left-0 right-0 flex flex-col items-center transition-opacity duration-500 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ bottom: '18svh', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center">
           <button
             onClick={handleCall}
