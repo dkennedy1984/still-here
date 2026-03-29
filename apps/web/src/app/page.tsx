@@ -111,7 +111,7 @@ function HomePageContent() {
       )}
 
       {/* Below fold content */}
-      <section className="relative px-6 max-w-2xl mx-auto pb-20" style={{ zIndex: 10 }}>
+      <section className="relative px-6 max-w-2xl mx-auto pb-20 mt-[100vh]" style={{ zIndex: 10 }}>
         <div className="border-t border-slate-800 pt-12">
           <p className="text-slate-400 text-sm leading-relaxed mb-8">
             Body doubling is a technique where having someone present — even silently — helps you focus and follow through. Originally developed for ADHD, it works for anyone who struggles with procrastination, anxiety, or getting started.
