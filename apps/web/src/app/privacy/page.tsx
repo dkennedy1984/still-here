@@ -32,8 +32,9 @@ export default function PrivacyPage() {
         <li>We do not use invasive analytics or tracking pixels</li>
       </ul>
       
-      <h2 className="text-lg font-medium text-white mt-8 mb-3">Cookies</h2>
-      <p className="text-slate-300 leading-relaxed mb-6">We use a single essential cookie to identify your session. No marketing cookies, no tracking cookies, no cookie consent banner needed.</p>
+      <h2 className="text-lg font-medium text-white mt-8 mb-3">Cookies and local storage</h2>
+      <p className="text-slate-300 leading-relaxed mb-4">We use a single essential cookie to identify your session anonymously. No marketing cookies, no tracking cookies, no cookie consent banner needed.</p>
+      <p className="text-slate-300 leading-relaxed mb-6">Your preferences (presence style and voice) are saved in your browser&apos;s localStorage — not a cookie. This data never leaves your device.</p>
       
       <h2 className="text-lg font-medium text-white mt-8 mb-3">Third-party services</h2>
       <ul className="list-disc list-inside text-slate-300 space-y-2 mb-6">

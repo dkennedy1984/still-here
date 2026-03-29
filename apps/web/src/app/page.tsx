@@ -71,7 +71,8 @@ function HomePageContent() {
     
     // Check if first time
     const hasCalledBefore = localStorage.getItem('swy-has-called');
-    if (!hasCalledBefore) {
+    const hasSetPreference = localStorage.getItem('swy-presence');
+    if (!hasCalledBefore && !hasSetPreference) {
       setShowFirstCall(true);
       return;
     }

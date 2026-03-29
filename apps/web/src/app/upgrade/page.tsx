@@ -76,9 +76,9 @@ export default function UpgradePage() {
       <div className="flex justify-center">
         <ul className="space-y-3">
         {[
-          "Up to 60 minutes together per session",
+          "Unlimited calls, up to 60 minutes each",
           "Gentle support if you ask for it",
-          "Choose how present I am",
+          "Choose your presence style and voice",
         ].map((item) => (
           <li key={item} className="flex items-start gap-3 text-white/80">
             <span className="mt-1 h-2 w-2 rounded-full bg-white/40 shrink-0" />
