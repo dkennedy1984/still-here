@@ -233,7 +233,7 @@ function HomePageContent() {
 
       {showSheet && (
         <PresenceStyleSheet
-          current={presenceStyle}
+          selected={presenceStyle}
           onSelect={(s) => {
             setPresenceStyle(s);
             localStorage.setItem('swy-presence', s === 'silent' ? 'quiet' : s);
