@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
+import { VoiceSheet } from "@/components/VoiceSheet";
 import { FixedOrb } from "@/components/FixedOrb";
 import { FirstCallSheet } from "@/components/FirstCallSheet";
 
@@ -27,6 +28,7 @@ function HomePageContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showSheet, setShowSheet] = useState(false);
+  const [showVoiceSheet, setShowVoiceSheet] = useState(false);
   const [presenceStyle, setPresenceStyle] = useState<"silent" | "check-ins" | "talk">("check-ins");
   const [voice, setVoice] = useState<'her' | 'him'>('her');
   const callingRef = useRef(false);
@@ -203,36 +205,21 @@ function HomePageContent() {
       </section>
 
       {/* Bottom controls */}
-      <div
-        className={`fixed bottom-0 left-0 right-0 pb-6 pt-4 px-8 flex justify-between items-center transition-opacity duration-300 ${
-          scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'
-        }`}
-        style={{ zIndex: 40 }}
-      >
+      <div className={`fixed bottom-0 left-0 right-0 pb-6 pt-4 px-6 flex justify-between items-center transition-opacity duration-200 ${
+        scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`} style={{ zIndex: 40 }}>
         <button
           onClick={() => setShowSheet(true)}
-          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="px-4 py-2 rounded-full bg-white/5 text-xs text-slate-400 hover:bg-white/10 hover:text-slate-300 transition-all duration-200 backdrop-blur-sm"
         >
           {presenceStyle === 'silent' ? 'Quiet' : presenceStyle === 'check-ins' ? 'Check-ins' : 'Chatty'} ▾
         </button>
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setVoice('her')}
-            className={`text-xs px-2.5 py-1 rounded-full transition-all duration-300 ${
-              voice === 'her' ? 'bg-white/10 text-white' : 'text-slate-600 hover:text-slate-400'
-            }`}
-          >
-            Her
-          </button>
-          <button
-            onClick={() => setVoice('him')}
-            className={`text-xs px-2.5 py-1 rounded-full transition-all duration-300 ${
-              voice === 'him' ? 'bg-white/10 text-white' : 'text-slate-600 hover:text-slate-400'
-            }`}
-          >
-            Him
-          </button>
-        </div>
+        <button
+          onClick={() => setShowVoiceSheet(true)}
+          className="px-4 py-2 rounded-full bg-white/5 text-xs text-slate-400 hover:bg-white/10 hover:text-slate-300 transition-all duration-200 backdrop-blur-sm"
+        >
+          {voice === 'her' ? 'Her' : 'Him'} ▾
+        </button>
       </div>
 
       {/* Presence style sheet */}
@@ -249,6 +236,17 @@ function HomePageContent() {
             setShowSheet(false);
           }}
           onClose={() => setShowSheet(false)}
+        />
+      )}
+
+      {showVoiceSheet && (
+        <VoiceSheet
+          selected={voice}
+          onSelect={(v) => {
+            setVoice(v);
+            localStorage.setItem('swy-voice', v);
+          }}
+          onClose={() => setShowVoiceSheet(false)}
         />
       )}
     </main>
