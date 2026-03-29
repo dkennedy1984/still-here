@@ -59,7 +59,7 @@ function HomePageContent() {
   }, [upgraded]);
 
   useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 40);
+    const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -111,7 +111,7 @@ function HomePageContent() {
 
 
       {/* Hero - button just below orb */}
-      <div className={`fixed left-0 right-0 flex flex-col items-center transition-opacity duration-500 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ bottom: '18svh', zIndex: 10 }}>
+      <div className={`fixed left-0 right-0 flex flex-col items-center transition-opacity duration-200 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} style={{ bottom: '18svh', zIndex: 10 }}>
         <div className="pointer-events-auto flex flex-col items-center">
           <button
             onClick={handleCall}
