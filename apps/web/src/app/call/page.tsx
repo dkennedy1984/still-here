@@ -79,9 +79,8 @@ function CallPageInner() {
           onClick={handleScreenTap}>
 
       {/* Orb - centred on desktop, upper portion on mobile */}
-      <div className="absolute inset-0 flex items-center justify-center sm:items-center pointer-events-none"
-           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <div className="sm:mb-0 -mt-[15vh] sm:mt-0">
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="-mt-[10vh] sm:mt-0">
           <PresenceOrb state={orbState} size="lg" />
         </div>
       </div>

@@ -96,38 +96,44 @@ function HomePageContent() {
     }
   }
 
-  return (
-    <main className="relative bg-slate-950 overflow-x-hidden">
-      {/* Hero - fills entire viewport */}
-      <section className="flex flex-col items-center justify-center min-h-screen min-h-[100dvh] px-6 relative">
-        {showUpgraded && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
-            style={{ animation: 'fadeIn 0.5s ease' }}>
-            <div className="flex items-center gap-2 bg-green-950/80 border border-green-800/50 rounded-full px-4 py-2 backdrop-blur-sm">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-sm text-green-300/90 font-medium">You're in</span>
-            </div>
-            <p className="text-xs text-slate-500">I'm here whenever you need.</p>
-          </div>
-        )}
 
-        {/* Presence orb */}
-        <div className="flex items-center justify-center mb-10">
+  return (
+    <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-hidden">
+      {/* Upgraded banner */}
+      {showUpgraded && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2"
+          style={{ animation: 'fadeIn 0.5s ease' }}>
+          <div className="flex items-center gap-2 bg-green-950/80 border border-green-800/50 rounded-full px-4 py-2 backdrop-blur-sm">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-sm text-green-300/90 font-medium">You&apos;re in</span>
+          </div>
+          <p className="text-xs text-slate-500">I&apos;m here whenever you need.</p>
+        </div>
+      )}
+
+      {/* Orb - absolute centre, same position as call page */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="-mt-[10vh] sm:mt-0">
           <PresenceOrb state="idle" size="lg" />
         </div>
+      </div>
 
-        {/* Call button */}
-        <button
-          onClick={handleCall}
-          disabled={loading}
-          className="w-full max-w-xs rounded-full bg-white px-6 py-4 text-lg font-semibold text-slate-900 transition-all duration-200 hover:bg-white/90 active:scale-[0.98] disabled:opacity-50"
-        >
-          {loading ? "Connecting..." : "Call"}
-        </button>
+      {/* Call button and subtext - positioned below orb */}
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen min-h-[100dvh] px-6">
+        <div className="mt-[15vh] sm:mt-[10vh] flex flex-col items-center">
+          {/* Call button */}
+          <button
+            onClick={handleCall}
+            disabled={loading}
+            className="w-full max-w-xs rounded-full bg-white px-6 py-4 text-lg font-semibold text-slate-900 transition-all duration-200 hover:bg-white/90 active:scale-[0.98] disabled:opacity-50"
+          >
+            {loading ? "Connecting..." : "Call"}
+          </button>
 
-        {/* Subtext */}
-        <p className="mt-4 text-slate-400 text-sm">I&apos;ll just sit with you.</p>
-      </section>
+          {/* Subtext */}
+          <p className="mt-4 text-slate-400 text-sm">I&apos;ll just sit with you.</p>
+        </div>
+      </div>
 
       {/* Bottom controls - fixed, hide on scroll */}
       <div className={`fixed bottom-0 left-0 right-0 z-40 pb-6 pt-4 px-8 flex justify-between items-center transition-opacity duration-300 ${scrolled ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>

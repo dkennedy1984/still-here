@@ -34,16 +34,32 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
   }, []);
 
   const hangup = useCallback(() => {
-    send('hangup');
-    processorRef.current?.disconnect();
-    sourceRef.current?.disconnect();
-    streamRef.current?.getTracks().forEach(track => track.stop());
-    audioCtxRef.current?.close().catch(() => {});
-    wsRef.current?.close();
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = 'none';
+    // Instant — close WebSocket and update status immediately
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'hangup' }));
+      ws.close();
     }
-  }, [send]);
+    setStatus('ended');
+
+    // Async cleanup — don't block the UI
+    setTimeout(() => {
+      try {
+        processorRef.current?.disconnect();
+        sourceRef.current?.disconnect();
+        audioCtxRef.current?.close().catch(() => {});
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        if (wakeLockRef.current) {
+          wakeLockRef.current.release().catch(() => {});
+          wakeLockRef.current = null;
+        }
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'none';
+        }
+        resetAudioPlayer();
+      } catch {}
+    }, 0);
+  }, []);
 
   const changeStyle = useCallback((style: PresenceStyle) => {
     send('change_style', { style });
