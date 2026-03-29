@@ -35,6 +35,11 @@ function CallPageInner() {
     onAmbientControl: (sound: string) => setAmbientSound(sound),
   });
 
+  const handleHangup = useCallback(() => {
+    router.push('/post-call');
+    hangup();
+  }, [router, hangup]);
+
   useEffect(() => {
     if (state.status === 'connected' && !hasSentInitialStyle.current) {
       hasSentInitialStyle.current = true;
@@ -113,7 +118,7 @@ function CallPageInner() {
 
         {/* Hang up button */}
         <button
-          onClick={hangup}
+          onClick={handleHangup}
           className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center hover:bg-red-600 active:scale-90 transition-all duration-150 shadow-lg shadow-red-500/20"
         >
           <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
