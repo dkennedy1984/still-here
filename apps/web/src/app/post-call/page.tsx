@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { PresenceOrb } from '../../components/PresenceOrb';
+import { FixedOrb } from '../../components/FixedOrb';
 
 export default function PostCallPage() {
   const router = useRouter();
@@ -14,19 +14,12 @@ export default function PostCallPage() {
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950">
-      {/* Orb - FIXED to viewport, identical position to home and call */}
-      <div
-        className="fixed top-0 left-0 right-0 h-screen h-[100dvh] flex items-center justify-center pointer-events-none"
-        style={{ zIndex: 5 }}
-      >
-        <div className="-mt-[10vh] sm:mt-0">
-          <PresenceOrb state="idle" size="lg" />
-        </div>
-      </div>
+      {/* Orb - shared FixedOrb at top 28% */}
+      <FixedOrb state="idle" />
 
       {/* Content below orb */}
       <div
-        className="relative flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[12vh]"
+        className="relative flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[15vh]"
         style={{ zIndex: 10 }}
       >
         <div className="pointer-events-auto flex flex-col items-center text-center">

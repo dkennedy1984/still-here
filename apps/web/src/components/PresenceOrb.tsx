@@ -32,7 +32,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
     if (!ctx) return;
 
     const r = size === 'lg' ? 72 : 40;
-    const canvasSize = Math.round(r * 10);
+    const canvasSize = Math.round(r * 7);
     const W = canvasSize;
     const H = canvasSize;
     const cx = W / 2;
@@ -69,13 +69,14 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       const currentR = idleR + (speakR - idleR) * sp + (listenR - idleR) * ls;
 
       // === OUTER GLOW (drawn first, behind orb) ===
-      const glowR = currentR * (2.2 + breathe * 0.2 + sp * 0.6);
+      const maxGlowR = canvasSize * 0.42;
+      const glowR = Math.min(currentR * (2.2 + breathe * 0.2 + sp * 0.6), maxGlowR);
       const glowAlpha = 0.06 + breathe * 0.04 + sp * 0.12;
       const outerGlow = ctx.createRadialGradient(cx, cy, currentR * 0.5, cx, cy, glowR);
       outerGlow.addColorStop(0, `rgba(${(200 - sp * 110) | 0}, ${(210 + sp * 20) | 0}, ${(240 - sp * 130) | 0}, ${glowAlpha})`);
       outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.beginPath();
-      ctx.arc(cx, cy, Math.min(glowR, canvasSize * 0.45), 0, Math.PI * 2);
+      ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
       ctx.fillStyle = outerGlow;
       ctx.fill();
 
@@ -161,7 +162,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   }, [size]);
 
   const r = size === 'lg' ? 72 : 40;
-  const canvasSize = Math.round(r * 10);
+  const canvasSize = Math.round(r * 7);
 
   if (!mounted) return null;
 

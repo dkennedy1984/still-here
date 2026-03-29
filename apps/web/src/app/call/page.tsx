@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAudioSession } from '../../hooks/useAudioSession';
-import { PresenceOrb } from '../../components/PresenceOrb';
+import { FixedOrb } from '../../components/FixedOrb';
 import { AmbientNoise } from '../../components/AmbientNoise';
 
 type PresenceStyle = 'quiet' | 'check-ins' | 'talk';
@@ -78,15 +78,8 @@ function CallPageInner() {
       className="relative h-[100dvh] bg-slate-950 overflow-hidden select-none"
       onClick={handleScreenTap}
     >
-      {/* Orb - FIXED to viewport, identical position to home and post-call */}
-      <div
-        className="fixed top-0 left-0 right-0 h-screen h-[100dvh] flex items-center justify-center pointer-events-none"
-        style={{ zIndex: 5 }}
-      >
-        <div className="-mt-[10vh] sm:mt-0">
-          <PresenceOrb state={orbState} size="lg" />
-        </div>
-      </div>
+      {/* Orb - shared FixedOrb at top 28% */}
+      <FixedOrb state={orbState} />
 
       {/* Tap controls */}
       <div

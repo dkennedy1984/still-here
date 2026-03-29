@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { startCall } from "@/lib/api";
 import PresenceStyleSheet from "@/components/PresenceStyleSheet";
-import { PresenceOrb } from "@/components/PresenceOrb";
+import { FixedOrb } from "@/components/FixedOrb";
 
 const homeSources = [
   {
@@ -80,19 +80,12 @@ function HomePageContent() {
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950 overflow-x-hidden">
-      {/* Orb - FIXED to viewport, never moves */}
-      <div
-        className="fixed top-0 left-0 right-0 h-screen h-[100dvh] flex items-center justify-center pointer-events-none"
-        style={{ zIndex: 5 }}
-      >
-        <div className="-mt-[10vh] sm:mt-0">
-          <PresenceOrb state="idle" size="lg" />
-        </div>
-      </div>
+      {/* Orb - shared FixedOrb at top 28% */}
+      <FixedOrb state="idle" />
 
       {/* Hero - button below orb */}
       <section
-        className="relative flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[18vh]"
+        className="relative flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[20vh]"
         style={{ zIndex: 10 }}
       >
         <div className="pointer-events-auto flex flex-col items-center">
