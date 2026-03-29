@@ -14,8 +14,17 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   const startRef = useRef(Date.now());
   const [mounted, setMounted] = useState(false);
 
+  // --- FIX: keep interpolation values in refs so they persist across re-renders ---
+  const speakingRef = useRef(0);
+  const listeningRef = useRef(0);
+
+  // --- FIX: track current state in a ref so the animation loop never needs state in its deps ---
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
   useEffect(() => { setMounted(true); }, []);
 
+  // Animation loop depends only on [size] — never restarts on state change
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -28,79 +37,68 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
     const cx = W / 2;
     const cy = H / 2;
 
-    const isSpeaking = state === 'speaking' || state === 'greeting';
-    const isListening = state === 'listening';
-
-    // Interpolation state — smoothly tracks target
-    let targetSpeaking = 0; // 0 = idle, 1 = speaking
-    let targetListening = 0; // 0 = idle, 1 = listening
-    let currentSpeaking = 0; // smoothly interpolates towards target
-    let currentListening = 0;
-    const LERP_SPEED = 0.04; // how fast to transition (lower = smoother, 0.04 ≈ 0.5 second)
-
     const draw = () => {
       const t = (Date.now() - startRef.current) / 1000;
       ctx.clearRect(0, 0, W, H);
 
-      // Update targets based on state
-      targetSpeaking = isSpeaking ? 1 : 0;
-      targetListening = isListening ? 1 : 0;
+      // Read current state from ref — no stale closure
+      const currentState = stateRef.current;
+      const targetSpeaking = (currentState === 'speaking' || currentState === 'greeting') ? 1 : 0;
+      const targetListening = currentState === 'listening' ? 1 : 0;
 
-      // Smoothly interpolate
-      currentSpeaking += (targetSpeaking - currentSpeaking) * LERP_SPEED;
-      currentListening += (targetListening - currentListening) * LERP_SPEED;
+      // Very slow lerp — 0.015 ≈ 2 seconds to fully transition
+      speakingRef.current += (targetSpeaking - speakingRef.current) * 0.015;
+      listeningRef.current += (targetListening - listeningRef.current) * 0.015;
 
-      // Clamp to avoid floating point drift
-      if (Math.abs(currentSpeaking - targetSpeaking) < 0.001) currentSpeaking = targetSpeaking;
-      if (Math.abs(currentListening - targetListening) < 0.001) currentListening = targetListening;
+      // Clamp near-target to avoid infinite float drift
+      if (Math.abs(speakingRef.current - targetSpeaking) < 0.005) speakingRef.current = targetSpeaking;
+      if (Math.abs(listeningRef.current - targetListening) < 0.005) listeningRef.current = targetListening;
 
-      // Smooth waves
-      const breathe = Math.sin(t * 0.45) * 0.5 + 0.5; // 0..1 slow breathe
-      const pulse = currentSpeaking > 0.001 ? Math.abs(Math.sin(t * 3.8)) * currentSpeaking : 0; // 0..1 fast pulse scaled by speaking blend
-      const shimmer = Math.sin(t * 1.2) * 0.5 + 0.5; // slow shimmer
+      const sp = speakingRef.current;   // 0–1, speaking blend
+      const ls = listeningRef.current;  // 0–1, listening blend
 
-      // Current radius - orb breathes in size slightly, blended between states
-      const idleBaseR = r * (0.93 + breathe * 0.08);
-      const speakBaseR = r * (1.0 + pulse * 0.06);
-      const currentR = idleBaseR + (speakBaseR - idleBaseR) * currentSpeaking;
+      // === TIMING ===
+      const breathe = (Math.sin(t * 0.9) + 1) / 2;
+      const pulse   = (Math.sin(t * 3.2) + 1) / 2;
 
-      // === OUTER AMBIENT GLOW ===
-      const glowRIdle = currentR * (2.2 + breathe * 0.2);
-      const glowRSpeak = currentR * (2.8 + pulse * 0.4);
-      const glowR = glowRIdle + (glowRSpeak - glowRIdle) * currentSpeaking;
-      const glowAlpha = (0.06 + breathe * 0.04) + currentSpeaking * (0.12 + pulse * 0.10);
+      // === RADIUS — blend idle/speaking/listening sizes ===
+      const idleR    = r * (1 + breathe * 0.03);
+      const speakR   = r * (1 + (0.04 + pulse * 0.08));
+      const listenR  = r * (1 + breathe * 0.025);
+      const currentR = idleR + (speakR - idleR) * sp + (listenR - idleR) * ls;
 
-      // Green component blends in with currentSpeaking; blue/listening tint with currentListening
-      const glowGreenR = Math.round(90 * currentSpeaking + 200 * (1 - currentSpeaking) - 60 * currentListening);
-      const glowGreenG = Math.round(190 + currentSpeaking * 40 + currentListening * 20);
-      const glowGreenB = Math.round(110 * currentSpeaking + 240 * (1 - currentSpeaking) + currentListening * 15);
-      const glowColor = `rgba(${glowGreenR}, ${glowGreenG}, ${glowGreenB}, ${glowAlpha})`;
+      // === OUTER GLOW ===
+      const glowIdleA    = 0.12 + breathe * 0.06;
+      const glowSpeakA   = 0.25 + pulse * 0.15;
+      const glowListenA  = 0.18 + breathe * 0.08;
+      const glowAlpha    = glowIdleA + (glowSpeakA - glowIdleA) * sp + (glowListenA - glowIdleA) * ls;
 
-      const outerGlow = ctx.createRadialGradient(cx, cy, currentR * 0.5, cx, cy, glowR);
-      outerGlow.addColorStop(0, glowColor);
-      outerGlow.addColorStop(0.5, `rgba(${glowGreenR}, ${glowGreenG}, ${glowGreenB}, ${glowAlpha * 0.5})`);
+      const glowIdleR_c   = 200; const glowIdleG_c   = 200; const glowIdleB_c   = 215;
+      const glowSpeakR_c  =  60; const glowSpeakG_c  = 210; const glowSpeakB_c  =  80;
+      const glowListenR_c = 130; const glowListenG_c = 155; const glowListenB_c = 240;
+
+      const glowR = glowIdleR_c + (glowSpeakR_c - glowIdleR_c) * sp + (glowListenR_c - glowIdleR_c) * ls;
+      const glowG = glowIdleG_c + (glowSpeakG_c - glowIdleG_c) * sp + (glowListenG_c - glowIdleG_c) * ls;
+      const glowB = glowIdleB_c + (glowSpeakB_c - glowIdleB_c) * sp + (glowListenB_c - glowIdleB_c) * ls;
+
+      const outerGlow = ctx.createRadialGradient(cx, cy, currentR * 0.6, cx, cy, currentR * 2.2);
+      outerGlow.addColorStop(0, `rgba(${Math.round(glowR)}, ${Math.round(glowG)}, ${Math.round(glowB)}, ${glowAlpha})`);
       outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.beginPath();
-      ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+      ctx.arc(cx, cy, currentR * 2.2, 0, Math.PI * 2);
       ctx.fillStyle = outerGlow;
       ctx.fill();
 
-      // === ALWAYS-PRESENT IDLE RING ===
-      const idleRingR = Math.min(currentR * (1.18 + Math.sin(t * 0.8) * 0.04), canvasSize * 0.35);
-      ctx.beginPath();
-      ctx.arc(cx, cy, idleRingR, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(200, 210, 240, ${0.045 + breathe * 0.025})`;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-
-      // === RIPPLE RINGS (fade in/out with currentSpeaking) ===
-      if (currentSpeaking > 0.01) {
-        const maxRippleR = canvasSize * 0.38;
-        for (let i = 0; i < 4; i++) {
-          const progress = ((t * 0.55 - i * 0.25) % 1 + 1) % 1;
-          const rR = currentR * 1.02 + progress * (maxRippleR - currentR);
-          const rAlpha = Math.max(0, (1 - progress) * 0.35 * currentSpeaking);
-          const lineW = Math.max(0.3, 1.5 * (1 - progress));
+      // === RIPPLE RINGS (only visible while speaking) ===
+      if (sp > 0.01) {
+        const maxRippleR = currentR * 1.6;
+        const numRipples = 3;
+        for (let i = 0; i < numRipples; i++) {
+          const offset  = i / numRipples;
+          const progress = ((t * 0.55 + offset) % 1);
+          const rR       = currentR * 1.02 + progress * (maxRippleR - currentR);
+          const rAlpha   = Math.max(0, (1 - progress) * 0.35 * sp);
+          const lineW    = Math.max(0.3, 1.5 * (1 - progress));
           ctx.beginPath();
           ctx.arc(cx, cy, rR, 0, Math.PI * 2);
           ctx.strokeStyle = `rgba(100, 235, 120, ${rAlpha})`;
@@ -109,140 +107,88 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         }
       }
 
-      // === LISTENING RING (fade in/out with currentListening) ===
-      if (currentListening > 0.01) {
+      // === LISTENING RING (fade in/out with ls) ===
+      if (ls > 0.01) {
         const lR = currentR * (1.25 + Math.sin(t * 1.8) * 0.06);
         ctx.beginPath();
         ctx.arc(cx, cy, lR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(150, 180, 255, ${(0.2 + breathe * 0.12) * currentListening})`;
+        ctx.strokeStyle = `rgba(150, 180, 255, ${(0.2 + breathe * 0.12) * ls})`;
         ctx.lineWidth = 1;
         ctx.stroke();
       }
 
-      // === CORE SPHERE ===
-      // Blend colours based on smooth interpolation
-      const speakR = 60 + currentSpeaking * (pulse * 40);
-      const speakG = 185 + currentSpeaking * (pulse * 40);
-      const speakB = 80 + currentSpeaking * (pulse * 40);
+      // === CORE SPHERE — full colour blend ===
+      const idleR_c  = 205 + breathe * 20;
+      const idleG_c  = 205 + breathe * 20;
+      const idleB_c  = 220 + breathe * 20;
 
-      const idleR = 205 + breathe * 20;
-      const idleG = 205 + breathe * 20;
-      const idleB = 220 + breathe * 20;
+      const speakR_c = 60  + pulse * 40;
+      const speakG_c = 185 + pulse * 40;
+      const speakB_c = 80  + pulse * 40;
 
-      // Listening colours
-      const listenR = 130;
-      const listenG = 155;
-      const listenB = 240;
+      const listenR_c = 130;
+      const listenG_c = 155;
+      const listenB_c = 240;
 
-      // Interpolate idle → speaking → listening
-      const speakFrac = currentSpeaking;
-      const listenFrac = currentListening * (1 - currentSpeaking);
+      // sp and ls can both be non-zero during cross-fade; ls de-weighted by (1-sp) to keep sum ≤ 1
+      const listenFrac = ls * (1 - sp);
 
-      const coreR = idleR + (speakR - idleR) * speakFrac + (listenR - idleR) * listenFrac;
-      const coreG = idleG + (speakG - idleG) * speakFrac + (listenG - idleG) * listenFrac;
-      const coreB = idleB + (speakB - idleB) * speakFrac + (listenB - idleB) * listenFrac;
+      const coreR = idleR_c + (speakR_c - idleR_c) * sp + (listenR_c - idleR_c) * listenFrac;
+      const coreG = idleG_c + (speakG_c - idleG_c) * sp + (listenG_c - idleG_c) * listenFrac;
+      const coreB = idleB_c + (speakB_c - idleB_c) * sp + (listenB_c - idleB_c) * listenFrac;
 
       const baseGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, currentR);
 
-      // Top highlight blends between white (idle) and light-green (speaking) / light-blue (listening)
-      const topHR = Math.round(200 + (255 - 200) * (1 - speakFrac) * (1 - listenFrac));
-      const topHG = Math.round(255);
-      const topHB = Math.round(255 - speakFrac * 45 + listenFrac * 0);
-      const topAlpha = 0.93 + breathe * 0.05;
-      baseGrad.addColorStop(0, `rgba(${topHR}, ${topHG}, ${topHB}, ${topAlpha})`);
-      baseGrad.addColorStop(0.5, `rgba(${Math.round(coreR)}, ${Math.round(coreG)}, ${Math.round(coreB)}, 0.92)`);
-
-      // Dark edge: green-dark when speaking, blue-dark when listening, grey when idle
-      const edgeR = Math.round(110 - speakFrac * 90 + listenFrac * (65 - 110));
-      const edgeG = Math.round(115 + speakFrac * (110 - 115) + listenFrac * (90 - 115));
-      const edgeB = Math.round(145 - speakFrac * 105 + listenFrac * (195 - 145));
-      baseGrad.addColorStop(1, `rgba(${edgeR}, ${edgeG}, ${edgeB}, 0.75)`);
+      // Top highlight blends between soft white (idle) and bright white (speaking)
+      const highlightAlpha = 0.55 + sp * 0.25 + breathe * 0.1;
+      baseGrad.addColorStop(0,   `rgba(255,255,255,${highlightAlpha})`);
+      baseGrad.addColorStop(0.3, `rgba(${Math.round(coreR)},${Math.round(coreG)},${Math.round(coreB)},0.9)`);
+      baseGrad.addColorStop(0.7, `rgba(${Math.round(coreR * 0.8)},${Math.round(coreG * 0.8)},${Math.round(coreB * 0.8)},0.95)`);
+      baseGrad.addColorStop(1,   `rgba(${Math.round(coreR * 0.6)},${Math.round(coreG * 0.6)},${Math.round(coreB * 0.6)},1)`);
 
       ctx.beginPath();
       ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
       ctx.fillStyle = baseGrad;
       ctx.fill();
 
-      // === MOVING LIGHT SWEEP (the shimmer) ===
-      const sweepAngle = t * 0.4;
-      const sweepX = cx + Math.cos(sweepAngle) * currentR * 0.3;
-      const sweepY = cy + Math.sin(sweepAngle) * currentR * 0.3;
-      const sweepGrad = ctx.createRadialGradient(sweepX, sweepY, 0, sweepX, sweepY, currentR * 0.8);
-      const sweepAlpha = 0.07 + shimmer * 0.05 + currentSpeaking * (0.05 + pulse * 0.03);
-      sweepGrad.addColorStop(0, `rgba(255,255,255,${sweepAlpha})`);
-      sweepGrad.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.beginPath();
-      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
-      ctx.fillStyle = sweepGrad;
-      ctx.fill();
+      // === SPECULAR HIGHLIGHT ===
+      const specAlpha  = 0.4 + sp * 0.2 + breathe * 0.05;
+      const specSize   = currentR * (0.45 + sp * 0.1);
+      const specX      = cx - currentR * 0.28;
+      const specY      = cy - currentR * 0.32;
+      const specGrad   = ctx.createRadialGradient(specX, specY, 0, specX, specY, specSize);
+      specGrad.addColorStop(0,   `rgba(255,255,255,${specAlpha})`);
+      specGrad.addColorStop(0.5, `rgba(255,255,255,${specAlpha * 0.3})`);
+      specGrad.addColorStop(1,   'rgba(255,255,255,0)');
 
-      // === SECOND LIGHT SWEEP (opposite direction, slower) ===
-      const sweep2Angle = -t * 0.25;
-      const sweep2X = cx + Math.cos(sweep2Angle) * currentR * 0.4;
-      const sweep2Y = cy + Math.sin(sweep2Angle) * currentR * 0.4;
-      const sweep2Grad = ctx.createRadialGradient(sweep2X, sweep2Y, 0, sweep2X, sweep2Y, currentR * 0.6);
-      sweep2Grad.addColorStop(0, `rgba(255,255,255,${0.04 + shimmer * 0.03})`);
-      sweep2Grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
-      ctx.fillStyle = sweep2Grad;
-      ctx.fill();
-
-      // === SPECULAR HIGHLIGHT (top-left, slowly rotating) ===
-      const specX = cx - currentR * 0.28;
-      const specY = cy - currentR * 0.30;
-      const specGrad = ctx.createRadialGradient(specX, specY, 0, specX, specY, currentR * 0.42);
-      // Brighten specular during speaking
-      const specAlpha0 = 0.55 + breathe * 0.12 + currentSpeaking * 0.1;
-      const specAlpha1 = 0.15 + breathe * 0.05 + currentSpeaking * 0.05;
-      specGrad.addColorStop(0, `rgba(255,255,255,${specAlpha0})`);
-      specGrad.addColorStop(0.5, `rgba(255,255,255,${specAlpha1})`);
-      specGrad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.clip();
       ctx.beginPath();
-      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
+      ctx.arc(specX, specY, specSize, 0, Math.PI * 2);
       ctx.fillStyle = specGrad;
       ctx.fill();
-
-      // === SMALL SECONDARY HIGHLIGHT (bottom-right reflection) ===
-      const spec2X = cx + currentR * 0.32;
-      const spec2Y = cy + currentR * 0.28;
-      const spec2Grad = ctx.createRadialGradient(spec2X, spec2Y, 0, spec2X, spec2Y, currentR * 0.2);
-      spec2Grad.addColorStop(0, `rgba(255,255,255,${0.12 + shimmer * 0.06})`);
-      spec2Grad.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.beginPath();
-      ctx.arc(cx, cy, currentR, 0, Math.PI * 2);
-      ctx.fillStyle = spec2Grad;
-      ctx.fill();
-
-      // === INNER PULSE FLASH (speaking only, fades with currentSpeaking) ===
-      if (currentSpeaking > 0.01 && pulse > 0.55) {
-        const flashAlpha = (pulse - 0.55) * 0.5 * currentSpeaking;
-        const flashGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, currentR * 0.7);
-        flashGrad.addColorStop(0, `rgba(180,255,195,${flashAlpha})`);
-        flashGrad.addColorStop(1, 'rgba(180,255,195,0)');
-        ctx.beginPath();
-        ctx.arc(cx, cy, currentR * 0.7, 0, Math.PI * 2);
-        ctx.fillStyle = flashGrad;
-        ctx.fill();
-      }
+      ctx.restore();
 
       animRef.current = requestAnimationFrame(draw);
     };
 
     animRef.current = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [state, size]);
 
-  const r = size === 'lg' ? 52 : 36;
-  const canvasSize = Math.round(r * 9);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+    };
+  }, [size]); // NOT [state, size] — state changes are picked up via stateRef
+
+  const dim = size === 'lg' ? 200 : 112;
 
   return (
-    <div style={{
-      opacity: mounted ? 1 : 0,
-      transition: 'opacity 2s ease',
-      filter: 'drop-shadow(0 0 15px rgba(170,185,220,0.12))',
-    }}>
-      <canvas ref={canvasRef} width={canvasSize} height={canvasSize} style={{ display: 'block' }} />
-    </div>
+    <canvas
+      ref={canvasRef}
+      width={dim}
+      height={dim}
+      style={{ display: mounted ? 'block' : 'none' }}
+    />
   );
 }
