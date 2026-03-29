@@ -16,7 +16,7 @@ export default function PostCallPage() {
     // Paid user - calm, no upsell
     return (
       <main className="flex flex-col items-center justify-center min-h-screen bg-slate-950 px-6">
-        <PresenceOrb state="idle" size="sm" />
+        <PresenceOrb state="idle" size="lg" />
         
         <h1 className="text-lg text-white mt-8">I'll be here when you're ready.</h1>
         <p className="text-sm text-slate-400 mt-2">Take your time.</p>

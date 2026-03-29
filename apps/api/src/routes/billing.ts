@@ -13,6 +13,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
 });
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "https://sitwithyou.app";
+const PORTAL_FALLBACK = process.env.STRIPE_PORTAL_URL || 'https://billing.stripe.com/p/login/test_8x228ranY0JlgBXfK2b3q00';
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const RESEND_FROM_EMAIL =
   process.env.RESEND_FROM_EMAIL || "Sit With You <hello@sitwithyou.app>";
@@ -270,34 +271,33 @@ billingRouter.post("/portal", async (req: Request, res: Response) => {
   try {
     const sessionId =
       req.signedCookies?.sh_session ||
-      req.cookies?.sh_session ||
-      req.body?.sessionId;
+      req.cookies?.sh_session;
 
     if (!sessionId) {
-      return res.status(401).json({ error: "Not authenticated" });
+      // No session cookie — return the hosted portal link as fallback
+      console.log('[billing] no session cookie, using hosted portal');
+      return res.json({ url: PORTAL_FALLBACK });
     }
 
-    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    const session = await prisma.session.findUnique({ where: { id: sessionId } }).catch(() => null);
 
-    if (!session || session.tier !== "PAID") {
-      return res.status(403).json({ error: "No active subscription" });
+    if (!session?.subscriptionId) {
+      console.log('[billing] no subscription found for session:', sessionId);
+      return res.json({ url: PORTAL_FALLBACK });
     }
 
-    if (!session.subscriptionId) {
-      return res.status(400).json({ error: "No subscription ID on record" });
-    }
+    const subscription = await stripe.subscriptions.retrieve(session.subscriptionId);
+    const customerId = subscription.customer as string;
 
-    const sub = await stripe.subscriptions.retrieve(session.subscriptionId);
     const portalSession = await stripe.billingPortal.sessions.create({
-      customer: sub.customer as string,
-      return_url: `${FRONTEND_URL}/`,
+      customer: customerId,
+      return_url: `${process.env.FRONTEND_URL || 'https://sitwithyou.app'}/`,
     });
 
-    console.log("[billing] portal session created for session", sessionId);
     return res.json({ url: portalSession.url });
-  } catch (err: any) {
-    console.error("[billing] portal error:", err);
-    return res.status(500).json({ error: "Failed to create portal session" });
+  } catch (err) {
+    console.error('[billing] portal error:', err);
+    // Fallback to hosted portal
+    return res.json({ url: PORTAL_FALLBACK });
   }
 });
-

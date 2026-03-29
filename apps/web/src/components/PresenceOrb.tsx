@@ -76,7 +76,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       // === RIPPLE RINGS (speaking only) ===
       if (isSpeaking) {
         // Ripple rings - ensure they fade out well within canvas bounds
-        const maxRippleR = canvasSize * 0.4; // never reach the edge
+        const maxRippleR = canvasSize * 0.38; // keep rings within 38% of canvas edge
         for (let i = 0; i < 4; i++) {
           const progress = ((t * 0.55 - i * 0.25) % 1 + 1) % 1;
           const rR = currentR * 1.02 + progress * (maxRippleR - currentR);
@@ -191,7 +191,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   }, [state, size]);
 
   const r = size === 'lg' ? 52 : 36;
-  const canvasSize = Math.round(r * 7);
+  const canvasSize = Math.round(r * 9);
 
   return (
     <div style={{
