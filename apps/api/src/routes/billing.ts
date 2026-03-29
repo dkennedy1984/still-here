@@ -260,4 +260,41 @@ export async function billingWebhookHandler(req: Request, res: Response) {
   return res.json({ received: true });
 }
 
+// ── POST /api/billing/portal ─────────────────────────────────────────────
+
+billingRouter.post("/portal", async (req: Request, res: Response) => {
+  try {
+    const sessionId =
+      req.signedCookies?.sh_session ||
+      req.cookies?.sh_session ||
+      req.body?.sessionId;
+
+    if (!sessionId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+
+    if (!session || session.tier !== "PAID") {
+      return res.status(403).json({ error: "No active subscription" });
+    }
+
+    if (!session.subscriptionId) {
+      return res.status(400).json({ error: "No subscription ID on record" });
+    }
+
+    const sub = await stripe.subscriptions.retrieve(session.subscriptionId);
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: sub.customer as string,
+      return_url: `${FRONTEND_URL}/`,
+    });
+
+    console.log("[billing] portal session created for session", sessionId);
+    return res.json({ url: portalSession.url });
+  } catch (err: any) {
+    console.error("[billing] portal error:", err);
+    return res.status(500).json({ error: "Failed to create portal session" });
+  }
+});
+
 billingRouter.post("/webhook", billingWebhookHandler);
