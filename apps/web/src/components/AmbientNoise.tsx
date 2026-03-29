@@ -10,7 +10,7 @@ const AMBIENT_OPTIONS = [
 
 // Generate noise using Web Audio API — no external files needed
 function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): { source: AudioBufferSourceNode, output: AudioNode } {
-  const bufferSize = ctx.sampleRate * 4; // 4 second loop
+  const bufferSize = ctx.sampleRate * 2; // 2 second loop
   const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
   const data = buffer.getChannelData(0);
 
@@ -52,7 +52,15 @@ function createNoiseNode(ctx: AudioContext, type: 'white' | 'brown' | 'rain'): {
     // Low-pass filter to remove speech frequencies — prevents mic interference
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = 250; // only very low rumble passes through
+    filter.frequency.value = 800;
+    source.connect(filter);
+    return { source, output: filter };
+  } else if (type === 'brown') {
+    // High-shelf cut to keep it warm
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highshelf';
+    filter.frequency.value = 1000;
+    filter.gain.value = -12;
     source.connect(filter);
     return { source, output: filter };
   }
@@ -81,16 +89,26 @@ export function AmbientNoise({ className, disabled, externalSound }: AmbientNois
 
   function play(type: 'white' | 'brown' | 'rain') {
     stop();
-    const ctx = ctxRef.current ?? new AudioContext();
-    ctxRef.current = ctx;
-    const { source, output } = createNoiseNode(ctx, type);
-    const gain = gainRef.current ?? ctx.createGain();
-    gain.gain.value = volume; // very quiet background - won't overwhelm mic
-    gainRef.current = gain;
-    output.connect(gain);
-    gain.connect(ctx.destination);
-    source.start();
-    sourceRef.current = source;
+    try {
+      if (!ctxRef.current || ctxRef.current.state === 'closed') {
+        ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = ctxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      if (!gainRef.current) {
+        gainRef.current = ctx.createGain();
+        gainRef.current.gain.value = volume;
+        gainRef.current.connect(ctx.destination);
+      }
+
+      const { source, output } = createNoiseNode(ctx, type);
+      output.connect(gainRef.current);
+      source.start(0);
+      sourceRef.current = source;
+    } catch (err) {
+      console.error('[ambient] play error:', err);
+    }
   }
 
   // Stop audio when disabled changes to true (e.g. call ended)
@@ -162,9 +180,9 @@ export function AmbientNoise({ className, disabled, externalSound }: AmbientNois
               <span className="text-xs text-slate-500">Vol</span>
               <input
                 type="range"
-                min="0"
-                max="0.2"
-                step="0.01"
+                min={0}
+                max={0.3}
+                step={0.01}
                 value={volume}
                 onChange={e => setVolume(parseFloat(e.target.value))}
                 className="w-16 h-1 accent-white/40"

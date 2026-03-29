@@ -131,9 +131,8 @@ function CallPageInner() {
         onClick={(e) => e.stopPropagation()}
       >
         <AmbientNoise
-          active={ambientSound !== 'off'}
-          sound={ambientSound}
-          onToggle={(sound) => setAmbientSound(sound)}
+          disabled={state.status === 'ended'}
+          externalSound={ambientSound}
         />
       </div>
 
