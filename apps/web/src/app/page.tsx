@@ -68,11 +68,9 @@ function HomePageContent() {
 
   const handleCall = async () => {
     if (callingRef.current || loading) return;
-    
-    // Check if first time
-    const hasCalledBefore = localStorage.getItem('swy-has-called');
-    const hasSetPreference = localStorage.getItem('swy-presence');
-    if (!hasCalledBefore && !hasSetPreference) {
+
+    // Check localStorage directly (not stale state) to avoid race conditions
+    if (!localStorage.getItem('swy-onboarded')) {
       setShowFirstCall(true);
       return;
     }
@@ -92,7 +90,7 @@ function HomePageContent() {
   };
 
   function handleFirstCallSelect(style: 'quiet' | 'check-ins' | 'talk') {
-    localStorage.setItem('swy-has-called', 'true');
+    localStorage.setItem('swy-onboarded', 'true');
     localStorage.setItem('swy-presence', style);
     setPresenceStyle(style === 'quiet' ? 'silent' : style as "silent" | "check-ins" | "talk");
     setShowFirstCall(false);
@@ -233,6 +231,7 @@ function HomePageContent() {
           selected={presenceStyle}
           onSelect={(style) => {
             setPresenceStyle(style);
+            localStorage.setItem('swy-onboarded', 'true');
             localStorage.setItem('swy-presence', style === 'silent' ? 'quiet' : style);
             setShowSheet(false);
           }}
@@ -245,6 +244,7 @@ function HomePageContent() {
           selected={voice}
           onSelect={(v) => {
             setVoice(v);
+            localStorage.setItem('swy-onboarded', 'true');
             localStorage.setItem('swy-voice', v);
           }}
           onClose={() => setShowVoiceSheet(false)}

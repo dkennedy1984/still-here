@@ -109,6 +109,7 @@ export function setupWebSocket(server: Server) {
     const tier = (call.session as any)?.tier || 'FREE';
     const maxSessionMs = tier === 'PAID' ? PAID_SESSION_MS : FREE_SESSION_MS;
     const warningMs = maxSessionMs - WARNING_BEFORE_END_MS;
+    console.log('[session] tier:', tier, 'maxSessionMs:', maxSessionMs);
 
     // Decode voice choice from JWT ticket (not stored in DB to avoid migration)
     let voiceChoice = 'her';
@@ -201,6 +202,14 @@ export function setupWebSocket(server: Server) {
       clearTimeout(sessionEndTimer!);
       clearInterval(timeUpdateInterval!);
       try { dgWs.close(); } catch {}
+      // Write call duration to DB for usage tracking
+      if (startTime > 0) {
+        const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+        prisma.call.update({
+          where: { id: call.id },
+          data: { durationSeconds, endedAt: new Date() },
+        }).catch((err: Error) => console.error('[session] failed to update call duration:', err.message));
+      }
     };
 
     dgWs.on('open', () => {
@@ -290,6 +299,25 @@ export function setupWebSocket(server: Server) {
             const remaining = Math.max(0, maxSessionMs - elapsed);
             sendToClient('time_remaining', { seconds: Math.round(remaining / 1000) });
           }, 300000); // every 5 minutes
+
+          // Free tier total usage enforcement
+          if (tier !== 'PAID' && tier !== 'paid') {
+            const FREE_TOTAL_SECONDS = parseInt(process.env.FREE_TOTAL_SECONDS || '1800', 10); // 30 minutes total
+            prisma.call.aggregate({
+              where: { sessionId: call.session.id, durationSeconds: { not: null } },
+              _sum: { durationSeconds: true },
+            }).then((result) => {
+              const totalUsedSeconds = result._sum.durationSeconds || 0;
+              console.log('[session] free usage so far:', totalUsedSeconds, '/', FREE_TOTAL_SECONDS, 'seconds');
+              if (totalUsedSeconds >= FREE_TOTAL_SECONDS) {
+                console.log('[session] free total limit reached, total used:', totalUsedSeconds);
+                sendToClient('limit_reached', { reason: 'free_total_limit', tier: 'FREE' });
+                speakWithElevenLabs("I've enjoyed our time together. Longer and unlimited sessions are available with a subscription.").then(() => {
+                  setTimeout(() => endCall(), 4000);
+                }).catch(() => endCall());
+              }
+            }).catch((err: Error) => console.error('[session] failed to check free usage:', err.message));
+          }
 
           break;
 
