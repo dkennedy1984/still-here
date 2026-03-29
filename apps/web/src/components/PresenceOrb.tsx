@@ -22,7 +22,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const r = size === 'lg' ? 52 : 36;
+    const r = size === 'lg' ? 72 : 40;
     const W = canvas.width;
     const H = canvas.height;
     const cx = W / 2;
