@@ -21,6 +21,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   // --- FIX: track current state in a ref so the animation loop never needs state in its deps ---
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
+  const microEventRef = useRef({ nextEvent: 0, eventProgress: -1, eventType: 0 });
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -59,19 +60,35 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       const ls = listeningRef.current;  // 0–1, listening blend
 
       // === TIMING ===
-      const breathe = (Math.sin(t * 0.9) + 1) / 2;
+      const breathe = (Math.sin(t * 0.523) + 1) / 2;
       const pulse   = (Math.sin(t * 3.2) + 1) / 2;
 
+      // === MICRO-ANIMATIONS — subtle life-like events during idle silence ===
+      let microBright = 0;
+      let microScale = 0;
+      if (sp < 0.1 && ls < 0.1) {
+        // Occasional bright pulse (every 25-50 seconds, lasts 3 seconds)
+        const pulsePhase = (t % (25 + Math.sin(t * 0.1) * 15));
+        if (pulsePhase < 3) {
+          microBright = Math.sin(pulsePhase / 3 * Math.PI) * 0.06;
+        }
+        // Occasional size shift (every 35-60 seconds, lasts 2 seconds)
+        const shiftPhase = ((t + 13) % (35 + Math.sin(t * 0.07) * 15));
+        if (shiftPhase < 2) {
+          microScale = Math.sin(shiftPhase / 2 * Math.PI) * 0.02;
+        }
+      }
+
       // === RADIUS — blend idle/speaking/listening sizes ===
-      const idleR    = r * (1 + breathe * 0.03);
+      const idleR    = r * (0.90 + breathe * 0.12 + microScale);
       const speakR   = r * (1 + (0.04 + pulse * 0.08));
-      const listenR  = r * (1 + breathe * 0.025);
+      const listenR  = r * (0.90 + breathe * 0.12);
       const currentR = idleR + (speakR - idleR) * sp + (listenR - idleR) * ls;
 
       // === OUTER GLOW (drawn first, behind orb) ===
       const maxGlowR = canvasSize * 0.42;
       const glowR = Math.min(currentR * (2.2 + breathe * 0.2 + sp * 0.6), maxGlowR);
-      const glowAlpha = 0.06 + breathe * 0.04 + sp * 0.12;
+      const glowAlpha = 0.05 + breathe * 0.08 + sp * 0.12 + microBright * 0.5;
       const outerGlow = ctx.createRadialGradient(cx, cy, currentR * 0.5, cx, cy, glowR);
       outerGlow.addColorStop(0, `rgba(${(200 - sp * 110) | 0}, ${(210 + sp * 20) | 0}, ${(240 - sp * 130) | 0}, ${glowAlpha})`);
       outerGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');

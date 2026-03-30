@@ -3,6 +3,7 @@ import { useRef, useState, useEffect } from 'react';
 
 const AMBIENT_OPTIONS = [
   { label: 'Off', value: 'off' },
+  { label: 'Presence', value: 'presence' },
   { label: 'Rain', value: 'rain' },
   { label: 'White noise', value: 'white' },
   { label: 'Brown noise', value: 'brown' },
@@ -31,7 +32,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
     // Don't close the AudioContext here - it may still be needed
   }
 
-  function play(type: 'white' | 'brown' | 'rain') {
+  function play(type: 'white' | 'brown' | 'rain' | 'presence') {
     // Stop any existing playback
     stop();
 
@@ -79,6 +80,40 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         }
       }
 
+      if (type === 'presence') {
+        // Mostly silence with occasional soft noise bursts (keyboard, rustling)
+        const presenceBuf = ctx.createBuffer(1, ctx.sampleRate * 10, ctx.sampleRate);
+        const presenceData = presenceBuf.getChannelData(0);
+
+        // Add 3-5 random soft "activity" sounds
+        const numEvents = 3 + Math.floor(Math.random() * 3);
+        for (let e = 0; e < numEvents; e++) {
+          const start = Math.floor(Math.random() * (presenceBuf.length - ctx.sampleRate * 0.3));
+          const duration = Math.floor(ctx.sampleRate * (0.05 + Math.random() * 0.15));
+          for (let i = 0; i < duration; i++) {
+            const env = Math.sin((i / duration) * Math.PI);
+            presenceData[start + i] = (Math.random() * 2 - 1) * env * 0.03;
+          }
+        }
+
+        // Very subtle room tone
+        let roomLast = 0;
+        for (let i = 0; i < presenceBuf.length; i++) {
+          const white = Math.random() * 2 - 1;
+          roomLast = (roomLast + 0.01 * white) / 1.01;
+          presenceData[i] += roomLast * 0.008;
+        }
+
+        const presenceSource = ctx.createBufferSource();
+        presenceSource.buffer = presenceBuf;
+        presenceSource.loop = true;
+        presenceSource.connect(gain);
+        presenceSource.start(0);
+        sourceRef.current = presenceSource;
+        console.log('[ambient] playing: presence');
+        return;
+      }
+
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.loop = true;
@@ -115,7 +150,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       stop();
       return;
     }
-    play(value as 'white' | 'brown' | 'rain');
+    play(value as 'white' | 'brown' | 'rain' | 'presence');
   }
 
   useEffect(() => {

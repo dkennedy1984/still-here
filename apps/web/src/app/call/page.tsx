@@ -21,7 +21,9 @@ function CallPageInner() {
     return 'quiet';
   });
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [ambientSound, setAmbientSound] = useState('off');
+  const [ambientSound, setAmbientSound] = useState('presence');
+  const [ambientStarted, setAmbientStarted] = useState(false);
+  const hasStartedPresenceRef = useRef(false);
   const [crisisInfo, setCrisisInfo] = useState<any>(null);
   const [showControls, setShowControls] = useState(false);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,7 +34,14 @@ function CallPageInner() {
     callId,
     wsTicket: ticket,
     onAudioStart: () => setIsAudioPlaying(true),
-    onAudioEnd: () => setIsAudioPlaying(false),
+    onAudioEnd: () => {
+      setIsAudioPlaying(false);
+      // Auto-start presence sounds after first audio (greeting) ends
+      if (!hasStartedPresenceRef.current) {
+        hasStartedPresenceRef.current = true;
+        setAmbientStarted(true);
+      }
+    },
     onAmbientControl: (sound: string) => setAmbientSound(sound),
     onCrisisInfo: (info: any) => setCrisisInfo(info),
   });
@@ -129,7 +138,7 @@ function CallPageInner() {
       >
         <AmbientNoise
           disabled={state.status === 'ended'}
-          externalSound={ambientSound}
+          externalSound={ambientStarted ? ambientSound : undefined}
         />
       </div>
 
