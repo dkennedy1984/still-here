@@ -250,11 +250,11 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           audio.oncanplaythrough = () => {
             audio.play().catch(() => {});
             console.log('[ambient] playing: presence (real audio file)');
-            // Fade in over 3 seconds
+            // Fade in over 5 seconds
             const targetVol = Math.min(volume * 5, 1.0);
             let fadeVol = 0;
             fadeIntervalRef.current = setInterval(() => {
-              fadeVol += targetVol / 30; // 30 steps over 3 seconds (100ms interval)
+              fadeVol += targetVol / 50; // 50 steps over 5 seconds (100ms interval)
               if (fadeVol >= targetVol) {
                 fadeVol = targetVol;
                 clearInterval(fadeIntervalRef.current!);
@@ -331,9 +331,44 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, []);
 
   function select(value: string) {
-    stop(); // Stop current sound FIRST
+    // Clear fade interval
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
+
+    // ALWAYS stop current audio directly — not through stop()
+    // Pause presence by ref
+    if (presenceAudioRef.current) {
+      presenceAudioRef.current.pause();
+      presenceAudioRef.current.currentTime = 0;
+      if (presenceAudioRef.current.parentNode) presenceAudioRef.current.remove();
+      presenceAudioRef.current = null;
+    }
+    // Pause by DOM ID
+    const domAudio = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+    if (domAudio) { domAudio.pause(); domAudio.currentTime = 0; domAudio.remove(); }
+    // Global ref
+    if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
+      (window as any).__presenceAudio.pause();
+      (window as any).__presenceAudio.currentTime = 0;
+      (window as any).__presenceAudio = null;
+    }
+    // Stop AudioContext sources
+    try {
+      const layers = (sourceRef.current as any)?.__layers;
+      if (layers) { layers.forEach((s: AudioBufferSourceNode) => { try { s.stop(); } catch {} }); }
+      if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
+    } catch {}
+    sourceRef.current = null;
+    if (gainRef.current) { try { gainRef.current.disconnect(); } catch {} }
+    gainRef.current = null;
+
+    console.log('[ambient] stopped all audio in select()');
+
     setActive(value);
     setShowMenu(false);
+
     if (value === 'off') return;
     play(value as any);
   }
