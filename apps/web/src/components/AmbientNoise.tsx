@@ -81,35 +81,90 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       }
 
       if (type === 'presence') {
-        // Mostly silence with occasional soft noise bursts (keyboard, rustling)
-        const presenceBuf = ctx.createBuffer(1, ctx.sampleRate * 10, ctx.sampleRate);
-        const presenceData = presenceBuf.getChannelData(0);
+        // Create a longer, more natural presence soundscape
+        const duration = 30; // 30 second loop for more variety
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate); // stereo for spatial feel
+        const left = buffer.getChannelData(0);
+        const right = buffer.getChannelData(1);
 
-        // Add 3-5 random soft "activity" sounds
-        const numEvents = 3 + Math.floor(Math.random() * 3);
-        for (let e = 0; e < numEvents; e++) {
-          const start = Math.floor(Math.random() * (presenceBuf.length - ctx.sampleRate * 0.3));
-          const duration = Math.floor(ctx.sampleRate * (0.05 + Math.random() * 0.15));
-          for (let i = 0; i < duration; i++) {
-            const env = Math.sin((i / duration) * Math.PI);
-            presenceData[start + i] = (Math.random() * 2 - 1) * env * 0.03;
+        // 1. Very subtle room tone (constant, barely there)
+        let roomL = 0, roomR = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          roomL = (roomL + 0.005 * (Math.random() * 2 - 1)) / 1.005;
+          roomR = (roomR + 0.005 * (Math.random() * 2 - 1)) / 1.005;
+          left[i] = roomL * 0.004;
+          right[i] = roomR * 0.004;
+        }
+
+        // 2. Soft keyboard-like taps (very quiet, realistic timing)
+        // Clusters of 3-8 rapid taps with pauses between
+        let pos = ctx.sampleRate * 2; // start after 2 seconds
+        while (pos < bufferSize - ctx.sampleRate) {
+          // Random pause between typing clusters (3-12 seconds)
+          pos += Math.floor(ctx.sampleRate * (3 + Math.random() * 9));
+          if (pos >= bufferSize) break;
+
+          // Typing cluster: 2-6 taps
+          const numTaps = 2 + Math.floor(Math.random() * 5);
+          for (let tap = 0; tap < numTaps; tap++) {
+            if (pos >= bufferSize) break;
+            const tapLen = Math.floor(ctx.sampleRate * 0.012); // 12ms tap
+            const tapVol = 0.008 + Math.random() * 0.006; // vary volume
+            const pan = 0.3 + Math.random() * 0.4; // slightly right of centre
+
+            for (let s = 0; s < tapLen && (pos + s) < bufferSize; s++) {
+              const env = Math.exp(-s / (tapLen * 0.2)); // sharp attack, quick decay
+              const noise = (Math.random() * 2 - 1) * env * tapVol;
+              left[pos + s] += noise * (1 - pan);
+              right[pos + s] += noise * pan;
+            }
+            // Gap between taps (80-200ms, like real typing speed)
+            pos += Math.floor(ctx.sampleRate * (0.08 + Math.random() * 0.12));
           }
         }
 
-        // Very subtle room tone
-        let roomLast = 0;
-        for (let i = 0; i < presenceBuf.length; i++) {
-          const white = Math.random() * 2 - 1;
-          roomLast = (roomLast + 0.01 * white) / 1.01;
-          presenceData[i] += roomLast * 0.008;
+        // 3. Occasional soft rustle/movement (every 8-20 seconds)
+        pos = ctx.sampleRate * 5;
+        while (pos < bufferSize - ctx.sampleRate) {
+          pos += Math.floor(ctx.sampleRate * (8 + Math.random() * 12));
+          if (pos >= bufferSize) break;
+
+          const rustleLen = Math.floor(ctx.sampleRate * (0.15 + Math.random() * 0.25)); // 150-400ms
+          const rustleVol = 0.004 + Math.random() * 0.004;
+
+          for (let s = 0; s < rustleLen && (pos + s) < bufferSize; s++) {
+            const env = Math.sin((s / rustleLen) * Math.PI); // smooth envelope
+            const noise = (Math.random() * 2 - 1) * env * rustleVol;
+            // Spread across stereo
+            left[pos + s] += noise * 0.6;
+            right[pos + s] += noise * 0.4;
+          }
         }
 
-        const presenceSource = ctx.createBufferSource();
-        presenceSource.buffer = presenceBuf;
-        presenceSource.loop = true;
-        presenceSource.connect(gain);
-        presenceSource.start(0);
-        sourceRef.current = presenceSource;
+        // 4. One or two very quiet "settling" sounds (like a cup or book)
+        const settleCount = 1 + Math.floor(Math.random() * 2);
+        for (let sc = 0; sc < settleCount; sc++) {
+          const settlePos = Math.floor(ctx.sampleRate * (8 + Math.random() * (duration - 10)));
+          if (settlePos >= bufferSize) continue;
+          const settleLen = Math.floor(ctx.sampleRate * 0.04); // 40ms thud
+          const settleVol = 0.012;
+
+          for (let s = 0; s < settleLen && (settlePos + s) < bufferSize; s++) {
+            const env = Math.exp(-s / (settleLen * 0.15));
+            // Low frequency thud
+            const thud = Math.sin(s / ctx.sampleRate * 2 * Math.PI * 120) * env * settleVol;
+            left[settlePos + s] += thud * 0.5;
+            right[settlePos + s] += thud * 0.5;
+          }
+        }
+
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        source.connect(gain);
+        source.start(0);
+        sourceRef.current = source;
         console.log('[ambient] playing: presence');
         return;
       }
