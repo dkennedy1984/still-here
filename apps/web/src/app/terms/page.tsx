@@ -30,7 +30,7 @@ export default function TermsPage() {
       </ul>
       <p className="text-slate-300 leading-relaxed mb-4">Paid subscribers (£8 per month) get:</p>
       <ul className="list-disc list-inside text-slate-300 space-y-2 mb-6">
-        <li>Unlimited calls, up to 60 minutes each</li>
+        <li>Unlimited calls, up to 90 minutes each</li>
         <li>All presence styles (Quiet, Check-ins, Talk)</li>
         <li>Choice of voice and ambient sounds</li>
         <li>Gentle support if you ask for it</li>

@@ -8,7 +8,7 @@ import { config } from '../config';
 
 const CHECK_IN_MS = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '900000', 10); // 15 minutes
 const FREE_SESSION_MS = parseInt(process.env.FREE_SESSION_MS || '1800000', 10); // 30 minutes
-const PAID_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '3600000', 10); // 60 minutes
+const PAID_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '5400000', 10); // 90 minutes
 const WARNING_BEFORE_END_MS = 120000; // 2 minutes before end
 
 const SAFETY_KEYWORDS = [

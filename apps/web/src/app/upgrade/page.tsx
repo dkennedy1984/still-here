@@ -76,7 +76,7 @@ export default function UpgradePage() {
       <div className="flex justify-center">
         <ul className="space-y-3">
         {[
-          "Unlimited calls, up to 60 minutes each",
+          "Unlimited calls, up to 90 minutes each",
           "Gentle support if you ask for it",
           "Choose your presence style and voice",
         ].map((item) => (
