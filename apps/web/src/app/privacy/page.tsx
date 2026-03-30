@@ -18,7 +18,7 @@ export default function PrivacyPage() {
       <p className="text-slate-300 leading-relaxed mb-4">We collect as little as possible:</p>
       <ul className="list-disc list-inside text-slate-300 space-y-2 mb-6">
         <li>An anonymous session identifier (stored in a cookie)</li>
-        <li>Your email address (only if you subscribe)</li>
+        <li>Your email address (if you register for a free account or subscribe)</li>
         <li>Call duration (how long each session lasts)</li>
         <li>Payment information (handled entirely by Stripe — we never see your card details)</li>
       </ul>

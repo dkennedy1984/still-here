@@ -21,6 +21,9 @@ model Session {
   stripeCustomerId String?   @map("stripe_customer_id")
   dailyMinutesUsed Int       @default(0) @map("daily_minutes_used")
   minutesResetAt   DateTime  @default(now()) @map("minutes_reset_at")
+  monthlyMinutesUsed Int       @default(0) @map("monthly_minutes_used")
+  monthlyCallCount    Int       @default(0) @map("monthly_call_count")
+  monthlyResetAt      DateTime  @default(now()) @map("monthly_reset_at")
 
   calls Call[]
 

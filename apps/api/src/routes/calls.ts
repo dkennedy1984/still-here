@@ -49,9 +49,13 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
       id: string;
       email: string | null;
       emailVerifiedAt: Date | null;
+      emailVerified: boolean;
       tier: string;
       dailyMinutesUsed: number;
       minutesResetAt: Date;
+      monthlyMinutesUsed: number;
+      monthlyCallCount: number;
+      monthlyResetAt: Date;
     };
 
     if (sessionId) {
@@ -77,33 +81,46 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
       setSessionCookie(res, created.id);
     }
 
-    // --- Enforce daily minute limits ---
+    // --- Enforce free tier limits ---
     const resetResult = await ensureDailyReset(session.id, session.minutesResetAt);
     const minutesUsed = resetResult >= 0 ? resetResult : session.dailyMinutesUsed;
 
-    if (session.tier !== "pro") {
-      const limit = session.emailVerifiedAt ? FREE_DAILY_LIMIT : ANON_DAILY_LIMIT;
+    // Check if this is a returning user without email (second call gate)
+    const callCount = await prisma.call.count({ where: { sessionId: session.id } });
+    if (!session.email && callCount >= 1 && session.tier !== 'PAID' && session.tier !== 'pro') {
+      console.log('[session] email required for second call');
+      return res.status(403).json({ error: 'email_required', message: 'Please provide your email to continue using Sit With You.' });
+    }
 
-      if (minutesUsed >= limit) {
-        if (!session.emailVerifiedAt) {
-          res.status(403).json({
-            success: false,
-            error: "Daily anonymous limit reached. Verify your email to continue.",
-            code: "EMAIL_REQUIRED",
-            minutesUsed,
-            limit,
-          });
-          return;
-        }
-        res.status(403).json({
-          success: false,
-          error: "Daily free-tier limit reached. Upgrade to pro for unlimited usage.",
-          code: "LIMIT_REACHED",
-          minutesUsed,
-          limit,
+    // Check monthly limits for free users with email
+    if (session.tier !== 'PAID' && session.tier !== 'pro' && session.email) {
+      // Reset monthly counters if needed
+      const now = new Date();
+      const resetAt = new Date(session.monthlyResetAt);
+      if (now.getMonth() !== resetAt.getMonth() || now.getFullYear() !== resetAt.getFullYear()) {
+        await prisma.session.update({
+          where: { id: session.id },
+          data: { monthlyMinutesUsed: 0, monthlyCallCount: 0, monthlyResetAt: now },
         });
-        return;
+        session.monthlyMinutesUsed = 0;
+        session.monthlyCallCount = 0;
       }
+
+      if (session.monthlyCallCount >= 5) {
+        console.log('[session] monthly call limit reached:', session.monthlyCallCount);
+        return res.status(403).json({ error: 'monthly_limit', message: 'You have used all your free calls this month.' });
+      }
+
+      if (session.monthlyMinutesUsed >= 30) {
+        console.log('[session] monthly minutes limit reached:', session.monthlyMinutesUsed);
+        return res.status(403).json({ error: 'monthly_limit', message: 'You have used all your free minutes this month.' });
+      }
+
+      // Increment call count
+      await prisma.session.update({
+        where: { id: session.id },
+        data: { monthlyCallCount: { increment: 1 } },
+      });
     }
 
     // --- Create the call ---
@@ -143,6 +160,29 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
   } catch (err) {
     next(err);
   }
+});
+
+// POST /api/v1/calls/register-email — register email for free tier
+callRouter.post('/register-email', async (req, res) => {
+  const sessionId = (req as any).signedCookies?.sh_session || (req as any).cookies?.sh_session;
+  if (!sessionId) return res.status(400).json({ error: 'No session' });
+
+  const { email } = (req as any).body || {};
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
+
+  // Check if email already exists on another session
+  const existing = await prisma.session.findFirst({ where: { email } }).catch(() => null);
+  if (existing && existing.id !== sessionId) {
+    console.log('[session] email already registered on another session, linking');
+  }
+
+  await prisma.session.update({
+    where: { id: sessionId },
+    data: { email, emailVerified: false },
+  });
+
+  console.log('[session] email registered:', email);
+  return res.json({ success: true });
 });
 
 // GET /api/v1/calls/tier — return tier for the current session

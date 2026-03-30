@@ -21,13 +21,14 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 export async function startCall(
   presenceStyle: string = "quiet",
   voice: string = "her"
-): Promise<{ callId: string; wsTicket: string; sessionId: string }> {
-  const body = await apiFetch<{ success: boolean; data: { callId: string; wsTicket: string; sessionId: string } }>(
-    "/api/v1/calls/session",
-    {
-      method: "POST",
-      body: JSON.stringify({ presenceStyle, voice }),
-    }
-  );
-  return body.data;
+): Promise<{ callId: string; wsTicket: string; sessionId: string; error?: string }> {
+  const res = await fetch(`${API_URL}/api/v1/calls/session`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ presenceStyle, voice }),
+  });
+  const data = await res.json();
+  if (!res.ok) return { error: data.error || 'unknown_error', callId: '', wsTicket: '', sessionId: '' };
+  return data.data || data;
 }

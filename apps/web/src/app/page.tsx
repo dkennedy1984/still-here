@@ -93,7 +93,22 @@ function HomePageContent() {
     try {
       // Map UI presenceStyle to API mode
       const mode = presenceStyle === 'silent' ? 'quiet' : presenceStyle;
-      const { callId, wsTicket } = await startCall(mode, voice);
+      const { callId, wsTicket, error } = await startCall(mode, voice);
+
+      if (error === 'email_required') {
+        router.push('/post-call?gate=email');
+        callingRef.current = false;
+        setLoading(false);
+        return;
+      }
+
+      if (error === 'monthly_limit') {
+        router.push('/post-call?gate=limit');
+        callingRef.current = false;
+        setLoading(false);
+        return;
+      }
+
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     } catch (err) {
       console.error(err);
@@ -109,7 +124,19 @@ function HomePageContent() {
     setShowFirstCall(false);
     callingRef.current = true;
     setLoading(true);
-    startCall(style, voice).then(({ callId, wsTicket }) => {
+    startCall(style, voice).then(({ callId, wsTicket, error }) => {
+      if (error === 'email_required') {
+        router.push('/post-call?gate=email');
+        callingRef.current = false;
+        setLoading(false);
+        return;
+      }
+      if (error === 'monthly_limit') {
+        router.push('/post-call?gate=limit');
+        callingRef.current = false;
+        setLoading(false);
+        return;
+      }
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     }).catch(err => {
       console.error(err);

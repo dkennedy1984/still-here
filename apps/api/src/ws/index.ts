@@ -236,6 +236,12 @@ export function setupWebSocket(server: Server) {
           where: { id: call.id },
           data: { durationSeconds, endedAt: new Date() },
         }).catch((err: Error) => console.error('[session] failed to update call duration:', err.message));
+        // Update monthly minutes usage
+        const durationMinutes = Math.ceil(durationSeconds / 60);
+        prisma.session.update({
+          where: { id: (call as any).sessionId },
+          data: { monthlyMinutesUsed: { increment: durationMinutes } },
+        }).catch(() => {});
       }
     };
 
