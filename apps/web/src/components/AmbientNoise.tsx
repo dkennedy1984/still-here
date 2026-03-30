@@ -8,7 +8,7 @@ const AMBIENT_OPTIONS = [
   { label: 'Brown noise', value: 'brown' },
 ];
 
-export default function AmbientNoise() {
+export function AmbientNoise() {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
   const [volume, setVolume] = useState(0.3);
