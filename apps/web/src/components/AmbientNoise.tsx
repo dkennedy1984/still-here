@@ -27,45 +27,36 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   const isDisabledRef = useRef(false);
 
   function stop() {
-    try {
-      // Close AudioContext (kills all sounds connected to it)
-      if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
-        try { (window as any).__ambientCtx.close(); } catch {}
-        (window as any).__ambientCtx = null;
-      }
-      if (ctxRef.current) {
-        try { ctxRef.current.close(); } catch {}
-        ctxRef.current = null;
-      }
-      // Stop presence HTML Audio
-      if (presenceAudioRef.current) {
-        presenceAudioRef.current.pause();
-        presenceAudioRef.current.currentTime = 0;
-        presenceAudioRef.current = null;
-      }
+    // Stop presence HTML Audio
+    if (presenceAudioRef.current) {
+      presenceAudioRef.current.pause();
+      presenceAudioRef.current.currentTime = 0;
       // Remove from DOM
-      const domAudio = document.getElementById('swy-presence-audio') as HTMLAudioElement;
-      if (domAudio) {
-        domAudio.pause();
-        domAudio.currentTime = 0;
-        domAudio.remove();
+      if (presenceAudioRef.current.parentNode) {
+        presenceAudioRef.current.parentNode.removeChild(presenceAudioRef.current);
       }
-      // Clean up global ref
-      if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
-        (window as any).__presenceAudio.pause();
-        (window as any).__presenceAudio.currentTime = 0;
-        (window as any).__presenceAudio = null;
-      }
-      // Stop AudioContext layers
+      presenceAudioRef.current = null;
+    }
+    // Stop by DOM ID
+    const domAudio = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+    if (domAudio) { domAudio.pause(); domAudio.currentTime = 0; domAudio.remove(); }
+    // Global ref
+    if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
+      (window as any).__presenceAudio.pause();
+      (window as any).__presenceAudio.currentTime = 0;
+      (window as any).__presenceAudio = null;
+    }
+    // Stop AudioContext source nodes (but DON'T close the context)
+    try {
       const layers = (sourceRef.current as any)?.__layers;
-      if (layers) {
-        layers.forEach((s: AudioBufferSourceNode) => { try { s.stop(); } catch {} });
-      }
-      if (sourceRef.current) {
-        try { sourceRef.current.stop(); } catch {}
-      }
+      if (layers) { layers.forEach((s: AudioBufferSourceNode) => { try { s.stop(); } catch {} }); }
+      if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
     } catch {}
     sourceRef.current = null;
+    // Don't close gainRef — just disconnect
+    if (gainRef.current) { try { gainRef.current.disconnect(); } catch {} }
+    gainRef.current = null;
+    // DO NOT close ctxRef — this causes the crash
   }
 
 
@@ -89,16 +80,16 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
                 const t = i / sr;
                 let sample = 0;
   
-                const roomFreq = 0.3 + li * 0.05;
-                sample += Math.sin(2 * Math.PI * roomFreq * t + li) * 0.004;
+                // Very quiet room tone
+                sample += (Math.random() * 2 - 1) * 0.003;
   
-                breathPhase += (2 * Math.PI * 0.2) / sr;
-                const breathEnv = (Math.sin(breathPhase) + 1) * 0.5;
-                sample += (Math.random() * 2 - 1) * breathEnv * 0.003;
+                // Slow breathing (subtle)
+                const breathRate = 0.2 + (li * 0.05);
+                const breathAmp = 0.004 + li * 0.001;
+                sample += Math.sin(breathPhase) * breathAmp;
+                breathPhase += (2 * Math.PI * breathRate) / sr;
   
-                if (i % Math.floor(sr * 8.7) === 0) {
-                  shiftPhase = 0;
-                }
+                // Occasional subtle room shift
                 if (shiftPhase < sr * 0.4) {
                   const shiftEnv = Math.sin(Math.PI * shiftPhase / (sr * 0.4));
                   sample += (Math.random() * 2 - 1) * shiftEnv * 0.015;
@@ -167,12 +158,13 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
     stop();
 
     try {
-      if (ctxRef.current) {
-        ctxRef.current.close().catch(() => {});
+      // Reuse existing AudioContext if available and not closed, otherwise create new
+      if (!ctxRef.current || ctxRef.current.state === 'closed') {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        ctxRef.current = ctx;
+        (window as any).__ambientCtx = ctx;
       }
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      ctxRef.current = ctx;
-      (window as any).__ambientCtx = ctx;
+      const ctx = ctxRef.current;
 
       if (ctx.state === 'suspended') {
         ctx.resume().then(() => {
@@ -191,26 +183,25 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         const bufferSize = ctx.sampleRate * 2;
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 250;
-        source.connect(filter);
-        filter.connect(gain);
+        source.connect(gain);
         source.start();
         sourceRef.current = source;
       } else if (type === 'brown') {
         const bufferSize = ctx.sampleRate * 2;
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
-        let last = 0;
+        let lastOut = 0;
         for (let i = 0; i < bufferSize; i++) {
-          const w = Math.random() * 2 - 1;
-          last = (last + 0.02 * w) / 1.02;
-          data[i] = last * 3.5;
+          const white = Math.random() * 2 - 1;
+          data[i] = (lastOut + (0.02 * white)) / 1.02;
+          lastOut = data[i];
+          data[i] *= 3.5;
         }
         const source = ctx.createBufferSource();
         source.buffer = buffer;
@@ -245,7 +236,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
     document.getElementById('swy-presence-audio')?.remove();
     document.body.appendChild(audio);
           audio.loop = true;
-          audio.volume = Math.min(volume * 5, 1.0);
+          audio.volume = 0; // Start silent for fade-in
 
           presenceAudioRef.current = audio;
       // Store globally so it can be stopped from anywhere
@@ -253,6 +244,21 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           audio.oncanplaythrough = () => {
             audio.play().catch(() => {});
             console.log('[ambient] playing: presence (real audio file)');
+            // Fade in over 3 seconds
+            const targetVol = Math.min(volume * 5, 1.0);
+            let fadeVol = 0;
+            const fadeInterval = setInterval(() => {
+              fadeVol += targetVol / 30; // 30 steps over 3 seconds (100ms interval)
+              if (fadeVol >= targetVol) {
+                fadeVol = targetVol;
+                clearInterval(fadeInterval);
+              }
+              if (presenceAudioRef.current) {
+                presenceAudioRef.current.volume = fadeVol;
+              } else {
+                clearInterval(fadeInterval);
+              }
+            }, 100);
           };
 
           audio.onerror = () => {
@@ -298,12 +304,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       isDisabledRef.current = true;
       stop();
       setActive('off');
-      // Also close AudioContext to be thorough
-      if (ctxRef.current) {
-        ctxRef.current.close().catch(() => {});
-        ctxRef.current = null;
-      }
-      gainRef.current = null;
+      // DO NOT close AudioContext here
     } else {
       isDisabledRef.current = false;
     }
@@ -312,7 +313,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   useEffect(() => {
     return () => {
       stop();
-      ctxRef.current?.close().catch(() => {});
+      // DO NOT close AudioContext here either
     };
   }, []);
 
@@ -359,53 +360,37 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
             className="w-full max-w-md bg-slate-900 rounded-t-2xl px-6 pt-6 pb-10 border-t border-white/5"
             onClick={e => e.stopPropagation()}
           >
-            <h2 className="text-base font-medium text-white text-center mb-6">Background sounds</h2>
-
-            <div className="flex flex-col gap-3 mb-6">
+            <h2 className="text-base font-medium text-slate-200 mb-4">Background sounds</h2>
+            <div className="flex flex-col gap-2">
               {AMBIENT_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => select(opt.value)}
-                  className={`text-left px-4 py-3 rounded-xl transition-all ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all ${
                     active === opt.value
-                      ? 'bg-white/5 border border-white ring-1 ring-white/10'
-                      : 'bg-slate-800/50 border border-slate-700 hover:bg-slate-800'
+                      ? 'bg-slate-700 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
                   }`}
                 >
-                  <span className="text-sm text-white">{opt.label}</span>
-                  <span className="block text-xs text-slate-400 mt-0.5">
-                    {opt.value === 'off' && 'Complete silence.'}
-                    {opt.value === 'presence' && 'Quiet sounds of someone nearby.'}
-                    {opt.value === 'rain' && 'Gentle rain falling.'}
-                    {opt.value === 'white' && 'Soft, steady background hum.'}
-                    {opt.value === 'brown' && 'Deep, warm background tone.'}
-                  </span>
+                  <span>{opt.label}</span>
+                  {active === opt.value && <span className="ml-auto text-slate-400 text-xs">Playing</span>}
                 </button>
               ))}
             </div>
-
             {active !== 'off' && (
-              <div className="flex items-center gap-3 mb-6 px-1">
-                <span className="text-xs text-slate-500">Quiet</span>
+              <div className="mt-4 flex items-center gap-3">
+                <span className="text-xs text-slate-500">Volume</span>
                 <input
                   type="range"
-                  min="0.02"
+                  min="0.05"
                   max="0.5"
                   step="0.01"
                   value={volume}
                   onChange={e => setVolume(parseFloat(e.target.value))}
-                  className="flex-1 h-1 accent-white/40"
+                  className="flex-1 h-1 accent-slate-500 cursor-pointer"
                 />
-                <span className="text-xs text-slate-500">Loud</span>
               </div>
             )}
-
-            <button
-              onClick={() => setShowMenu(false)}
-              className="w-full py-3 rounded-full bg-slate-800 text-slate-400 text-sm hover:bg-slate-700 transition-all"
-            >
-              Done
-            </button>
           </div>
         </div>
       )}

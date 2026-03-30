@@ -59,16 +59,10 @@ function CallPageInner() {
     } catch (e) {
       console.warn('stopAllAudio: presenceAudio error', e);
     }
-    try {
-      if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
-        const ctx = (window as any).__ambientCtx as AudioContext;
-        if (ctx.state !== 'closed') {
-          ctx.close().catch(() => {});
-        }
-        (window as any).__ambientCtx = null;
-      }
-    } catch (e) {
-      console.warn('stopAllAudio: ambientCtx error', e);
+    // Don't close AudioContext — closing it throws "Cannot close a closed AudioContext"
+    // and crashes the stop flow. Just null the ref.
+    if (typeof window !== 'undefined') {
+      (window as any).__ambientCtx = null;
     }
     try {
       if (typeof window !== 'undefined' && (window as any).__ambientSource) {
