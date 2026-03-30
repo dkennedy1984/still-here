@@ -23,20 +23,24 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const presenceAudioRef = useRef<HTMLAudioElement | null>(null);
 
   function stop() {
     try {
-      const presenceAudio = (sourceRef as any)?.__presenceAudio;
-      if (presenceAudio) {
-        presenceAudio.pause();
-        presenceAudio.currentTime = 0;
-        (sourceRef as any).__presenceAudio = null;
+      // Stop presence HTML Audio
+      if (presenceAudioRef.current) {
+        presenceAudioRef.current.pause();
+        presenceAudioRef.current.currentTime = 0;
+        presenceAudioRef.current = null;
       }
+      // Stop AudioContext layers
       const layers = (sourceRef.current as any)?.__layers;
       if (layers) {
         layers.forEach((s: AudioBufferSourceNode) => { try { s.stop(); } catch {} });
       }
-      sourceRef.current?.stop();
+      if (sourceRef.current) {
+        try { sourceRef.current.stop(); } catch {}
+      }
     } catch {}
     sourceRef.current = null;
   }
@@ -230,9 +234,9 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           audio.loop = true;
           audio.volume = Math.min(volume * 5, 1.0);
 
+          presenceAudioRef.current = audio;
           audio.oncanplaythrough = () => {
             audio.play().catch(() => {});
-            (sourceRef as any).__presenceAudio = audio;
             console.log('[ambient] playing: presence (real audio file)');
           };
 
@@ -275,6 +279,12 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
     if (disabled) {
       stop();
       setActive('off');
+      // Also close AudioContext to be thorough
+      if (ctxRef.current) {
+        ctxRef.current.close().catch(() => {});
+        ctxRef.current = null;
+      }
+      gainRef.current = null;
     }
   }, [disabled]);
 
