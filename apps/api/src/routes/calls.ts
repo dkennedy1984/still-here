@@ -164,24 +164,105 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
 
 // POST /api/v1/calls/register-email — register email for free tier
 callRouter.post('/register-email', async (req, res) => {
-  const sessionId = (req as any).signedCookies?.sh_session || (req as any).cookies?.sh_session;
+  const sessionId = req.signedCookies?.sh_session || req.cookies?.sh_session;
   if (!sessionId) return res.status(400).json({ error: 'No session' });
-
-  const { email } = (req as any).body || {};
+  
+  const { email } = req.body;
   if (!email || !email.includes('@')) return res.status(400).json({ error: 'Invalid email' });
-
+  
+  const currentSession = await prisma.session.findUnique({ where: { id: sessionId } }).catch(() => null);
+  if (!currentSession) return res.status(400).json({ error: 'Session not found' });
+  
   // Check if email already exists on another session
-  const existing = await prisma.session.findFirst({ where: { email } }).catch(() => null);
-  if (existing && existing.id !== sessionId) {
-    console.log('[session] email already registered on another session, linking');
+  const existingSession = await prisma.session.findFirst({ 
+    where: { email, id: { not: sessionId } } 
+  }).catch(() => null);
+  
+  if (existingSession) {
+    // Merge: transfer usage from existing session to current session
+    console.log('[session] merging sessions for email:', email, 'old:', existingSession.id, 'new:', sessionId);
+    
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: {
+        email,
+        emailVerified: existingSession.emailVerified,
+        tier: existingSession.tier, // Keep paid status if they were paid
+        subscriptionId: existingSession.subscriptionId,
+        monthlyMinutesUsed: existingSession.monthlyMinutesUsed,
+        monthlyCallCount: existingSession.monthlyCallCount,
+        monthlyResetAt: existingSession.monthlyResetAt,
+      },
+    });
+    
+    // Move calls from old session to new
+    await prisma.call.updateMany({
+      where: { sessionId: existingSession.id },
+      data: { sessionId: sessionId },
+    });
+    
+    // Delete old session
+    await prisma.session.delete({ where: { id: existingSession.id } }).catch(() => {});
+    
+    console.log('[session] merge complete, usage carried over');
+  } else {
+    // New email - just update current session
+    await prisma.session.update({
+      where: { id: sessionId },
+      data: { email },
+    });
+    console.log('[session] email registered:', email);
   }
-
-  await prisma.session.update({
-    where: { id: sessionId },
-    data: { email, emailVerified: false },
-  });
-
-  console.log('[session] email registered:', email);
+  
+  // Send welcome email with magic link
+  const magicToken = require('crypto').randomUUID();
+  await prisma.magicToken.create({
+    data: {
+      email,
+      token: magicToken,
+      sessionId,
+      expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30), // 30 days
+    },
+  }).catch(() => {});
+  
+  const magicLinkUrl = `${process.env.MAGIC_LINK_BASE_URL || 'https://stillhere-api.onrender.com'}/api/auth/verify?token=${magicToken}`;
+  
+  // Send branded welcome email
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL || 'Sit With You <hello@sitwithyou.app>';
+  if (apiKey) {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from,
+        to: email,
+        subject: 'Your link to Sit With You',
+        html: `<div style="font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 0;">
+  <div style="background: #0f172a; padding: 24px; text-align: center; border-radius: 12px 12px 0 0;">
+    <img src="https://sitwithyou.app/branding/logo-dark.svg" alt="Sit With You" width="180" style="display: inline-block;" />
+  </div>
+  <div style="background: #ffffff; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Hi,</p>
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Thanks for trying Sit With You. Here's your personal link — bookmark it or come back to this email whenever you need quiet company.</p>
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${magicLinkUrl}" style="display: inline-block; padding: 14px 32px; background: #0f172a; color: #ffffff; text-decoration: none; border-radius: 999px; font-size: 16px; font-weight: 500;">Open Sit With You</a>
+    </div>
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0 0 16px;">Your free plan includes 5 calls per month, up to 30 minutes total. If you'd like unlimited sessions, you can <a href="https://sitwithyou.app/upgrade" style="color: #16a34a; text-decoration: none; font-weight: 500;">upgrade anytime</a>.</p>
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0 0 24px;">If you have any questions, reach us at <a href="mailto:support@sitwithyou.app" style="color: #16a34a; text-decoration: none;">support@sitwithyou.app</a></p>
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0;">Take care,<br/>Sit With You</p>
+    <div style="border-top: 1px solid #e5e7eb; margin-top: 24px; padding-top: 16px;">
+      <p style="color: #9ca3af; font-size: 12px; line-height: 1.5; margin: 0;"><a href="https://sitwithyou.app/terms" style="color: #9ca3af; text-decoration: underline;">Terms</a> · <a href="https://sitwithyou.app/privacy" style="color: #9ca3af; text-decoration: underline;">Privacy</a></p>
+    </div>
+  </div>
+</div>`
+      }),
+    }).then(r => {
+      if (r.ok) console.log('[email] welcome sent to:', email);
+      else console.error('[email] failed:', r.status);
+    }).catch(err => console.error('[email] error:', err));
+  }
+  
   return res.json({ success: true });
 });
 

@@ -188,8 +188,8 @@ export async function billingWebhookHandler(req: Request, res: Response) {
               email,
               "Welcome to Sit With You",
               `<div style="font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 0;">
-  <div style="background: #0f172a; padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-    <h1 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0;">Sit With You</h1>
+  <div style="background: #0f172a; padding: 24px; text-align: center; border-radius: 12px 12px 0 0;">
+    <img src="https://sitwithyou.app/branding/logo-dark.svg" alt="Sit With You" width="180" style="display: inline-block;" />
   </div>
   <div style="background: #ffffff; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
     <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Hi,</p>
@@ -277,8 +277,8 @@ export async function billingWebhookHandler(req: Request, res: Response) {
             session.email,
             "Your Sit With You subscription",
             `<div style="font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 0;">
-  <div style="background: #0f172a; padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
-    <h1 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0;">Sit With You</h1>
+  <div style="background: #0f172a; padding: 24px; text-align: center; border-radius: 12px 12px 0 0;">
+    <img src="https://sitwithyou.app/branding/logo-dark.svg" alt="Sit With You" width="180" style="display: inline-block;" />
   </div>
   <div style="background: #ffffff; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
     <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Hi,</p>

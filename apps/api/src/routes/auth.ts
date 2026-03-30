@@ -79,7 +79,7 @@ authRouter.get("/verify", async (req: Request, res: Response) => {
   const { token } = req.query as { token?: string };
 
   if (!token) {
-    return res.redirect(`${FRONTEND_URL}/upgrade?error=expired`);
+    return res.redirect(`${FRONTEND_URL}/?error=expired`);
   }
 
   try {
@@ -92,7 +92,7 @@ authRouter.get("/verify", async (req: Request, res: Response) => {
       magicToken.used ||
       magicToken.expiresAt < new Date()
     ) {
-      return res.redirect(`${FRONTEND_URL}/upgrade?error=expired`);
+      return res.redirect(`${FRONTEND_URL}/?error=expired`);
     }
 
     // Mark token as used
@@ -101,52 +101,63 @@ authRouter.get("/verify", async (req: Request, res: Response) => {
       data: { used: true },
     });
 
-    // Find or create session by email
-    let session = await prisma.session.findFirst({
-      where: { email: magicToken.email },
-      orderBy: { createdAt: "desc" },
-    });
+    // Use the session the token was created for (if present), otherwise find by email
+    let session: { id: string; email: string | null; emailVerified: boolean; emailVerifiedAt: Date | null; tier: string } | null = null;
+
+    if (magicToken.sessionId) {
+      session = await prisma.session.findUnique({
+        where: { id: magicToken.sessionId },
+      }).catch(() => null);
+    }
+
+    if (!session && magicToken.email) {
+      session = await prisma.session.findFirst({
+        where: { email: magicToken.email },
+        orderBy: { createdAt: "desc" },
+      }).catch(() => null);
+    }
 
     if (!session) {
+      // Create a new session for this email
       session = await prisma.session.create({
         data: {
           email: magicToken.email,
           emailVerified: true,
           emailVerifiedAt: new Date(),
-          tier: "paid",
         },
       });
     } else {
+      // Mark email as verified (preserve existing tier)
       session = await prisma.session.update({
         where: { id: session.id },
         data: {
-          tier: "paid",
+          email: session.email ?? magicToken.email,
           emailVerified: true,
           emailVerifiedAt: session.emailVerifiedAt ?? new Date(),
         },
       });
     }
 
-    // Link token to session
+    // Link token to final session
     await prisma.magicToken.update({
       where: { id: magicToken.id },
       data: { sessionId: session.id },
-    });
+    }).catch(() => {});
 
-    // Set session cookie (1 year)
-    const isProduction = process.env.NODE_ENV === "production";
+    // Set session cookie — signed, 1 year, cross-site safe
     res.cookie("sh_session", session.id, {
       httpOnly: true,
       secure: true,
       sameSite: "none",
+      signed: true,
       maxAge: 365 * 24 * 60 * 60 * 1000,
     });
 
     console.log("[auth] verified magic link for", magicToken.email, "-> session", session.id);
-    return res.redirect(`${FRONTEND_URL}/?verified=true`);
+    return res.redirect(`${FRONTEND_URL}/`);
   } catch (err) {
     console.error("[auth] verify error:", err);
-    return res.redirect(`${FRONTEND_URL}/upgrade?error=expired`);
+    return res.redirect(`${FRONTEND_URL}/?error=expired`);
   }
 });
 
