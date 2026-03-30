@@ -94,21 +94,21 @@ export default function PostCallPage() {
             </>
           ) : (
             <>
-              <h1 className="text-lg text-white">I'm here whenever you need.</h1>
-              <p className="text-sm text-slate-400 mt-2">Want this available anytime?</p>
+              <h1 className="text-lg text-white">I'm glad we sat together.</h1>
+              <p className="text-sm text-slate-400 mt-2">If it helps, you can have this quiet company available whenever you want.</p>
 
               <button
                 onClick={() => router.push('/upgrade')}
                 className="mt-8 px-12 py-4 rounded-full bg-white text-slate-900 text-base font-medium tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150"
               >
-                Stay in touch
+                I'd like that
               </button>
 
               <button
                 onClick={() => router.push('/')}
                 className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors"
               >
-                Maybe later
+                Not right now
               </button>
             </>
           )}
