@@ -25,8 +25,14 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const presenceAudioRef = useRef<HTMLAudioElement | null>(null);
   const isDisabledRef = useRef(false);
+  const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function stop() {
+    // Clear any ongoing fade-in
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
     // Stop presence HTML Audio
     if (presenceAudioRef.current) {
       presenceAudioRef.current.pause();
@@ -247,16 +253,18 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
             // Fade in over 3 seconds
             const targetVol = Math.min(volume * 5, 1.0);
             let fadeVol = 0;
-            const fadeInterval = setInterval(() => {
+            fadeIntervalRef.current = setInterval(() => {
               fadeVol += targetVol / 30; // 30 steps over 3 seconds (100ms interval)
               if (fadeVol >= targetVol) {
                 fadeVol = targetVol;
-                clearInterval(fadeInterval);
+                clearInterval(fadeIntervalRef.current!);
+                fadeIntervalRef.current = null;
               }
               if (presenceAudioRef.current) {
                 presenceAudioRef.current.volume = fadeVol;
               } else {
-                clearInterval(fadeInterval);
+                clearInterval(fadeIntervalRef.current!);
+                fadeIntervalRef.current = null;
               }
             }, 100);
           };
@@ -280,6 +288,11 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }
 
   useEffect(() => {
+    // User changed volume — cancel any ongoing fade-in
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
     if (gainRef.current) gainRef.current.gain.value = volume;
     // Also update presence HTML Audio element volume
     if (presenceAudioRef.current) {
