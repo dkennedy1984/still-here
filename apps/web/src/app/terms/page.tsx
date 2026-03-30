@@ -23,13 +23,16 @@ export default function TermsPage() {
       <h2 className="text-lg font-medium text-white mt-8 mb-3">3. Free and paid tiers</h2>
       <p className="text-slate-300 leading-relaxed mb-4">Free users may use the service with the following limits:</p>
       <ul className="list-disc list-inside text-slate-300 space-y-2 mb-4">
-        <li>Sessions are limited to 10 minutes each</li>
-        <li>The &quot;Quiet&quot; presence style is available</li>
+        <li>Sessions are limited to 30 minutes each</li>
+        <li>Total free usage is limited to 60 minutes</li>
+        <li>All presence styles are available (Quiet, Check-ins, Talk)</li>
+        <li>Voice choice and ambient sounds are available</li>
       </ul>
-      <p className="text-slate-300 leading-relaxed mb-6">Paid subscribers (£8 per month) get:</p>
+      <p className="text-slate-300 leading-relaxed mb-4">Paid subscribers (£8 per month) get:</p>
       <ul className="list-disc list-inside text-slate-300 space-y-2 mb-6">
         <li>Unlimited calls, up to 60 minutes each</li>
-        <li>All presence styles (Quiet, Warm, Focused)</li>
+        <li>All presence styles (Quiet, Check-ins, Talk)</li>
+        <li>Choice of voice and ambient sounds</li>
         <li>Gentle support if you ask for it</li>
       </ul>
       <p className="text-slate-300 leading-relaxed mb-6">Subscriptions are billed monthly through Stripe at the price shown at checkout. You can cancel anytime — access continues until the end of your billing period.</p>
