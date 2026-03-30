@@ -1,45 +1,62 @@
 'use client';
 
+import clsx from 'clsx';
+
 interface VoiceSheetProps {
   selected: 'her' | 'him';
   onSelect: (voice: 'her' | 'him') => void;
   onClose: () => void;
 }
 
+const options: { value: 'her' | 'him'; title: string; subtitle: string }[] = [
+  {
+    value: 'her',
+    title: 'Her',
+    subtitle: 'A calm, warm voice.',
+  },
+  {
+    value: 'him',
+    title: 'Him',
+    subtitle: 'A steady, gentle voice.',
+  },
+];
+
 export function VoiceSheet({ selected, onSelect, onClose }: VoiceSheetProps) {
   return (
-    <div className="fixed inset-0 bg-slate-950/80 flex items-end justify-center z-[100] backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md bg-slate-900 rounded-t-2xl px-6 pt-6 pb-10 border-t border-white/5" onClick={e => e.stopPropagation()}>
-        <h2 className="text-base font-medium text-white text-center mb-6">Choose a voice</h2>
-        
-        <div className="flex flex-col gap-3 mb-8">
-          <button
-            onClick={() => { onSelect('her'); onClose(); }}
-            className={`text-left px-4 py-3 rounded-xl transition-all ${
-              selected === 'her'
-                ? 'bg-white/10 ring-1 ring-white/20'
-                : 'bg-white/5 hover:bg-white/8'
-            }`}
-          >
-            <span className="text-sm text-white">Her</span>
-            <span className="block text-xs text-slate-400 mt-0.5">A calm, warm voice.</span>
-          </button>
-          <button
-            onClick={() => { onSelect('him'); onClose(); }}
-            className={`text-left px-4 py-3 rounded-xl transition-all ${
-              selected === 'him'
-                ? 'bg-white/10 ring-1 ring-white/20'
-                : 'bg-white/5 hover:bg-white/8'
-            }`}
-          >
-            <span className="text-sm text-white">Him</span>
-            <span className="block text-xs text-slate-400 mt-0.5">A steady, gentle voice.</span>
-          </button>
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60"
+        onClick={onClose}
+      />
+
+      {/* Sheet */}
+      <div className="relative w-full max-w-md animate-slide-up rounded-t-2xl bg-slate-900 px-6 pb-8 pt-6">
+        <h2 className="mb-6 text-center text-lg font-semibold text-white">
+          Choose a voice
+        </h2>
+
+        <div className="space-y-3">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => { onSelect(option.value); onClose(); }}
+              className={clsx(
+                'w-full rounded-xl border p-4 text-left transition-all',
+                selected === option.value
+                  ? 'border-white bg-white/5'
+                  : 'border-slate-700 bg-slate-800/50 hover:border-slate-500'
+              )}
+            >
+              <p className="font-medium text-white">{option.title}</p>
+              <p className="mt-1 text-sm text-slate-400">{option.subtitle}</p>
+            </button>
+          ))}
         </div>
 
         <button
           onClick={onClose}
-          className="w-full py-3 rounded-full bg-white/5 text-slate-400 text-sm hover:bg-white/10 transition-all"
+          className="mt-6 w-full rounded-full bg-slate-800 py-3 text-sm text-slate-400 hover:text-white transition-colors"
         >
           Done
         </button>

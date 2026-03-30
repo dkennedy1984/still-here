@@ -56,7 +56,12 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
 
       // Create gain node
       const gain = ctx.createGain();
-      gain.gain.value = volume;
+      // Presence needs higher gain since the generated sounds are subtle
+      if (type === 'presence') {
+        gain.gain.value = Math.min(volume * 5, 0.5); // 5x normal gain, capped at 0.5
+      } else {
+        gain.gain.value = volume;
+      }
       gain.connect(ctx.destination);
       gainRef.current = gain;
 
@@ -103,8 +108,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         for (let i = 0; i < bufferSize; i++) {
           roomL = (roomL + 0.005 * (Math.random() * 2 - 1)) / 1.005;
           roomR = (roomR + 0.005 * (Math.random() * 2 - 1)) / 1.005;
-          left[i] = roomL * 0.004;
-          right[i] = roomR * 0.004;
+          left[i] = roomL * 0.02;
+          right[i] = roomR * 0.02;
         }
 
         // 2. Soft keyboard-like taps (very quiet, realistic timing)
@@ -120,7 +125,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           for (let tap = 0; tap < numTaps; tap++) {
             if (pos >= bufferSize) break;
             const tapLen = Math.floor(ctx.sampleRate * 0.012); // 12ms tap
-            const tapVol = 0.008 + Math.random() * 0.006; // vary volume
+            const tapVol = 0.06 + Math.random() * 0.04; // vary volume
             const pan = 0.3 + Math.random() * 0.4; // slightly right of centre
 
             for (let s = 0; s < tapLen && (pos + s) < bufferSize; s++) {
@@ -141,7 +146,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           if (pos >= bufferSize) break;
 
           const rustleLen = Math.floor(ctx.sampleRate * (0.15 + Math.random() * 0.25)); // 150-400ms
-          const rustleVol = 0.004 + Math.random() * 0.004;
+          const rustleVol = 0.03 + Math.random() * 0.02;
 
           for (let s = 0; s < rustleLen && (pos + s) < bufferSize; s++) {
             const env = Math.sin((s / rustleLen) * Math.PI); // smooth envelope
@@ -158,7 +163,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           const settlePos = Math.floor(ctx.sampleRate * (8 + Math.random() * (duration - 10)));
           if (settlePos >= bufferSize) continue;
           const settleLen = Math.floor(ctx.sampleRate * 0.04); // 40ms thud
-          const settleVol = 0.012;
+          const settleVol = 0.06;
 
           for (let s = 0; s < settleLen && (settlePos + s) < bufferSize; s++) {
             const env = Math.exp(-s / (settleLen * 0.15));
