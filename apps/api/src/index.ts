@@ -52,6 +52,7 @@ app.use(
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(cookieParser(config.cookieSecret));
+console.log('[server] COOKIE_SECRET set:', !!process.env.COOKIE_SECRET);
 
 // Health-check
 app.get("/healthz", (_req, res) => res.json({ status: "ok" }));

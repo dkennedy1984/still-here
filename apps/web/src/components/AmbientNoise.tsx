@@ -258,9 +258,10 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       <div className={className || ''}>
         <button
           onClick={(e) => { e.stopPropagation(); setShowMenu(true); }}
-          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 text-xs text-slate-400 hover:bg-white/10 hover:text-slate-300 transition-all backdrop-blur-sm"
         >
-          {active === 'off' ? '♫ Off' : `♫ ${AMBIENT_OPTIONS.find(o => o.value === active)?.label || 'Off'}`}
+          <span>♫</span>
+          <span>{active === 'off' ? 'Sounds' : AMBIENT_OPTIONS.find(o => o.value === active)?.label}</span>
         </button>
       </div>
 

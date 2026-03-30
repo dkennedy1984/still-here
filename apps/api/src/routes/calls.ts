@@ -35,8 +35,11 @@ async function ensureDailyReset(sessionId: string, minutesResetAt: Date): Promis
 // POST /api/v1/calls/session — create or resume a session, then create a call
 callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
-    const sessionId = req.sessionId;
-    console.log('[session] cookie sh_session:', (req as any).signedCookies?.sh_session || (req as any).cookies?.sh_session || 'NONE');
+    // Direct signed cookie check (belt-and-suspenders on top of resolveIdentity)
+    const signedSessionId = (req as any).signedCookies?.sh_session;
+    console.log('[session] signedCookies.sh_session:', signedSessionId || 'NONE');
+    console.log('[session] req.sessionId (from resolveIdentity):', req.sessionId || 'NONE');
+    const sessionId = signedSessionId || req.sessionId;
     const { presenceStyle: rawPresenceStyle, voice: rawVoice } = (req as any).body || {};
     const presenceStyle = rawPresenceStyle || 'quiet';
     const voice = rawVoice || 'her';

@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config';
 
 const CHECK_IN_MS = parseInt(process.env.CHECK_IN_TIMEOUT_MS || '900000', 10); // 15 minutes
-const FREE_SESSION_MS = parseInt(process.env.FREE_SESSION_MS || '600000', 10); // 10 minutes
+const FREE_SESSION_MS = parseInt(process.env.FREE_SESSION_MS || '1800000', 10); // 30 minutes
 const PAID_SESSION_MS = parseInt(process.env.MAX_SESSION_MS || '3600000', 10); // 60 minutes
 const WARNING_BEFORE_END_MS = 120000; // 2 minutes before end
 
@@ -137,6 +137,7 @@ export function setupWebSocket(server: Server) {
     let dgReady = false;
     let isEnded = false;
     let checkInTimer: ReturnType<typeof setTimeout> | null = null;
+    let checkInCount = 0;
     let sessionWarningTimer: ReturnType<typeof setTimeout> | null = null;
     let sessionEndTimer: ReturnType<typeof setTimeout> | null = null;
     let timeUpdateInterval: ReturnType<typeof setInterval> | null = null;
@@ -157,6 +158,25 @@ export function setupWebSocket(server: Server) {
     const resetCheckInTimer = () => {
       if (checkInTimer) clearTimeout(checkInTimer);
       checkInTimer = null;
+    };
+
+    const scheduleCheckIn = () => {
+      if (checkInTimer) clearTimeout(checkInTimer);
+      checkInTimer = setTimeout(async () => {
+        checkInTimer = null;
+        if (isEnded) return;
+        checkInCount++;
+        let checkInMessage = 'Still here.';
+        if (checkInCount === 1) {
+          checkInMessage = "Still here. By the way, you can tap the sound icon to add some quiet background sounds if you like.";
+        }
+        console.log('[check-in] firing check-in #' + checkInCount + ':', checkInMessage.substring(0, 60));
+        if (dgWs.readyState === WebSocket.OPEN) {
+          dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: checkInMessage }));
+        }
+        // Schedule next check-in
+        scheduleCheckIn();
+      }, CHECK_IN_MS);
     };
 
     async function speakWithElevenLabs(text: string): Promise<number> {
@@ -271,6 +291,7 @@ export function setupWebSocket(server: Server) {
           dgReady = true;
           sendToClient('connected', { state: 'GREETING' });
           resetCheckInTimer();
+          scheduleCheckIn(); // start check-in timer
           // Use ElevenLabs for greeting instead of Deepgram TTS
           speakWithElevenLabs(GREETING).then(() => {
             setTimeout(() => {
@@ -309,7 +330,7 @@ export function setupWebSocket(server: Server) {
 
           // Free tier total usage enforcement
           if (tier !== 'PAID' && tier !== 'paid') {
-            const FREE_TOTAL_SECONDS = parseInt(process.env.FREE_TOTAL_SECONDS || '1800', 10); // 30 minutes total
+            const FREE_TOTAL_SECONDS = parseInt(process.env.FREE_TOTAL_SECONDS || '3600', 10); // 60 minutes total
             prisma.call.aggregate({
               where: { sessionId: call.session.id, durationSeconds: { not: null } },
               _sum: { durationSeconds: true },
