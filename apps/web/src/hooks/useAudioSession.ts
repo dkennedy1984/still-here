@@ -222,6 +222,13 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
         wakeLockRef.current = null;
         console.log('[wakelock] released');
       }
+      // Stop all presence audio on cleanup
+      const pa = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+      if (pa) { pa.pause(); pa.remove(); }
+      if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
+        (window as any).__presenceAudio.pause();
+        (window as any).__presenceAudio = null;
+      }
       ws.close();
       resetAudioPlayer();
     };

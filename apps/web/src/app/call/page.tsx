@@ -47,17 +47,22 @@ function CallPageInner() {
   });
 
   const handleHangup = useCallback(() => {
-    // Stop presence audio via global ref
+    // Stop presence audio by DOM ID
+    const pa = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+    if (pa) { pa.pause(); pa.currentTime = 0; pa.remove(); }
+
+    // Stop via global ref
     if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
       (window as any).__presenceAudio.pause();
-      (window as any).__presenceAudio.currentTime = 0;
       (window as any).__presenceAudio = null;
     }
-    // Also stop any DOM audio elements
+
+    // Stop any other audio elements
     document.querySelectorAll('audio').forEach(a => {
-      a.pause();
-      a.currentTime = 0;
+      (a as HTMLAudioElement).pause();
+      (a as HTMLAudioElement).currentTime = 0;
     });
+
     hangup();
     requestAnimationFrame(() => {
       router.push('/post-call');

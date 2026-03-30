@@ -33,6 +33,13 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         presenceAudioRef.current.currentTime = 0;
         presenceAudioRef.current = null;
       }
+      // Remove from DOM
+      const domAudio = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+      if (domAudio) {
+        domAudio.pause();
+        domAudio.currentTime = 0;
+        domAudio.remove();
+      }
       // Clean up global ref
       if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
         (window as any).__presenceAudio.pause();
@@ -220,6 +227,11 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         // Try real audio file first, fall back to generated
         try {
           const audio = new Audio('/audio/presence.mp3');
+    audio.id = 'swy-presence-audio';
+    audio.style.display = 'none';
+    // Remove any existing one first
+    document.getElementById('swy-presence-audio')?.remove();
+    document.body.appendChild(audio);
           audio.loop = true;
           audio.volume = Math.min(volume * 5, 1.0);
 
