@@ -18,7 +18,7 @@ interface AmbientNoiseProps {
 export function AmbientNoise({ disabled = false, externalSound, className }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
-  const [volume, setVolume] = useState(0.25);
+  const [volume, setVolume] = useState(0.4);
 
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
@@ -295,7 +295,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   return (
     <>
       {/* The trigger button (always visible) */}
-      <div className={className || ''}>
+      <div className={`flex items-center gap-2 ${className || ''}`}>
         <button
           onClick={(e) => { e.stopPropagation(); setShowMenu(true); }}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 text-xs text-slate-400 hover:bg-white/10 hover:text-slate-300 transition-all backdrop-blur-sm"
@@ -303,6 +303,18 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           <span>♫</span>
           <span>{active === 'off' ? 'Sounds' : AMBIENT_OPTIONS.find(o => o.value === active)?.label}</span>
         </button>
+        {active !== 'off' && (
+          <input
+            type="range"
+            min="0.05"
+            max="0.5"
+            step="0.01"
+            value={volume}
+            onClick={(e) => e.stopPropagation()}
+            onChange={e => setVolume(parseFloat(e.target.value))}
+            className="w-16 h-1 accent-slate-500 opacity-40 hover:opacity-70 transition-opacity cursor-pointer"
+          />
+        )}
       </div>
 
       {/* The bottom sheet (shown when showMenu is true) */}
