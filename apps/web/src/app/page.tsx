@@ -173,11 +173,10 @@ function HomePageContent() {
 
       {/* Scroll hint */}
       {showScrollHint && !scrolled && (
-        <div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce-slow opacity-15 transition-opacity duration-500"
-          style={{ zIndex: 5 }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-400">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 animate-bounce-slow transition-opacity duration-500"
+             style={{ zIndex: 5, opacity: 0.3 }}>
+          <span className="text-slate-500 text-[10px] tracking-wider uppercase">Scroll</span>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-400">
             <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
