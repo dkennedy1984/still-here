@@ -8,7 +8,13 @@ const AMBIENT_OPTIONS = [
   { label: 'Brown noise', value: 'brown' },
 ];
 
-export function AmbientNoise() {
+interface AmbientNoiseProps {
+  disabled?: boolean;
+  externalSound?: string;
+  className?: string;
+}
+
+export function AmbientNoise({ disabled = false, externalSound, className }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
   const [volume, setVolume] = useState(0.3);
@@ -118,6 +124,19 @@ export function AmbientNoise() {
     }
   }, [volume]);
 
+  useEffect(() => {
+    if (disabled) {
+      stop();
+      setActive('off');
+    }
+  }, [disabled]);
+
+  useEffect(() => {
+    if (externalSound && externalSound !== active) {
+      select(externalSound);
+    }
+  }, [externalSound]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -182,7 +201,7 @@ export function AmbientNoise() {
   const sliderStyle: React.CSSProperties = { width: '100%', accentColor: '#a78bfa' };
 
   return (
-    <div style={wrapStyle}>
+    <div style={wrapStyle} className={className}>
       <button
         onClick={() => setShowMenu(prev => !prev)}
         style={btnStyle}
