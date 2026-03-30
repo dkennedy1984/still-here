@@ -44,7 +44,7 @@ function CallPageInner() {
       }
     },
     onAmbientControl: (sound: string) => setAmbientSound(sound),
-    onCrisisDetected: (info: any) => setCrisisInfo(info),
+    onCrisisInfo: (info: any) => setCrisisInfo(info),
   });
 
   const stopAllAudio = useCallback(() => {
