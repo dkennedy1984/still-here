@@ -165,6 +165,18 @@ function HomePageContent() {
         </div>
       </div>
 
+      {/* Scroll hint */}
+      {showScrollHint && !scrolled && (
+        <div
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce-slow opacity-15 transition-opacity duration-500"
+          style={{ zIndex: 5 }}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-slate-400">
+            <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+
       {/* Upgraded pill */}
       {showUpgraded && (
         <div

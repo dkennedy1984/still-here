@@ -28,6 +28,7 @@ const config: Config = {
         'breathe': 'breathe 5s ease-in-out infinite',
         'fade-in': 'fadeIn 1.5s ease-in forwards',
         'pulse-slow': 'pulse 4s ease-in-out infinite',
+        'bounce-slow': 'bounceSlow 2.5s ease-in-out infinite',
       },
       keyframes: {
         breathe: {
@@ -37,6 +38,10 @@ const config: Config = {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
+        },
+        bounceSlow: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(6px)' },
         },
       },
     },
