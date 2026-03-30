@@ -26,6 +26,12 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
 
   function stop() {
     try {
+      const presenceAudio = (sourceRef as any)?.__presenceAudio;
+      if (presenceAudio) {
+        presenceAudio.pause();
+        presenceAudio.currentTime = 0;
+        (sourceRef as any).__presenceAudio = null;
+      }
       const layers = (sourceRef.current as any)?.__layers;
       if (layers) {
         layers.forEach((s: AudioBufferSourceNode) => { try { s.stop(); } catch {} });
@@ -33,6 +39,99 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       sourceRef.current?.stop();
     } catch {}
     sourceRef.current = null;
+  }
+
+
+  function playGeneratedPresence(ctx: AudioContext, gain: GainNode) {
+          const sr = ctx.sampleRate;
+          const DURATION = 120;
+          const PRIMES = [sr * DURATION + 1, sr * DURATION + 7, sr * DURATION + 11, sr * DURATION + 17, sr * DURATION + 23];
+          const layers: AudioBufferSourceNode[] = [];
+  
+          PRIMES.forEach((bufLen, li) => {
+            const buf = ctx.createBuffer(2, bufLen, sr);
+            for (let ch = 0; ch < 2; ch++) {
+              const d = buf.getChannelData(ch);
+              let typingCluster = 0;
+              let clusterLen = 0;
+              let clusterGap = 0;
+              let breathPhase = Math.random() * Math.PI * 2;
+              let shiftPhase = Math.random() * Math.PI * 2;
+  
+              for (let i = 0; i < bufLen; i++) {
+                const t = i / sr;
+                let sample = 0;
+  
+                const roomFreq = 0.3 + li * 0.05;
+                sample += Math.sin(2 * Math.PI * roomFreq * t + li) * 0.004;
+  
+                breathPhase += (2 * Math.PI * 0.2) / sr;
+                const breathEnv = (Math.sin(breathPhase) + 1) * 0.5;
+                sample += (Math.random() * 2 - 1) * breathEnv * 0.003;
+  
+                if (i % Math.floor(sr * 8.7) === 0) {
+                  shiftPhase = 0;
+                }
+                if (shiftPhase < sr * 0.4) {
+                  const shiftEnv = Math.sin(Math.PI * shiftPhase / (sr * 0.4));
+                  sample += (Math.random() * 2 - 1) * shiftEnv * 0.015;
+                  shiftPhase++;
+                }
+  
+                if (clusterGap > 0) {
+                  clusterGap--;
+                } else if (typingCluster > 0) {
+                  if (i % Math.floor(sr * (0.08 + Math.random() * 0.12)) === 0) {
+                    const keyLen = Math.floor(sr * 0.008);
+                    if (i + keyLen < bufLen) {
+                      for (let k = 0; k < keyLen; k++) {
+                        const env = Math.exp(-k / (sr * 0.003));
+                        d[i + k] += (Math.random() * 2 - 1) * env * 0.04;
+                      }
+                    }
+                    typingCluster--;
+                    if (typingCluster === 0) {
+                      clusterGap = Math.floor(sr * (2 + Math.random() * 10));
+                    }
+                  }
+                } else if (Math.random() < 0.00003) {
+                  typingCluster = Math.floor(5 + Math.random() * 25);
+                  clusterLen = typingCluster;
+                }
+  
+                if (Math.random() < 0.000001) {
+                  const clickLen = Math.floor(sr * 0.005);
+                  for (let k = 0; k < clickLen && i + k < bufLen; k++) {
+                    const env = Math.exp(-k / (sr * 0.002));
+                    d[i + k] += (Math.random() * 2 - 1) * env * 0.035;
+                  }
+                }
+  
+                d[i] += sample;
+              }
+            }
+  
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+  
+            const layerGain = ctx.createGain();
+            layerGain.gain.value = 0.6 + li * 0.08;
+  
+            const panner = ctx.createStereoPanner();
+            panner.pan.value = (li / (PRIMES.length - 1) - 0.5) * 0.4;
+  
+            src.connect(layerGain);
+            layerGain.connect(panner);
+            panner.connect(gain);
+            src.start(ctx.currentTime + li * 0.13);
+            layers.push(src);
+          });
+  
+          const pseudo = ctx.createBufferSource();
+          (pseudo as any).__layers = layers;
+          sourceRef.current = pseudo;
+  
   }
 
   function play(type: 'white' | 'brown' | 'rain' | 'presence') {
@@ -125,94 +224,28 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         (pseudo as any).__layers = layers;
         sourceRef.current = pseudo;
       } else if (type === 'presence') {
-        const sr = ctx.sampleRate;
-        const DURATION = 120;
-        const PRIMES = [sr * DURATION + 1, sr * DURATION + 7, sr * DURATION + 11, sr * DURATION + 17, sr * DURATION + 23];
-        const layers: AudioBufferSourceNode[] = [];
+        // Try real audio file first, fall back to generated
+        try {
+          const audio = new Audio('/audio/presence.mp3');
+          audio.loop = true;
+          audio.volume = Math.min(volume * 3, 1.0);
 
-        PRIMES.forEach((bufLen, li) => {
-          const buf = ctx.createBuffer(2, bufLen, sr);
-          for (let ch = 0; ch < 2; ch++) {
-            const d = buf.getChannelData(ch);
-            let typingCluster = 0;
-            let clusterLen = 0;
-            let clusterGap = 0;
-            let breathPhase = Math.random() * Math.PI * 2;
-            let shiftPhase = Math.random() * Math.PI * 2;
+          audio.oncanplaythrough = () => {
+            audio.play().catch(() => {});
+            (sourceRef as any).__presenceAudio = audio;
+            console.log('[ambient] playing: presence (real audio file)');
+          };
 
-            for (let i = 0; i < bufLen; i++) {
-              const t = i / sr;
-              let sample = 0;
+          audio.onerror = () => {
+            console.log('[ambient] no presence.mp3 found, using generated sounds');
+            playGeneratedPresence(ctx, gain);
+          };
 
-              const roomFreq = 0.3 + li * 0.05;
-              sample += Math.sin(2 * Math.PI * roomFreq * t + li) * 0.004;
-
-              breathPhase += (2 * Math.PI * 0.2) / sr;
-              const breathEnv = (Math.sin(breathPhase) + 1) * 0.5;
-              sample += (Math.random() * 2 - 1) * breathEnv * 0.003;
-
-              if (i % Math.floor(sr * 8.7) === 0) {
-                shiftPhase = 0;
-              }
-              if (shiftPhase < sr * 0.4) {
-                const shiftEnv = Math.sin(Math.PI * shiftPhase / (sr * 0.4));
-                sample += (Math.random() * 2 - 1) * shiftEnv * 0.015;
-                shiftPhase++;
-              }
-
-              if (clusterGap > 0) {
-                clusterGap--;
-              } else if (typingCluster > 0) {
-                if (i % Math.floor(sr * (0.08 + Math.random() * 0.12)) === 0) {
-                  const keyLen = Math.floor(sr * 0.008);
-                  if (i + keyLen < bufLen) {
-                    for (let k = 0; k < keyLen; k++) {
-                      const env = Math.exp(-k / (sr * 0.003));
-                      d[i + k] += (Math.random() * 2 - 1) * env * 0.04;
-                    }
-                  }
-                  typingCluster--;
-                  if (typingCluster === 0) {
-                    clusterGap = Math.floor(sr * (2 + Math.random() * 10));
-                  }
-                }
-              } else if (Math.random() < 0.00003) {
-                typingCluster = Math.floor(5 + Math.random() * 25);
-                clusterLen = typingCluster;
-              }
-
-              if (Math.random() < 0.000001) {
-                const clickLen = Math.floor(sr * 0.005);
-                for (let k = 0; k < clickLen && i + k < bufLen; k++) {
-                  const env = Math.exp(-k / (sr * 0.002));
-                  d[i + k] += (Math.random() * 2 - 1) * env * 0.035;
-                }
-              }
-
-              d[i] += sample;
-            }
-          }
-
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-          src.loop = true;
-
-          const layerGain = ctx.createGain();
-          layerGain.gain.value = 0.6 + li * 0.08;
-
-          const panner = ctx.createStereoPanner();
-          panner.pan.value = (li / (PRIMES.length - 1) - 0.5) * 0.4;
-
-          src.connect(layerGain);
-          layerGain.connect(panner);
-          panner.connect(gain);
-          src.start(ctx.currentTime + li * 0.13);
-          layers.push(src);
-        });
-
-        const pseudo = ctx.createBufferSource();
-        (pseudo as any).__layers = layers;
-        sourceRef.current = pseudo;
+          audio.load();
+        } catch {
+          playGeneratedPresence(ctx, gain);
+        }
+        return;
       }
 
       console.log('[ambient] playing', type);

@@ -137,8 +137,8 @@ authRouter.get("/verify", async (req: Request, res: Response) => {
     const isProduction = process.env.NODE_ENV === "production";
     res.cookie("sh_session", session.id, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
       maxAge: 365 * 24 * 60 * 60 * 1000,
     });
 
@@ -213,8 +213,8 @@ authRouter.post("/magic-link/verify", async (req: Request, res: Response) => {
     const isProduction = process.env.NODE_ENV === "production";
     res.cookie("sh_session", session.id, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
       maxAge: 365 * 24 * 60 * 60 * 1000,
     });
 

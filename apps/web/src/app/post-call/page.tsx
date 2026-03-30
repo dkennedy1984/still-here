@@ -12,6 +12,20 @@ export default function PostCallPage() {
     setIsPaid(tier === 'paid');
   }, []);
 
+  const handleCallAgain = async () => {
+    try {
+      const style = localStorage.getItem('swy-presence') || 'quiet';
+      const voice = localStorage.getItem('swy-voice') || 'her';
+      const { startCall } = await import('../../lib/api');
+      const { callId, wsTicket } = await startCall(style, voice);
+      router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
+    } catch (err) {
+      console.error('Failed to start call:', err);
+      router.push('/');
+    }
+  };
+
+
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950">
       {/* Orb - shared FixedOrb at top 35% */}
@@ -26,7 +40,7 @@ export default function PostCallPage() {
               <p className="text-sm text-slate-400 mt-2">Take your time.</p>
 
               <button
-                onClick={() => router.push('/')}
+                onClick={handleCallAgain}
                 className="mt-8 px-20 py-5 rounded-full bg-white text-slate-900 text-xl font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150 shadow-lg shadow-white/10"
               >
                 Call again

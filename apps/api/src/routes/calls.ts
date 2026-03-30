@@ -148,8 +148,8 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
 function setSessionCookie(res: any, sessionId: string) {
   res.cookie("sh_session", sessionId, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax" as const,
+    secure: true,
+    sameSite: "none" as const,
     signed: true,
     maxAge: 1000 * 60 * 60 * 24 * 365, // 1 year
   });
