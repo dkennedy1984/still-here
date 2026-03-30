@@ -272,6 +272,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           };
 
           audio.onerror = () => {
+            if (!presenceAudioRef.current) return; // Already stopped, don't restart
             console.log('[ambient] no presence.mp3 found, using generated sounds');
             playGeneratedPresence(ctx, gain);
           };
@@ -335,10 +336,46 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
 
   function select(value: string) {
     console.log('[ambient] select called:', value);
-    userOverrideRef.current = true; // User has manually chosen a sound
-    stop(); // Stop current sound FIRST
+    userOverrideRef.current = true;
+
+    // Kill ALL audio by finding it in the DOM - no refs needed
+    const el = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+    if (el) {
+      console.log('[ambient] found presence audio in DOM, pausing');
+      el.pause();
+      el.currentTime = 0;
+      el.remove();
+    }
+    if ((window as any).__presenceAudio) {
+      console.log('[ambient] found presence audio on window, pausing');
+      (window as any).__presenceAudio.pause();
+      (window as any).__presenceAudio.currentTime = 0;
+      (window as any).__presenceAudio = null;
+    }
+    // Also try ref
+    if (presenceAudioRef.current) {
+      console.log('[ambient] found presence audio on ref, pausing');
+      presenceAudioRef.current.pause();
+      presenceAudioRef.current.currentTime = 0;
+      presenceAudioRef.current = null;
+    }
+    // Stop generated sounds
+    try {
+      const layers = (sourceRef.current as any)?.__layers;
+      if (layers) { layers.forEach((s: AudioBufferSourceNode) => { try { s.stop(); } catch {} }); }
+      if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
+    } catch {}
+    sourceRef.current = null;
+    if (gainRef.current) { try { gainRef.current.disconnect(); } catch {} }
+    gainRef.current = null;
+    // Clear fade
+    if (fadeIntervalRef.current) { clearInterval(fadeIntervalRef.current); fadeIntervalRef.current = null; }
+
+    console.log('[ambient] stopped all audio in select()');
+
     setActive(value);
     setShowMenu(false);
+
     if (value === 'off') return;
     play(value as any);
   }
