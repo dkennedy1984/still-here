@@ -69,10 +69,15 @@ function CallPageInner() {
   }, [state.status, router]);
 
   const handleScreenTap = useCallback(() => {
+    // Start presence sounds on first tap (ensures AudioContext is created in user gesture)
+    if (!ambientStarted && !hasStartedPresenceRef.current) {
+      hasStartedPresenceRef.current = true;
+      setAmbientStarted(true);
+    }
     setShowControls(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
     hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
-  }, []);
+  }, [ambientStarted]);
 
   const orbState: 'idle' | 'listening' | 'speaking' | 'greeting' = isAudioPlaying ? 'speaking'
     : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening'

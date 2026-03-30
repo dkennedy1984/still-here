@@ -33,6 +33,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }
 
   function play(type: 'white' | 'brown' | 'rain' | 'presence') {
+    console.log('[ambient] play called, type:', type);
     // Stop any existing playback
     stop();
 
@@ -43,6 +44,15 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       }
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       ctxRef.current = ctx;
+
+      // Resume AudioContext - may be suspended on mobile if not directly in user gesture chain
+      if (ctx.state === 'suspended') {
+        ctx.resume().then(() => {
+          console.log('[ambient] AudioContext resumed');
+        }).catch(() => {
+          console.log('[ambient] AudioContext resume failed');
+        });
+      }
 
       // Create gain node
       const gain = ctx.createGain();
@@ -165,7 +175,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         source.connect(gain);
         source.start(0);
         sourceRef.current = source;
-        console.log('[ambient] playing: presence');
+        console.log('[ambient] playing: presence, ctx state:', ctx.state);
         return;
       }
 
@@ -186,6 +196,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
 
       source.start(0);
       sourceRef.current = source;
+      console.log('[ambient] source started, ctx state:', ctx.state);
 
       // Handle the source ending unexpectedly
       source.onended = () => {
