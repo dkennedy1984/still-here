@@ -125,8 +125,8 @@ function CallPageInner() {
 
       {ambientStarted && (
         <AmbientNoise
-          sound={ambientSound}
-          presenceStyle={presenceStyle}
+          disabled={state.status === 'ended'}
+          externalSound={ambientSound}
         />
       )}
 
