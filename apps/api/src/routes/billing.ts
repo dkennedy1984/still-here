@@ -187,15 +187,28 @@ export async function billingWebhookHandler(req: Request, res: Response) {
             await sendEmail(
               email,
               "Welcome to Sit With You",
-              `<div style="font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Hi,</p>
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Thanks for choosing to sit with us. Your subscription is now active.</p>
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 0 0 24px;">You can start a call anytime at <a href="https://sitwithyou.app" style="color: #86efac; text-decoration: none;">sitwithyou.app</a></p>
-  <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 8px;"><strong style="color: #cbd5e1;">Manage your subscription</strong></p>
-  <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">You can update your payment details, change your plan, or cancel anytime from your <a href="${process.env.STRIPE_PORTAL_URL || 'https://billing.stripe.com/p/login/cNieVf4KSdgL5LD11s2VG00'}" style="color: #86efac; text-decoration: none;">subscription portal</a>.</p>
-  <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">For anything else, you can reach us at <a href="mailto:support@sitwithyou.app" style="color: #86efac; text-decoration: none;">support@sitwithyou.app</a></p>
-  <p style="color: #64748b; font-size: 12px; line-height: 1.6; margin: 24px 0 0; padding-top: 16px; border-top: 1px solid #1e293b;">By subscribing you agree to our <a href="https://sitwithyou.app/terms" style="color: #64748b;">Terms</a> and <a href="https://sitwithyou.app/privacy" style="color: #64748b;">Privacy Policy</a>.</p>
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 24px 0 0;">Take care,<br/>Sit With You</p>
+              `<div style="font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 0;">
+  <div style="background: #0f172a; padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+    <h1 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0;">Sit With You</h1>
+  </div>
+  <div style="background: #ffffff; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Hi,</p>
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Thanks for choosing to sit with us. Your subscription is now active.</p>
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 24px;">You can start a call anytime at <a href="https://sitwithyou.app" style="color: #16a34a; text-decoration: none; font-weight: 500;">sitwithyou.app</a></p>
+    
+    <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 0 0 24px;">
+      <p style="color: #374151; font-size: 14px; font-weight: 600; margin: 0 0 8px;">Manage your subscription</p>
+      <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0;">Update payment, change plan, or cancel anytime from your <a href="${process.env.STRIPE_PORTAL_URL || 'https://billing.stripe.com/p/login/cNieVf4KSdgL5LD11s2VG00'}" style="color: #16a34a; text-decoration: none; font-weight: 500;">subscription portal</a>.</p>
+    </div>
+    
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0 0 24px;">For anything else, reach us at <a href="mailto:support@sitwithyou.app" style="color: #16a34a; text-decoration: none;">support@sitwithyou.app</a></p>
+    
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0;">Take care,<br/>Sit With You</p>
+    
+    <div style="border-top: 1px solid #e5e7eb; margin-top: 24px; padding-top: 16px;">
+      <p style="color: #9ca3af; font-size: 12px; line-height: 1.5; margin: 0;">By subscribing you agree to our <a href="https://sitwithyou.app/terms" style="color: #9ca3af; text-decoration: underline;">Terms of Service</a> and <a href="https://sitwithyou.app/privacy" style="color: #9ca3af; text-decoration: underline;">Privacy Policy</a>.</p>
+    </div>
+  </div>
 </div>`
             ).catch(err => console.error("[email] welcome email failed:", err));
           }
@@ -263,12 +276,17 @@ export async function billingWebhookHandler(req: Request, res: Response) {
           await sendEmail(
             session.email,
             "Your Sit With You subscription",
-            `<div style="font-family: -apple-system, system-ui, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Hi,</p>
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Your subscription has ended. You can still use Sit With You with free sessions.</p>
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 0 0 24px;">If you'd like to come back, you can resubscribe anytime at <a href="https://sitwithyou.app/upgrade" style="color: #86efac; text-decoration: none;">sitwithyou.app/upgrade</a></p>
-  <p style="color: #94a3b8; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">If you have any questions, reach us at <a href="mailto:support@sitwithyou.app" style="color: #86efac; text-decoration: none;">support@sitwithyou.app</a></p>
-  <p style="color: #e2e8f0; font-size: 16px; line-height: 1.6; margin: 24px 0 0;">Take care,<br/>Sit With You</p>
+            `<div style="font-family: -apple-system, system-ui, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto; padding: 0;">
+  <div style="background: #0f172a; padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+    <h1 style="color: #ffffff; font-size: 20px; font-weight: 600; margin: 0;">Sit With You</h1>
+  </div>
+  <div style="background: #ffffff; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Hi,</p>
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 16px;">Your subscription has ended. You can still use Sit With You with free sessions.</p>
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0 0 24px;">If you'd like to come back, you can resubscribe anytime at <a href="https://sitwithyou.app/upgrade" style="color: #16a34a; text-decoration: none; font-weight: 500;">sitwithyou.app/upgrade</a></p>
+    <p style="color: #6b7280; font-size: 14px; line-height: 1.5; margin: 0 0 24px;">For any questions, reach us at <a href="mailto:support@sitwithyou.app" style="color: #16a34a; text-decoration: none;">support@sitwithyou.app</a></p>
+    <p style="color: #1f2937; font-size: 16px; line-height: 1.6; margin: 0;">Take care,<br/>Sit With You</p>
+  </div>
 </div>`
           ).catch((err) =>
             console.error("[email] cancellation email failed:", err)
