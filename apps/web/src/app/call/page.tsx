@@ -47,8 +47,12 @@ function CallPageInner() {
   });
 
   const handleHangup = useCallback(() => {
+    // Stop ALL audio immediately before navigating
+    document.querySelectorAll('audio').forEach(function(a) {
+      a.pause();
+      a.currentTime = 0;
+    });
     hangup();
-    // Navigate after a single frame to allow cleanup to start
     requestAnimationFrame(() => {
       router.push('/post-call');
     });

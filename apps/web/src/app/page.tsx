@@ -32,6 +32,7 @@ function HomePageContent() {
   const [presenceStyle, setPresenceStyle] = useState<"silent" | "check-ins" | "talk">("check-ins");
   const [voice, setVoice] = useState<'her' | 'him'>('her');
   const callingRef = useRef(false);
+  const tierChecked = useRef(false);
   const [scrolled, setScrolled] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
   const [showFirstCall, setShowFirstCall] = useState(false);
@@ -51,12 +52,17 @@ function HomePageContent() {
   }, []);
 
   useEffect(() => {
+    if (tierChecked.current) return;
+    tierChecked.current = true;
     fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/v1/calls/tier', {
       credentials: 'include',
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('tier check failed');
+        return res.json();
+      })
       .then(data => setIsPaid(data.tier === 'paid'))
-      .catch(() => {});
+      .catch(() => setIsPaid(false));
   }, []);
 
   useEffect(() => {

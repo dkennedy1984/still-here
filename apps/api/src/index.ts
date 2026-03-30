@@ -62,6 +62,7 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/sessions", sessionRouter);
 app.use("/api/v1/calls", callRouter);
 app.use("/api/billing", billingRouter);
+console.log('[routes] calls router mounted at: /api/v1/calls');
 
 // Error handler
 app.use(errorHandler);

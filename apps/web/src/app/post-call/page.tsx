@@ -1,23 +1,32 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FixedOrb } from '../../components/FixedOrb';
 
 export default function PostCallPage() {
   const router = useRouter();
   const [isPaid, setIsPaid] = useState(false);
   const [loading, setLoading] = useState(true);
+  const tierChecked = useRef(false);
 
   useEffect(() => {
+    if (tierChecked.current) return;
+    tierChecked.current = true;
     fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/v1/calls/tier', {
       credentials: 'include',
     })
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('tier check failed');
+        return res.json();
+      })
       .then(data => {
         setIsPaid(data.tier === 'paid');
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setIsPaid(false);
+        setLoading(false);
+      });
   }, []);
 
   const handleCallAgain = async () => {
