@@ -173,8 +173,8 @@ function HomePageContent() {
 
       {/* Scroll hint */}
       {showScrollHint && !scrolled && (
-        <div className="fixed left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 animate-bounce-slow transition-opacity duration-500"
-             style={{ bottom: '3svh', zIndex: 25, opacity: 0.35 }}>
+        <div className="fixed left-0 right-0 flex justify-center items-center gap-1 animate-bounce-slow transition-opacity duration-500"
+             style={{ bottom: '3svh', zIndex: 25, opacity: 0.45 }}>
           <span style={{ color: '#64748b', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Scroll</span>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="1.5">
             <path d="M7 10l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
