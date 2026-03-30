@@ -29,6 +29,7 @@ function CallPageInner() {
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasConnected = useRef(false);
   const hasSentInitialStyle = useRef(false);
+  const hasStoppedAudio = useRef(false);
 
   const { state, hangup, changeStyle } = useAudioSession({
     callId,
@@ -48,35 +49,43 @@ function CallPageInner() {
 
   const stopAllAudio = useCallback(() => {
     // Stop by DOM ID
-    const pa = document.getElementById('swy-presence-audio') as HTMLAudioElement;
-    if (pa) { pa.pause(); pa.currentTime = 0; pa.remove(); }
+    try {
+      const pa = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+      if (pa) { pa.pause(); pa.currentTime = 0; pa.remove(); }
+    } catch {}
 
     // Stop by global ref
-    if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
-      (window as any).__presenceAudio.pause();
-      (window as any).__presenceAudio.currentTime = 0;
-      (window as any).__presenceAudio = null;
-    }
-
-    // Stop ALL audio elements in DOM
-    document.querySelectorAll('audio').forEach(a => {
-      (a as HTMLAudioElement).pause();
-      (a as HTMLAudioElement).currentTime = 0;
-    });
-
-    // Close ALL AudioContexts
-    if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
-      const ctx = (window as any).__ambientCtx;
-      if (ctx.state !== 'closed') {
-        try { ctx.close(); } catch {}
+    try {
+      if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
+        (window as any).__presenceAudio.pause();
+        (window as any).__presenceAudio.currentTime = 0;
+        (window as any).__presenceAudio = null;
       }
-      (window as any).__ambientCtx = null;
-    }
+    } catch {}
+
+    // Stop ALL audio elements
+    try {
+      document.querySelectorAll('audio').forEach(a => {
+        try { (a as HTMLAudioElement).pause(); (a as HTMLAudioElement).currentTime = 0; } catch {}
+      });
+    } catch {}
+
+    // Close AudioContext - CHECK STATE FIRST
+    try {
+      if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
+        const ctx = (window as any).__ambientCtx;
+        if (ctx && ctx.state && ctx.state !== 'closed') {
+          ctx.close().catch(() => {});
+        }
+        (window as any).__ambientCtx = null;
+      }
+    } catch {}
 
     console.log('[audio] all audio stopped');
   }, []);
 
   const handleHangup = useCallback(() => {
+    hasStoppedAudio.current = true;
     stopAllAudio();
     hangup();
     requestAnimationFrame(() => router.push('/post-call'));
@@ -91,7 +100,9 @@ function CallPageInner() {
   }, [state.status, presenceStyle, changeStyle]);
 
   useEffect(() => {
-    if (wasConnected.current && state.status === 'ended') {
+    if (state.status === 'connected') wasConnected.current = true;
+    if (state.status === 'ended' && wasConnected.current && !hasStoppedAudio.current) {
+      hasStoppedAudio.current = true;
       stopAllAudio();
       router.push('/post-call');
     }
