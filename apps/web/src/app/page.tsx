@@ -36,6 +36,12 @@ function HomePageContent() {
   const [scrolled, setScrolled] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
   const [showFirstCall, setShowFirstCall] = useState(false);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowScrollHint(false), 8000);
+    return () => clearTimeout(t);
+  }, []);
 
   const searchParams = useSearchParams();
   const upgraded = searchParams?.get('upgraded') === 'true';
