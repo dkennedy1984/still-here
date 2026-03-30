@@ -37,18 +37,15 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
 
   function play(type: 'white' | 'brown' | 'rain' | 'presence') {
     console.log('[ambient] play called, type:', type);
-    // Stop any existing playback
     stop();
 
     try {
-      // Always create a fresh AudioContext on user gesture (the button click)
       if (ctxRef.current) {
         ctxRef.current.close().catch(() => {});
       }
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       ctxRef.current = ctx;
 
-      // Resume AudioContext - may be suspended on mobile if not directly in user gesture chain
       if (ctx.state === 'suspended') {
         ctx.resume().then(() => {
           console.log('[ambient] AudioContext resumed');
@@ -57,198 +54,171 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         });
       }
 
-      // Create gain node
       const gain = ctx.createGain();
-      // Presence needs higher gain since the generated sounds are subtle
-      if (type === 'presence') {
-        gain.gain.value = Math.min(volume * 8, 1.0); // 8x normal gain, capped at 1.0
-      } else {
-        gain.gain.value = volume;
-      }
+      gain.gain.value = volume;
       gain.connect(ctx.destination);
       gainRef.current = gain;
 
-      // Generate noise buffer
-      const bufferSize = ctx.sampleRate * 2;
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-
       if (type === 'white') {
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-      } else if (type === 'brown') {
-        let last = 0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          data[i] = (last + 0.02 * white) / 1.02;
-          last = data[i];
-        }
-        let max = 0;
-        for (let i = 0; i < bufferSize; i++) {
-          const abs = Math.abs(data[i]);
-          if (abs > max) max = abs;
-        }
-        if (max > 0) for (let i = 0; i < bufferSize; i++) data[i] /= max;
-      } else if (type === 'rain') {
-        let last = 0;
-        for (let i = 0; i < bufferSize; i++) {
-          const white = Math.random() * 2 - 1;
-          data[i] = (last + 0.04 * white) / 1.04;
-          last = data[i];
-          if (Math.random() < 0.001) data[i] += (Math.random() - 0.5) * 0.3;
-        }
-      }
-
-      if (type === 'presence') {
-        try {
-          const layers: AudioBufferSourceNode[] = [];
-          const sr = ctx.sampleRate;
-          
-          // Layer 1: Room tone (7 seconds)
-          const rt = ctx.createBuffer(1, sr * 7, sr);
-          const rtL = rt.getChannelData(0);
-          let rL = 0;
-          for (let i = 0; i < sr * 7; i++) {
-            rL = (rL + 0.008 * (Math.random() * 2 - 1)) / 1.008;
-            rtL[i] = rL;
-          }
-          const rtSrc = ctx.createBufferSource();
-          rtSrc.buffer = rt; rtSrc.loop = true;
-          const rtG = ctx.createGain(); rtG.gain.value = 0.08;
-          rtSrc.connect(rtG); rtG.connect(gain); rtSrc.start(0);
-          layers.push(rtSrc);
-          
-          // Layer 2: Keyboard typing clusters (11 seconds)
-          const kb = ctx.createBuffer(1, sr * 11, sr);
-          const kbL = kb.getChannelData(0);
-          let kPos = Math.floor(sr * (0.5 + Math.random() * 2));
-          while (kPos < sr * 11 - sr) {
-            const keys = 2 + Math.floor(Math.random() * 6);
-            for (let k = 0; k < keys && kPos < sr * 11; k++) {
-              const len = Math.floor(sr * (0.008 + Math.random() * 0.008));
-              const vol = 0.15 + Math.random() * 0.1;
-              const pitch = 800 + Math.random() * 2000;
-              for (let s = 0; s < len && (kPos + s) < sr * 11; s++) {
-                const env = Math.exp(-s / (len * 0.12));
-                const sample = ((Math.random() * 2 - 1) * 0.7 + Math.sin(s / sr * 2 * Math.PI * pitch) * 0.3) * env * vol;
-                kbL[kPos + s] += sample;
-              }
-              kPos += Math.floor(sr * (0.06 + Math.random() * 0.12));
-            }
-            kPos += Math.floor(sr * (1.5 + Math.random() * 4));
-          }
-          const kbSrc = ctx.createBufferSource();
-          kbSrc.buffer = kb; kbSrc.loop = true;
-          const kbG = ctx.createGain(); kbG.gain.value = 0.35;
-          kbSrc.connect(kbG); kbG.connect(gain); kbSrc.start(0);
-          layers.push(kbSrc);
-          
-          // Layer 3: Movement/rustle (13 seconds)
-          const mv = ctx.createBuffer(1, sr * 13, sr);
-          const mvL = mv.getChannelData(0);
-          let mPos = Math.floor(sr * (3 + Math.random() * 4));
-          while (mPos < sr * 13 - sr) {
-            const len = Math.floor(sr * (0.2 + Math.random() * 0.4));
-            const vol = 0.05 + Math.random() * 0.03;
-            for (let s = 0; s < len && (mPos + s) < sr * 13; s++) {
-              const env = Math.sin((s / len) * Math.PI);
-              const sample = (Math.sin(s / sr * 2 * Math.PI * (40 + Math.random() * 30)) * 0.6 + (Math.random() * 2 - 1) * 0.4) * env * vol;
-              mvL[mPos + s] += sample;
-            }
-            mPos += Math.floor(sr * (4 + Math.random() * 6));
-          }
-          const mvSrc = ctx.createBufferSource();
-          mvSrc.buffer = mv; mvSrc.loop = true;
-          const mvG = ctx.createGain(); mvG.gain.value = 0.4;
-          mvSrc.connect(mvG); mvG.connect(gain); mvSrc.start(0);
-          layers.push(mvSrc);
-          
-          // Layer 4: Mouse clicks + cup sounds (17 seconds)
-          const mc = ctx.createBuffer(1, sr * 17, sr);
-          const mcL = mc.getChannelData(0);
-          // Mouse clicks
-          let cPos = Math.floor(sr * (3 + Math.random() * 5));
-          while (cPos < sr * 17 - sr) {
-            const len = Math.floor(sr * 0.005);
-            const vol = 0.12;
-            for (let s = 0; s < len && (cPos + s) < sr * 17; s++) {
-              const env = Math.exp(-s / (len * 0.08));
-              const sample = (Math.random() * 2 - 1) * env * vol;
-              mcL[cPos + s] += sample;
-            }
-            if (Math.random() < 0.3) {
-              cPos += Math.floor(sr * 0.08);
-              for (let s = 0; s < len && (cPos + s) < sr * 17; s++) {
-                const env = Math.exp(-s / (len * 0.08));
-                mcL[cPos + s] += (Math.random() * 2 - 1) * env * vol * 0.9;
-              }
-            }
-            cPos += Math.floor(sr * (5 + Math.random() * 8));
-          }
-          // One cup set-down
-          const cupPos = Math.floor(sr * (8 + Math.random() * 6));
-          if (cupPos < sr * 17 - sr) {
-            const cupLen = Math.floor(sr * 0.06);
-            for (let s = 0; s < cupLen && (cupPos + s) < sr * 17; s++) {
-              const env = Math.exp(-s / (cupLen * 0.15));
-              const sample = (Math.sin(s / sr * 2 * Math.PI * 150) * 0.7 + Math.sin(s / sr * 2 * Math.PI * 1200) * env * 0.3) * env * 0.05;
-              mcL[cupPos + s] += sample;
-            }
-          }
-          const mcSrc = ctx.createBufferSource();
-          mcSrc.buffer = mc; mcSrc.loop = true;
-          const mcG = ctx.createGain(); mcG.gain.value = 0.35;
-          mcSrc.connect(mcG); mcG.connect(gain); mcSrc.start(0);
-          layers.push(mcSrc);
-          
-          // Store all layers for cleanup
-          sourceRef.current = rtSrc;
-          (sourceRef.current as any).__layers = layers;
-          
-          console.log('[ambient] playing: presence (4 mono layers)');
-        } catch (err) {
-          console.error('[ambient] presence buffer error:', err);
-        }
-        return;
-      }
-
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-
-      // Apply low-pass filter for white noise to avoid mic interference
-      if (type === 'white') {
-        const filter = ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 250;
-        source.connect(filter);
-        filter.connect(gain);
-      } else {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
         source.connect(gain);
+        source.start();
+        sourceRef.current = source;
+      } else if (type === 'brown') {
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let last = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const w = Math.random() * 2 - 1;
+          last = (last + 0.02 * w) / 1.02;
+          data[i] = last * 3.5;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        source.connect(gain);
+        source.start();
+        sourceRef.current = source;
+      } else if (type === 'rain') {
+        const sr = ctx.sampleRate;
+        const PRIMES = [32771, 32779, 32783];
+        const layers: AudioBufferSourceNode[] = [];
+
+        PRIMES.forEach((prime, li) => {
+          const buf = ctx.createBuffer(2, prime, sr);
+          for (let ch = 0; ch < 2; ch++) {
+            const d = buf.getChannelData(ch);
+            let env = 0;
+            for (let i = 0; i < prime; i++) {
+              const r = Math.random();
+              if (r > 0.9985) env = 0.6 + Math.random() * 0.4;
+              else env *= 0.997;
+              d[i] = (Math.random() * 2 - 1) * env * 0.5;
+              d[i] += (Math.random() * 2 - 1) * 0.06;
+            }
+          }
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+
+          const layerGain = ctx.createGain();
+          layerGain.gain.value = li === 0 ? 1.0 : 0.5 + li * 0.2;
+
+          const panner = ctx.createStereoPanner();
+          panner.pan.value = (li - 1) * 0.3;
+
+          src.connect(layerGain);
+          layerGain.connect(panner);
+          panner.connect(gain);
+          src.start(ctx.currentTime + li * 0.05);
+          layers.push(src);
+        });
+
+        const pseudo = ctx.createBufferSource();
+        (pseudo as any).__layers = layers;
+        sourceRef.current = pseudo;
+      } else if (type === 'presence') {
+        const sr = ctx.sampleRate;
+        const DURATION = 120;
+        const PRIMES = [sr * DURATION + 1, sr * DURATION + 7, sr * DURATION + 11, sr * DURATION + 17, sr * DURATION + 23];
+        const layers: AudioBufferSourceNode[] = [];
+
+        PRIMES.forEach((bufLen, li) => {
+          const buf = ctx.createBuffer(2, bufLen, sr);
+          for (let ch = 0; ch < 2; ch++) {
+            const d = buf.getChannelData(ch);
+            let typingCluster = 0;
+            let clusterLen = 0;
+            let clusterGap = 0;
+            let breathPhase = Math.random() * Math.PI * 2;
+            let shiftPhase = Math.random() * Math.PI * 2;
+
+            for (let i = 0; i < bufLen; i++) {
+              const t = i / sr;
+              let sample = 0;
+
+              const roomFreq = 0.3 + li * 0.05;
+              sample += Math.sin(2 * Math.PI * roomFreq * t + li) * 0.004;
+
+              breathPhase += (2 * Math.PI * 0.2) / sr;
+              const breathEnv = (Math.sin(breathPhase) + 1) * 0.5;
+              sample += (Math.random() * 2 - 1) * breathEnv * 0.003;
+
+              if (i % Math.floor(sr * 8.7) === 0) {
+                shiftPhase = 0;
+              }
+              if (shiftPhase < sr * 0.4) {
+                const shiftEnv = Math.sin(Math.PI * shiftPhase / (sr * 0.4));
+                sample += (Math.random() * 2 - 1) * shiftEnv * 0.015;
+                shiftPhase++;
+              }
+
+              if (clusterGap > 0) {
+                clusterGap--;
+              } else if (typingCluster > 0) {
+                if (i % Math.floor(sr * (0.08 + Math.random() * 0.12)) === 0) {
+                  const keyLen = Math.floor(sr * 0.008);
+                  if (i + keyLen < bufLen) {
+                    for (let k = 0; k < keyLen; k++) {
+                      const env = Math.exp(-k / (sr * 0.003));
+                      d[i + k] += (Math.random() * 2 - 1) * env * 0.04;
+                    }
+                  }
+                  typingCluster--;
+                  if (typingCluster === 0) {
+                    clusterGap = Math.floor(sr * (2 + Math.random() * 10));
+                  }
+                }
+              } else if (Math.random() < 0.00003) {
+                typingCluster = Math.floor(5 + Math.random() * 25);
+                clusterLen = typingCluster;
+              }
+
+              if (Math.random() < 0.000001) {
+                const clickLen = Math.floor(sr * 0.005);
+                for (let k = 0; k < clickLen && i + k < bufLen; k++) {
+                  const env = Math.exp(-k / (sr * 0.002));
+                  d[i + k] += (Math.random() * 2 - 1) * env * 0.035;
+                }
+              }
+
+              d[i] += sample;
+            }
+          }
+
+          const src = ctx.createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+
+          const layerGain = ctx.createGain();
+          layerGain.gain.value = 0.6 + li * 0.08;
+
+          const panner = ctx.createStereoPanner();
+          panner.pan.value = (li / (PRIMES.length - 1) - 0.5) * 0.4;
+
+          src.connect(layerGain);
+          layerGain.connect(panner);
+          panner.connect(gain);
+          src.start(ctx.currentTime + li * 0.13);
+          layers.push(src);
+        });
+
+        const pseudo = ctx.createBufferSource();
+        (pseudo as any).__layers = layers;
+        sourceRef.current = pseudo;
       }
 
-      source.start(0);
-      sourceRef.current = source;
-      console.log('[ambient] source started, ctx state:', ctx.state);
-
-      // Handle the source ending unexpectedly
-      source.onended = () => {
-        console.log('[ambient] source ended unexpectedly');
-      };
-
-      console.log('[ambient] playing:', type);
-    } catch (err) {
-      console.error('[ambient] play error:', err);
+      console.log('[ambient] playing', type);
+    } catch (e) {
+      console.error('[ambient] play error', e);
     }
-  }
-
-  function select(value: string) {
-    setActive(value);
-    setShowMenu(false);
-    if (value === 'off') {
-      stop();
-      return;
-    }
-    play(value as 'white' | 'brown' | 'rain' | 'presence');
   }
 
   useEffect(() => {
@@ -258,119 +228,102 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, [volume]);
 
   useEffect(() => {
-    if (disabled) {
-      stop();
+    if (externalSound === undefined) return;
+    if (externalSound === 'off' || externalSound === '') {
       setActive('off');
-    }
-  }, [disabled]);
-
-  useEffect(() => {
-    if (externalSound && externalSound !== active) {
-      select(externalSound);
+      stop();
+    } else {
+      setActive(externalSound);
+      play(externalSound as any);
     }
   }, [externalSound]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stop();
-      if (ctxRef.current) {
-        ctxRef.current.close().catch(() => {});
-      }
+      ctxRef.current?.close().catch(() => {});
     };
   }, []);
 
-  const activeLabel = AMBIENT_OPTIONS.find(o => o.value === active)?.label ?? 'Off';
-
-  function getOptBtnStyle(isActive: boolean): React.CSSProperties {
-    return {
-      display: 'block',
-      width: '100%',
-      textAlign: 'left',
-      background: isActive ? 'rgba(255,255,255,0.12)' : 'transparent',
-      border: 'none',
-      color: '#fff',
-      padding: '8px 12px',
-      borderRadius: 6,
-      cursor: 'pointer',
-      fontSize: 13,
-    };
+  function select(value: string) {
+    setActive(value);
+    setShowMenu(false);
+    if (value === 'off') { stop(); return; }
+    play(value as any);
   }
-  const wrapStyle: React.CSSProperties = { position: 'relative', display: 'inline-block' };
-  const btnStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.08)',
-    border: '1px solid rgba(255,255,255,0.15)',
-    borderRadius: 8,
-    color: '#fff',
-    padding: '6px 12px',
-    fontSize: 13,
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-  };
-  const menuStyle: React.CSSProperties = {
-    position: 'absolute',
-    bottom: '110%',
-    left: 0,
-    background: '#1a1a2e',
-    border: '1px solid rgba(255,255,255,0.15)',
-    borderRadius: 10,
-    padding: 8,
-    minWidth: 160,
-    zIndex: 100,
-  };
-  const dividerStyle: React.CSSProperties = {
-    borderTop: '1px solid rgba(255,255,255,0.1)',
-    marginTop: 8,
-    paddingTop: 8,
-  };
-  const labelStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 11,
-    display: 'block',
-    marginBottom: 4,
-  };
-  const sliderStyle: React.CSSProperties = { width: '100%', accentColor: '#a78bfa' };
 
   return (
-    <div style={wrapStyle} className={className}>
-      <button
-        onClick={() => setShowMenu(prev => !prev)}
-        style={btnStyle}
-      >
-        <span>&#127911;</span>
-        <span>{activeLabel}</span>
-      </button>
+    <>
+      {/* The trigger button (always visible) */}
+      <div className={className || ''}>
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowMenu(true); }}
+          className="text-xs text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          {active === 'off' ? '♫ Off' : `♫ ${AMBIENT_OPTIONS.find(o => o.value === active)?.label || 'Off'}`}
+        </button>
+      </div>
 
+      {/* The bottom sheet (shown when showMenu is true) */}
       {showMenu && (
-        <div style={menuStyle}>
-          {AMBIENT_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => select(opt.value)}
-              style={getOptBtnStyle(active === opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div
+          className="fixed inset-0 bg-black/60 flex items-end justify-center backdrop-blur-sm z-[100]"
+          onClick={() => setShowMenu(false)}
+        >
+          <div
+            className="w-full max-w-md bg-slate-900 rounded-t-2xl px-6 pt-6 pb-10 border-t border-white/5"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-base font-medium text-white text-center mb-6">Background sounds</h2>
 
-          <div style={dividerStyle}>
-            <label style={labelStyle}>
-              Volume
-            </label>
-            <input
-              type="range"
-              min={0}
-              max={0.5}
-              step={0.05}
-              value={volume}
-              onChange={e => setVolume(parseFloat(e.target.value))}
-              style={sliderStyle}
-            />
+            <div className="flex flex-col gap-3 mb-6">
+              {AMBIENT_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => select(opt.value)}
+                  className={`text-left px-4 py-3 rounded-xl transition-all ${
+                    active === opt.value
+                      ? 'bg-white/5 border border-white ring-1 ring-white/10'
+                      : 'bg-slate-800/50 border border-slate-700 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="text-sm text-white">{opt.label}</span>
+                  <span className="block text-xs text-slate-400 mt-0.5">
+                    {opt.value === 'off' && 'Complete silence.'}
+                    {opt.value === 'presence' && 'Quiet sounds of someone nearby.'}
+                    {opt.value === 'rain' && 'Gentle rain falling.'}
+                    {opt.value === 'white' && 'Soft, steady background hum.'}
+                    {opt.value === 'brown' && 'Deep, warm background tone.'}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {active !== 'off' && (
+              <div className="flex items-center gap-3 mb-6 px-1">
+                <span className="text-xs text-slate-500">Quiet</span>
+                <input
+                  type="range"
+                  min="0.02"
+                  max="0.5"
+                  step="0.01"
+                  value={volume}
+                  onChange={e => setVolume(parseFloat(e.target.value))}
+                  className="flex-1 h-1 accent-white/40"
+                />
+                <span className="text-xs text-slate-500">Loud</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowMenu(false)}
+              className="w-full py-3 rounded-full bg-slate-800 text-slate-400 text-sm hover:bg-slate-700 transition-all"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
