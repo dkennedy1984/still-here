@@ -334,6 +334,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, []);
 
   function select(value: string) {
+    console.log('[ambient] select called:', value);
     userOverrideRef.current = true; // User has manually chosen a sound
     stop(); // Stop current sound FIRST
     setActive(value);
@@ -382,7 +383,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
               {AMBIENT_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
-                  onClick={() => select(opt.value)}
+                  onClick={(e) => { e.stopPropagation(); console.log('[ambient] option clicked:', opt.value); select(opt.value); }}
                   className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all ${
                     active === opt.value
                       ? 'bg-slate-700 text-white'
