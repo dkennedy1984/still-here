@@ -5,10 +5,55 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Sit With You — Quiet body doubling for when starting is hard",
+  metadataBase: new URL("https://sitwithyou.app"),
+  title: {
+    default: "Sit With You — Quiet body doubling for when starting is hard",
+    template: "%s — Sit With You",
+  },
   description:
     "Quiet company when you need it. Sit With You lets you call for presence and start gently — no pressure, no productivity talk.",
-  alternates: { canonical: "https://sitwithyou.app" },
+  keywords: [
+    "body doubling",
+    "ADHD",
+    "executive function",
+    "virtual body doubling",
+    "focus",
+    "neurodivergent",
+    "quiet company",
+    "task initiation",
+  ],
+  authors: [{ name: "Sit With You" }],
+  openGraph: {
+    type: "website",
+    locale: "en_GB",
+    url: "https://sitwithyou.app",
+    siteName: "Sit With You",
+    title: "Sit With You — Quiet body doubling for when starting is hard",
+    description:
+      "Quiet company when you need it. Call for presence and start gently — no pressure, no productivity talk.",
+    images: [
+      {
+        url: "/branding/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Sit With You — quiet body doubling",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Sit With You — Quiet body doubling for when starting is hard",
+    description:
+      "Quiet company when you need it. No pressure, no productivity talk.",
+    images: ["/branding/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: "https://sitwithyou.app",
+  },
 };
 
 export const viewport: Viewport = {

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /call
+Disallow: /post-call
+Disallow: /api/
+
+Sitemap: https://sitwithyou.app/sitemap.xml
