@@ -272,6 +272,13 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, [externalSound]);
 
   useEffect(() => {
+    if (disabled) {
+      stop();
+      setActive('off');
+    }
+  }, [disabled]);
+
+  useEffect(() => {
     return () => {
       stop();
       ctxRef.current?.close().catch(() => {});
