@@ -18,7 +18,7 @@ interface AmbientNoiseProps {
 export function AmbientNoise({ disabled = false, externalSound, className }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
-  const [volume, setVolume] = useState(0.15);
+  const [volume, setVolume] = useState(0.25);
 
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
@@ -228,7 +228,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         try {
           const audio = new Audio('/audio/presence.mp3');
           audio.loop = true;
-          audio.volume = Math.min(volume * 3, 1.0);
+          audio.volume = Math.min(volume * 5, 1.0);
 
           audio.oncanplaythrough = () => {
             audio.play().catch(() => {});
