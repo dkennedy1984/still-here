@@ -96,91 +96,162 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       }
 
       if (type === 'presence') {
-        // Create a longer, more natural presence soundscape
-        const duration = 30; // 30 second loop for more variety
-        const bufferSize = ctx.sampleRate * duration;
-        const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate); // stereo for spatial feel
+        const duration = 120; // 2 minute loop — much less repetitive
+        const sr = ctx.sampleRate;
+        const bufferSize = sr * duration;
+        const buffer = ctx.createBuffer(2, bufferSize, sr);
         const left = buffer.getChannelData(0);
         const right = buffer.getChannelData(1);
-
-        // 1. Very subtle room tone (constant, barely there)
+        
+        // 1. Room tone — very subtle filtered brown noise
         let roomL = 0, roomR = 0;
         for (let i = 0; i < bufferSize; i++) {
-          roomL = (roomL + 0.005 * (Math.random() * 2 - 1)) / 1.005;
-          roomR = (roomR + 0.005 * (Math.random() * 2 - 1)) / 1.005;
-          left[i] = roomL * 0.02;
-          right[i] = roomR * 0.02;
+          roomL = (roomL + 0.008 * (Math.random() * 2 - 1)) / 1.008;
+          roomR = (roomR + 0.008 * (Math.random() * 2 - 1)) / 1.008;
+          left[i] = roomL * 0.015;
+          right[i] = roomR * 0.015;
         }
-
-        // 2. Soft keyboard-like taps (very quiet, realistic timing)
-        // Clusters of 3-8 rapid taps with pauses between
-        let pos = ctx.sampleRate * 2; // start after 2 seconds
-        while (pos < bufferSize - ctx.sampleRate) {
-          // Random pause between typing clusters (3-12 seconds)
-          pos += Math.floor(ctx.sampleRate * (3 + Math.random() * 9));
+        
+        // 2. Keyboard typing — realistic clusters with varied rhythm
+        let pos = sr * (1 + Math.random() * 3);
+        while (pos < bufferSize - sr * 2) {
+          // Gap between typing sessions (5-20 seconds)
+          pos += Math.floor(sr * (5 + Math.random() * 15));
           if (pos >= bufferSize) break;
-
-          // Typing cluster: 2-6 taps
-          const numTaps = 2 + Math.floor(Math.random() * 5);
-          for (let tap = 0; tap < numTaps; tap++) {
-            if (pos >= bufferSize) break;
-            const tapLen = Math.floor(ctx.sampleRate * 0.012); // 12ms tap
-            const tapVol = 0.06 + Math.random() * 0.04; // vary volume
-            const pan = 0.3 + Math.random() * 0.4; // slightly right of centre
-
-            for (let s = 0; s < tapLen && (pos + s) < bufferSize; s++) {
-              const env = Math.exp(-s / (tapLen * 0.2)); // sharp attack, quick decay
-              const noise = (Math.random() * 2 - 1) * env * tapVol;
-              left[pos + s] += noise * (1 - pan);
-              right[pos + s] += noise * pan;
+          
+          // Each session: 1-4 words worth of typing
+          const words = 1 + Math.floor(Math.random() * 4);
+          for (let w = 0; w < words; w++) {
+            // Each word: 2-8 keystrokes
+            const keys = 2 + Math.floor(Math.random() * 7);
+            for (let k = 0; k < keys; k++) {
+              if (pos >= bufferSize) break;
+              
+              // Individual keystroke — short click with resonance
+              const clickLen = Math.floor(sr * (0.008 + Math.random() * 0.008));
+              const clickVol = 0.03 + Math.random() * 0.03;
+              const pitch = 800 + Math.random() * 2000; // vary pitch per key
+              const pan = 0.55 + Math.random() * 0.15; // mostly right (typing position)
+              
+              for (let s = 0; s < clickLen && (pos + s) < bufferSize; s++) {
+                const env = Math.exp(-s / (clickLen * 0.12));
+                // Mix of click (noise) and tone (resonance)
+                const click = (Math.random() * 2 - 1) * 0.7;
+                const tone = Math.sin(s / sr * 2 * Math.PI * pitch) * 0.3;
+                const sample = (click + tone) * env * clickVol;
+                left[pos + s] += sample * (1 - pan);
+                right[pos + s] += sample * pan;
+              }
+              
+              // Gap between keystrokes (50-180ms, varied like real typing)
+              const baseGap = 0.06 + Math.random() * 0.1;
+              // Occasionally longer pause (thinking between words)
+              const pause = Math.random() < 0.15 ? 0.3 + Math.random() * 0.4 : 0;
+              pos += Math.floor(sr * (baseGap + pause));
             }
-            // Gap between taps (80-200ms, like real typing speed)
-            pos += Math.floor(ctx.sampleRate * (0.08 + Math.random() * 0.12));
+            // Gap between words (150-400ms)
+            pos += Math.floor(sr * (0.15 + Math.random() * 0.25));
           }
         }
-
-        // 3. Occasional soft rustle/movement (every 8-20 seconds)
-        pos = ctx.sampleRate * 5;
-        while (pos < bufferSize - ctx.sampleRate) {
-          pos += Math.floor(ctx.sampleRate * (8 + Math.random() * 12));
-          if (pos >= bufferSize) break;
-
-          const rustleLen = Math.floor(ctx.sampleRate * (0.15 + Math.random() * 0.25)); // 150-400ms
-          const rustleVol = 0.03 + Math.random() * 0.02;
-
-          for (let s = 0; s < rustleLen && (pos + s) < bufferSize; s++) {
-            const env = Math.sin((s / rustleLen) * Math.PI); // smooth envelope
-            const noise = (Math.random() * 2 - 1) * env * rustleVol;
-            // Spread across stereo
-            left[pos + s] += noise * 0.6;
-            right[pos + s] += noise * 0.4;
+        
+        // 3. Mouse clicks — occasional, different sound than keyboard
+        let mousePos = sr * (4 + Math.random() * 10);
+        while (mousePos < bufferSize - sr) {
+          mousePos += Math.floor(sr * (12 + Math.random() * 25));
+          if (mousePos >= bufferSize) break;
+          
+          // Mouse click: sharper, shorter than keyboard
+          const clickLen = Math.floor(sr * 0.005);
+          const vol = 0.04 + Math.random() * 0.02;
+          for (let s = 0; s < clickLen && (mousePos + s) < bufferSize; s++) {
+            const env = Math.exp(-s / (clickLen * 0.08));
+            const sample = (Math.random() * 2 - 1) * env * vol;
+            left[mousePos + s] += sample * 0.4;
+            right[mousePos + s] += sample * 0.6;
+          }
+          // Sometimes double-click
+          if (Math.random() < 0.3) {
+            mousePos += Math.floor(sr * 0.08);
+            for (let s = 0; s < clickLen && (mousePos + s) < bufferSize; s++) {
+              const env = Math.exp(-s / (clickLen * 0.08));
+              const sample = (Math.random() * 2 - 1) * env * vol * 0.9;
+              left[mousePos + s] += sample * 0.4;
+              right[mousePos + s] += sample * 0.6;
+            }
           }
         }
-
-        // 4. One or two very quiet "settling" sounds (like a cup or book)
-        const settleCount = 1 + Math.floor(Math.random() * 2);
-        for (let sc = 0; sc < settleCount; sc++) {
-          const settlePos = Math.floor(ctx.sampleRate * (8 + Math.random() * (duration - 10)));
-          if (settlePos >= bufferSize) continue;
-          const settleLen = Math.floor(ctx.sampleRate * 0.04); // 40ms thud
-          const settleVol = 0.06;
-
-          for (let s = 0; s < settleLen && (settlePos + s) < bufferSize; s++) {
-            const env = Math.exp(-s / (settleLen * 0.15));
-            // Low frequency thud
-            const thud = Math.sin(s / ctx.sampleRate * 2 * Math.PI * 120) * env * settleVol;
-            left[settlePos + s] += thud * 0.5;
-            right[settlePos + s] += thud * 0.5;
+        
+        // 4. Chair/body movement — soft low-frequency shifts
+        let movePos = sr * (6 + Math.random() * 8);
+        while (movePos < bufferSize - sr) {
+          movePos += Math.floor(sr * (15 + Math.random() * 30));
+          if (movePos >= bufferSize) break;
+          
+          const moveLen = Math.floor(sr * (0.3 + Math.random() * 0.5));
+          const moveVol = 0.015 + Math.random() * 0.01;
+          for (let s = 0; s < moveLen && (movePos + s) < bufferSize; s++) {
+            const env = Math.sin((s / moveLen) * Math.PI);
+            // Low frequency rumble with some texture
+            const low = Math.sin(s / sr * 2 * Math.PI * (40 + Math.random() * 30)) * 0.6;
+            const texture = (Math.random() * 2 - 1) * 0.4;
+            const sample = (low + texture) * env * moveVol;
+            left[movePos + s] += sample * 0.5;
+            right[movePos + s] += sample * 0.5;
           }
         }
-
+        
+        // 5. Breathing — very subtle, slow rhythmic volume modulation
+        // Not a sound itself, just makes the room tone gently pulse
+        for (let i = 0; i < bufferSize; i++) {
+          const breathCycle = Math.sin(i / sr * 2 * Math.PI / 5) * 0.5 + 0.5; // 5 second cycle
+          left[i] *= (0.85 + breathCycle * 0.15);
+          right[i] *= (0.85 + breathCycle * 0.15);
+        }
+        
+        // 6. Cup/object set down — 1-3 times in the whole loop
+        const cupCount = 1 + Math.floor(Math.random() * 3);
+        for (let c = 0; c < cupCount; c++) {
+          const cupPos = Math.floor(sr * (10 + Math.random() * (duration - 15)));
+          if (cupPos >= bufferSize) continue;
+          
+          const cupLen = Math.floor(sr * 0.06);
+          const cupVol = 0.04;
+          for (let s = 0; s < cupLen && (cupPos + s) < bufferSize; s++) {
+            const env = Math.exp(-s / (cupLen * 0.15));
+            // Low thud with ceramic resonance
+            const thud = Math.sin(s / sr * 2 * Math.PI * 150) * env * 0.7;
+            const ring = Math.sin(s / sr * 2 * Math.PI * 1200) * env * env * 0.3;
+            const sample = (thud + ring) * cupVol;
+            left[cupPos + s] += sample * 0.45;
+            right[cupPos + s] += sample * 0.55;
+          }
+        }
+        
+        // 7. Page turn / paper rustle — 1-2 times
+        const pageCount = 1 + Math.floor(Math.random() * 2);
+        for (let p = 0; p < pageCount; p++) {
+          const pagePos = Math.floor(sr * (15 + Math.random() * (duration - 20)));
+          if (pagePos >= bufferSize) continue;
+          
+          const pageLen = Math.floor(sr * (0.4 + Math.random() * 0.3));
+          const pageVol = 0.02;
+          for (let s = 0; s < pageLen && (pagePos + s) < bufferSize; s++) {
+            const env = Math.sin((s / pageLen) * Math.PI);
+            // High-frequency filtered noise — papery texture
+            const noise = (Math.random() * 2 - 1);
+            const filtered = noise * env * pageVol * (0.5 + Math.sin(s / sr * 2 * Math.PI * 3) * 0.5);
+            left[pagePos + s] += filtered * 0.5;
+            right[pagePos + s] += filtered * 0.5;
+          }
+        }
+        
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
         source.connect(gain);
         source.start(0);
         sourceRef.current = source;
-        console.log('[ambient] playing: presence, ctx state:', ctx.state);
+        console.log('[ambient] playing: presence');
         return;
       }
 
