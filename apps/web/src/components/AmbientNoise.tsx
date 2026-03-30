@@ -18,7 +18,7 @@ interface AmbientNoiseProps {
 export function AmbientNoise({ disabled = false, externalSound, className }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
-  const [volume, setVolume] = useState(0.3);
+  const [volume, setVolume] = useState(0.15);
 
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
@@ -61,7 +61,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       const gain = ctx.createGain();
       // Presence needs higher gain since the generated sounds are subtle
       if (type === 'presence') {
-        gain.gain.value = Math.min(volume * 5, 0.5); // 5x normal gain, capped at 0.5
+        gain.gain.value = Math.min(volume * 8, 1.0); // 8x normal gain, capped at 1.0
       } else {
         gain.gain.value = volume;
       }
@@ -113,7 +113,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           }
           const rtSrc = ctx.createBufferSource();
           rtSrc.buffer = rt; rtSrc.loop = true;
-          const rtG = ctx.createGain(); rtG.gain.value = 0.04;
+          const rtG = ctx.createGain(); rtG.gain.value = 0.08;
           rtSrc.connect(rtG); rtG.connect(gain); rtSrc.start(0);
           layers.push(rtSrc);
           
@@ -138,7 +138,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           }
           const kbSrc = ctx.createBufferSource();
           kbSrc.buffer = kb; kbSrc.loop = true;
-          const kbG = ctx.createGain(); kbG.gain.value = 0.15;
+          const kbG = ctx.createGain(); kbG.gain.value = 0.35;
           kbSrc.connect(kbG); kbG.connect(gain); kbSrc.start(0);
           layers.push(kbSrc);
           
@@ -158,7 +158,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           }
           const mvSrc = ctx.createBufferSource();
           mvSrc.buffer = mv; mvSrc.loop = true;
-          const mvG = ctx.createGain(); mvG.gain.value = 0.2;
+          const mvG = ctx.createGain(); mvG.gain.value = 0.4;
           mvSrc.connect(mvG); mvG.connect(gain); mvSrc.start(0);
           layers.push(mvSrc);
           
@@ -196,7 +196,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           }
           const mcSrc = ctx.createBufferSource();
           mcSrc.buffer = mc; mcSrc.loop = true;
-          const mcG = ctx.createGain(); mcG.gain.value = 0.15;
+          const mcG = ctx.createGain(); mcG.gain.value = 0.35;
           mcSrc.connect(mcG); mcG.connect(gain); mcSrc.start(0);
           layers.push(mcSrc);
           
@@ -362,7 +362,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
             <input
               type="range"
               min={0}
-              max={1}
+              max={0.5}
               step={0.05}
               value={volume}
               onChange={e => setVolume(parseFloat(e.target.value))}
