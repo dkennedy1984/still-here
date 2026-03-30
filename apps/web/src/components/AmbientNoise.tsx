@@ -27,6 +27,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   const isDisabledRef = useRef(false);
   const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userOverrideRef = useRef(false);
+  const activeRef = useRef('off'); // Tracks current active value without stale closure issues
 
   function stop() {
     // Clear any ongoing fade-in
@@ -249,6 +250,12 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       // Store globally so it can be stopped from anywhere
       (window as any).__presenceAudio = audio;
           audio.oncanplaythrough = () => {
+            if (activeRef.current !== 'presence' || isDisabledRef.current) {
+              console.log('[ambient] oncanplaythrough fired but active=' + activeRef.current + ' or disabled — aborting');
+              audio.pause();
+              audio.src = '';
+              return;
+            }
             audio.play().catch(() => {});
             console.log('[ambient] playing: presence (real audio file)');
             // Fade in over 3 seconds
@@ -290,6 +297,9 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
     }
   }
 
+  // Keep activeRef in sync so async callbacks (oncanplaythrough) can check current state
+  useEffect(() => { activeRef.current = active; }, [active]);
+
   useEffect(() => {
     // User changed volume — cancel any ongoing fade-in
     if (fadeIntervalRef.current) {
@@ -305,12 +315,17 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
 
   useEffect(() => {
     if (disabled) return;
-    if (userOverrideRef.current) return; // User has manually chosen a sound, don't auto-change
+    if (userOverrideRef.current) {
+      console.log('[ambient] externalSound ignored — user override active, externalSound:', externalSound);
+      return;
+    }
     if (externalSound === undefined) return;
     if (externalSound === 'off' || externalSound === '') {
+      console.log('[ambient] externalSound triggering stop');
       setActive('off');
       stop();
     } else {
+      console.log('[ambient] externalSound triggering play:', externalSound);
       setActive(externalSound);
       play(externalSound as any);
     }
@@ -342,21 +357,33 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
     const el = document.getElementById('swy-presence-audio') as HTMLAudioElement;
     if (el) {
       console.log('[ambient] found presence audio in DOM, pausing');
+      el.oncanplaythrough = null;
+      el.onerror = null;
+      el.onended = null;
       el.pause();
       el.currentTime = 0;
+      el.src = '';
       el.remove();
     }
     if ((window as any).__presenceAudio) {
       console.log('[ambient] found presence audio on window, pausing');
+      (window as any).__presenceAudio.oncanplaythrough = null;
+      (window as any).__presenceAudio.onerror = null;
+      (window as any).__presenceAudio.onended = null;
       (window as any).__presenceAudio.pause();
       (window as any).__presenceAudio.currentTime = 0;
+      (window as any).__presenceAudio.src = '';
       (window as any).__presenceAudio = null;
     }
     // Also try ref
     if (presenceAudioRef.current) {
       console.log('[ambient] found presence audio on ref, pausing');
+      presenceAudioRef.current.oncanplaythrough = null;
+      presenceAudioRef.current.onerror = null;
+      presenceAudioRef.current.onended = null;
       presenceAudioRef.current.pause();
       presenceAudioRef.current.currentTime = 0;
+      presenceAudioRef.current.src = '';
       presenceAudioRef.current = null;
     }
     // Stop generated sounds
