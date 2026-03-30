@@ -27,6 +27,15 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
 
   function stop() {
     try {
+      // Close AudioContext (kills all sounds connected to it)
+      if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
+        try { (window as any).__ambientCtx.close(); } catch {}
+        (window as any).__ambientCtx = null;
+      }
+      if (ctxRef.current) {
+        try { ctxRef.current.close(); } catch {}
+        ctxRef.current = null;
+      }
       // Stop presence HTML Audio
       if (presenceAudioRef.current) {
         presenceAudioRef.current.pause();
@@ -161,6 +170,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       }
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       ctxRef.current = ctx;
+      (window as any).__ambientCtx = ctx;
 
       if (ctx.state === 'suspended') {
         ctx.resume().then(() => {

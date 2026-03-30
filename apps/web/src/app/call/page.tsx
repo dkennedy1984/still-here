@@ -46,28 +46,38 @@ function CallPageInner() {
     onCrisisInfo: (info: any) => setCrisisInfo(info),
   });
 
-  const handleHangup = useCallback(() => {
-    // Stop presence audio by DOM ID
+  const stopAllAudio = useCallback(() => {
+    // Stop by DOM ID
     const pa = document.getElementById('swy-presence-audio') as HTMLAudioElement;
     if (pa) { pa.pause(); pa.currentTime = 0; pa.remove(); }
 
-    // Stop via global ref
+    // Stop by global ref
     if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
       (window as any).__presenceAudio.pause();
+      (window as any).__presenceAudio.currentTime = 0;
       (window as any).__presenceAudio = null;
     }
 
-    // Stop any other audio elements
+    // Stop ALL audio elements in DOM
     document.querySelectorAll('audio').forEach(a => {
       (a as HTMLAudioElement).pause();
       (a as HTMLAudioElement).currentTime = 0;
     });
 
+    // Close ALL AudioContexts
+    if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
+      try { (window as any).__ambientCtx.close(); } catch {}
+      (window as any).__ambientCtx = null;
+    }
+
+    console.log('[audio] all audio stopped');
+  }, []);
+
+  const handleHangup = useCallback(() => {
+    stopAllAudio();
     hangup();
-    requestAnimationFrame(() => {
-      router.push('/post-call');
-    });
-  }, [router, hangup]);
+    requestAnimationFrame(() => router.push('/post-call'));
+  }, [router, hangup, stopAllAudio]);
 
   useEffect(() => {
     if (state.status === 'connected' && !hasSentInitialStyle.current) {
@@ -79,9 +89,10 @@ function CallPageInner() {
 
   useEffect(() => {
     if (wasConnected.current && state.status === 'ended') {
+      stopAllAudio();
       router.push('/post-call');
     }
-  }, [state.status, router]);
+  }, [state.status, router, stopAllAudio]);
 
   const handleScreenTap = useCallback(() => {
     // Start presence sounds on first tap (ensures AudioContext is created in user gesture)
