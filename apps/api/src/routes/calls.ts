@@ -36,6 +36,7 @@ async function ensureDailyReset(sessionId: string, minutesResetAt: Date): Promis
 callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
     const sessionId = req.sessionId;
+    console.log('[session] cookie sh_session:', (req as any).signedCookies?.sh_session || (req as any).cookies?.sh_session || 'NONE');
     const { presenceStyle: rawPresenceStyle, voice: rawVoice } = (req as any).body || {};
     const presenceStyle = rawPresenceStyle || 'quiet';
     const voice = rawVoice || 'her';
@@ -145,7 +146,7 @@ function setSessionCookie(res: any, sessionId: string) {
   res.cookie("sh_session", sessionId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "strict" as const,
+    sameSite: "lax" as const,
     signed: true,
     maxAge: 1000 * 60 * 60 * 24 * 365, // 1 year
   });

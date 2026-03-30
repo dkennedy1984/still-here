@@ -104,13 +104,12 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           const sr = ctx.sampleRate;
           
           // Layer 1: Room tone (7 seconds)
-          const rt = ctx.createBuffer(2, sr * 7, sr);
-          const rtL = rt.getChannelData(0), rtR = rt.getChannelData(1);
-          let rL = 0, rR = 0;
+          const rt = ctx.createBuffer(1, sr * 7, sr);
+          const rtL = rt.getChannelData(0);
+          let rL = 0;
           for (let i = 0; i < sr * 7; i++) {
             rL = (rL + 0.008 * (Math.random() * 2 - 1)) / 1.008;
-            rR = (rR + 0.008 * (Math.random() * 2 - 1)) / 1.008;
-            rtL[i] = rL; rtR[i] = rR;
+            rtL[i] = rL;
           }
           const rtSrc = ctx.createBufferSource();
           rtSrc.buffer = rt; rtSrc.loop = true;
@@ -119,8 +118,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           layers.push(rtSrc);
           
           // Layer 2: Keyboard typing clusters (11 seconds)
-          const kb = ctx.createBuffer(2, sr * 11, sr);
-          const kbL = kb.getChannelData(0), kbR = kb.getChannelData(1);
+          const kb = ctx.createBuffer(1, sr * 11, sr);
+          const kbL = kb.getChannelData(0);
           let kPos = Math.floor(sr * (0.5 + Math.random() * 2));
           while (kPos < sr * 11 - sr) {
             const keys = 2 + Math.floor(Math.random() * 6);
@@ -128,12 +127,10 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
               const len = Math.floor(sr * (0.008 + Math.random() * 0.008));
               const vol = 0.15 + Math.random() * 0.1;
               const pitch = 800 + Math.random() * 2000;
-              const pan = 0.55 + Math.random() * 0.15;
               for (let s = 0; s < len && (kPos + s) < sr * 11; s++) {
                 const env = Math.exp(-s / (len * 0.12));
                 const sample = ((Math.random() * 2 - 1) * 0.7 + Math.sin(s / sr * 2 * Math.PI * pitch) * 0.3) * env * vol;
-                kbL[kPos + s] += sample * (1 - pan);
-                kbR[kPos + s] += sample * pan;
+                kbL[kPos + s] += sample;
               }
               kPos += Math.floor(sr * (0.06 + Math.random() * 0.12));
             }
@@ -146,8 +143,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           layers.push(kbSrc);
           
           // Layer 3: Movement/rustle (13 seconds)
-          const mv = ctx.createBuffer(2, sr * 13, sr);
-          const mvL = mv.getChannelData(0), mvR = mv.getChannelData(1);
+          const mv = ctx.createBuffer(1, sr * 13, sr);
+          const mvL = mv.getChannelData(0);
           let mPos = Math.floor(sr * (3 + Math.random() * 4));
           while (mPos < sr * 13 - sr) {
             const len = Math.floor(sr * (0.2 + Math.random() * 0.4));
@@ -155,7 +152,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
             for (let s = 0; s < len && (mPos + s) < sr * 13; s++) {
               const env = Math.sin((s / len) * Math.PI);
               const sample = (Math.sin(s / sr * 2 * Math.PI * (40 + Math.random() * 30)) * 0.6 + (Math.random() * 2 - 1) * 0.4) * env * vol;
-              mvL[mPos + s] += sample * 0.5; mvR[mPos + s] += sample * 0.5;
+              mvL[mPos + s] += sample;
             }
             mPos += Math.floor(sr * (4 + Math.random() * 6));
           }
@@ -166,8 +163,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           layers.push(mvSrc);
           
           // Layer 4: Mouse clicks + cup sounds (17 seconds)
-          const mc = ctx.createBuffer(2, sr * 17, sr);
-          const mcL = mc.getChannelData(0), mcR = mc.getChannelData(1);
+          const mc = ctx.createBuffer(1, sr * 17, sr);
+          const mcL = mc.getChannelData(0);
           // Mouse clicks
           let cPos = Math.floor(sr * (3 + Math.random() * 5));
           while (cPos < sr * 17 - sr) {
@@ -176,14 +173,13 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
             for (let s = 0; s < len && (cPos + s) < sr * 17; s++) {
               const env = Math.exp(-s / (len * 0.08));
               const sample = (Math.random() * 2 - 1) * env * vol;
-              mcL[cPos + s] += sample * 0.4; mcR[cPos + s] += sample * 0.6;
+              mcL[cPos + s] += sample;
             }
             if (Math.random() < 0.3) {
               cPos += Math.floor(sr * 0.08);
               for (let s = 0; s < len && (cPos + s) < sr * 17; s++) {
                 const env = Math.exp(-s / (len * 0.08));
-                mcL[cPos + s] += (Math.random() * 2 - 1) * env * vol * 0.9 * 0.4;
-                mcR[cPos + s] += (Math.random() * 2 - 1) * env * vol * 0.9 * 0.6;
+                mcL[cPos + s] += (Math.random() * 2 - 1) * env * vol * 0.9;
               }
             }
             cPos += Math.floor(sr * (5 + Math.random() * 8));
@@ -195,7 +191,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
             for (let s = 0; s < cupLen && (cupPos + s) < sr * 17; s++) {
               const env = Math.exp(-s / (cupLen * 0.15));
               const sample = (Math.sin(s / sr * 2 * Math.PI * 150) * 0.7 + Math.sin(s / sr * 2 * Math.PI * 1200) * env * 0.3) * env * 0.05;
-              mcL[cupPos + s] += sample * 0.45; mcR[cupPos + s] += sample * 0.55;
+              mcL[cupPos + s] += sample;
             }
           }
           const mcSrc = ctx.createBufferSource();
@@ -208,7 +204,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           sourceRef.current = rtSrc;
           (sourceRef.current as any).__layers = layers;
           
-          console.log('[ambient] playing: presence (4 stereo layers, ~7.4MB)');
+          console.log('[ambient] playing: presence (4 mono layers)');
         } catch (err) {
           console.error('[ambient] presence buffer error:', err);
         }

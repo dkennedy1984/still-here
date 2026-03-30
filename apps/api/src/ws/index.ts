@@ -291,8 +291,8 @@ export function setupWebSocket(server: Server) {
           sessionEndTimer = setTimeout(() => {
             console.log('[session] time limit reached, ending call');
             const farewell = tier === 'PAID'
-              ? "That's our time for now. I'm always here if you need me. Take care."
-              : "I've enjoyed sitting with you. Longer sessions are part of the paid plan.";
+              ? "That's our time for now. I'm always here when you need me. Take care."
+              : "I've really enjoyed sitting with you. Our free sessions are ten minutes, but I'd love to spend more time together. You can unlock longer sessions anytime. Take care for now.";
             speakWithElevenLabs(farewell).then(() => {
               setTimeout(() => {
                 sendToClient('limit_reached', { reason: 'time_limit', tier });
