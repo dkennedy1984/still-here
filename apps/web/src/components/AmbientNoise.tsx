@@ -18,7 +18,7 @@ interface AmbientNoiseProps {
 export function AmbientNoise({ disabled = false, externalSound, className }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
-  const [volume, setVolume] = useState(0.4);
+  const [volume, setVolume] = useState(0.2);
 
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
@@ -250,23 +250,24 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           audio.oncanplaythrough = () => {
             audio.play().catch(() => {});
             console.log('[ambient] playing: presence (real audio file)');
-            // Fade in over 5 seconds
-            const targetVol = Math.min(volume * 5, 1.0);
+            // Fade in over 3 seconds
+            const targetVol = Math.min(volume * 3, 1.0);
             let fadeVol = 0;
-            fadeIntervalRef.current = setInterval(() => {
-              fadeVol += targetVol / 50; // 50 steps over 5 seconds (100ms interval)
+            const fadeInterval = setInterval(() => {
+              if (!presenceAudioRef.current) {
+                clearInterval(fadeInterval);
+                if (fadeIntervalRef.current === fadeInterval) fadeIntervalRef.current = null;
+                return;
+              }
+              fadeVol += targetVol / 50;
               if (fadeVol >= targetVol) {
                 fadeVol = targetVol;
-                clearInterval(fadeIntervalRef.current!);
-                fadeIntervalRef.current = null;
+                clearInterval(fadeInterval);
+                if (fadeIntervalRef.current === fadeInterval) fadeIntervalRef.current = null;
               }
-              if (presenceAudioRef.current) {
-                presenceAudioRef.current.volume = fadeVol;
-              } else {
-                clearInterval(fadeIntervalRef.current!);
-                fadeIntervalRef.current = null;
-              }
+              presenceAudioRef.current.volume = fadeVol;
             }, 100);
+            fadeIntervalRef.current = fadeInterval;
           };
 
           audio.onerror = () => {
@@ -296,7 +297,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
     if (gainRef.current) gainRef.current.gain.value = volume;
     // Also update presence HTML Audio element volume
     if (presenceAudioRef.current) {
-      presenceAudioRef.current.volume = Math.min(volume * 5, 1.0);
+      presenceAudioRef.current.volume = Math.min(volume * 3, 1.0);
     }
   }, [volume]);
 
@@ -331,44 +332,9 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, []);
 
   function select(value: string) {
-    // Clear fade interval
-    if (fadeIntervalRef.current) {
-      clearInterval(fadeIntervalRef.current);
-      fadeIntervalRef.current = null;
-    }
-
-    // ALWAYS stop current audio directly — not through stop()
-    // Pause presence by ref
-    if (presenceAudioRef.current) {
-      presenceAudioRef.current.pause();
-      presenceAudioRef.current.currentTime = 0;
-      if (presenceAudioRef.current.parentNode) presenceAudioRef.current.remove();
-      presenceAudioRef.current = null;
-    }
-    // Pause by DOM ID
-    const domAudio = document.getElementById('swy-presence-audio') as HTMLAudioElement;
-    if (domAudio) { domAudio.pause(); domAudio.currentTime = 0; domAudio.remove(); }
-    // Global ref
-    if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
-      (window as any).__presenceAudio.pause();
-      (window as any).__presenceAudio.currentTime = 0;
-      (window as any).__presenceAudio = null;
-    }
-    // Stop AudioContext sources
-    try {
-      const layers = (sourceRef.current as any)?.__layers;
-      if (layers) { layers.forEach((s: AudioBufferSourceNode) => { try { s.stop(); } catch {} }); }
-      if (sourceRef.current) { try { sourceRef.current.stop(); } catch {} }
-    } catch {}
-    sourceRef.current = null;
-    if (gainRef.current) { try { gainRef.current.disconnect(); } catch {} }
-    gainRef.current = null;
-
-    console.log('[ambient] stopped all audio in select()');
-
+    stop(); // Stop current sound FIRST
     setActive(value);
     setShowMenu(false);
-
     if (value === 'off') return;
     play(value as any);
   }
