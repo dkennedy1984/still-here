@@ -170,7 +170,11 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
-        source.connect(gain);
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 250;
+        source.connect(filter);
+        filter.connect(gain);
         source.start();
         sourceRef.current = source;
       } else if (type === 'brown') {
@@ -190,43 +194,22 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         source.start();
         sourceRef.current = source;
       } else if (type === 'rain') {
-        const sr = ctx.sampleRate;
-        const PRIMES = [32771, 32779, 32783];
-        const layers: AudioBufferSourceNode[] = [];
-
-        PRIMES.forEach((prime, li) => {
-          const buf = ctx.createBuffer(2, prime, sr);
-          for (let ch = 0; ch < 2; ch++) {
-            const d = buf.getChannelData(ch);
-            let env = 0;
-            for (let i = 0; i < prime; i++) {
-              const r = Math.random();
-              if (r > 0.9985) env = 0.6 + Math.random() * 0.4;
-              else env *= 0.997;
-              d[i] = (Math.random() * 2 - 1) * env * 0.5;
-              d[i] += (Math.random() * 2 - 1) * 0.06;
-            }
-          }
-          const src = ctx.createBufferSource();
-          src.buffer = buf;
-          src.loop = true;
-
-          const layerGain = ctx.createGain();
-          layerGain.gain.value = li === 0 ? 1.0 : 0.5 + li * 0.2;
-
-          const panner = ctx.createStereoPanner();
-          panner.pan.value = (li - 1) * 0.3;
-
-          src.connect(layerGain);
-          layerGain.connect(panner);
-          panner.connect(gain);
-          src.start(ctx.currentTime + li * 0.05);
-          layers.push(src);
-        });
-
-        const pseudo = ctx.createBufferSource();
-        (pseudo as any).__layers = layers;
-        sourceRef.current = pseudo;
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let last = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          data[i] = (last + 0.04 * white) / 1.04;
+          last = data[i];
+          if (Math.random() < 0.001) data[i] += (Math.random() - 0.5) * 0.3;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.loop = true;
+        source.connect(gain);
+        source.start();
+        sourceRef.current = source;
       } else if (type === 'presence') {
         // Try real audio file first, fall back to generated
         try {
