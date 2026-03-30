@@ -27,6 +27,15 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <script dangerouslySetInnerHTML={{ __html: `
+          // Kill any lingering audio from previous page
+          if (window.location.pathname !== '/call') {
+            document.querySelectorAll('audio').forEach(function(a) { a.pause(); a.remove(); });
+            var pa = document.getElementById('swy-presence-audio');
+            if (pa) { pa.pause(); pa.remove(); }
+            if (window.__presenceAudio) { window.__presenceAudio.pause(); window.__presenceAudio = null; }
+          }
+        `}} />
       </head>
       <body className={`${inter.className} min-h-screen bg-slate-950`}>
         {children}

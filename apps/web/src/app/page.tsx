@@ -141,12 +141,14 @@ function HomePageContent() {
       {/* Upgraded pill */}
       {showUpgraded && (
         <div
-          className="fixed top-6 left-1/2 -translate-x-1/2"
+          className="fixed top-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
           style={{ zIndex: 50 }}
         >
-          <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-full px-4 py-2 text-sm text-white">
-            Welcome to Still Here ✦
+          <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-green-400/10 border border-green-400/15 backdrop-blur-sm">
+            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-sm text-green-300/90 font-medium">You're all set</span>
           </div>
+          <p className="text-xs text-slate-500">I'll be here whenever you need.</p>
         </div>
       )}
 
