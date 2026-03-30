@@ -26,6 +26,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   const presenceAudioRef = useRef<HTMLAudioElement | null>(null);
   const isDisabledRef = useRef(false);
   const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userOverrideRef = useRef(false);
 
   function stop() {
     // Clear any ongoing fade-in
@@ -302,7 +303,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, [volume]);
 
   useEffect(() => {
-    if (disabled) return; // Don't start audio if call has ended
+    if (disabled) return;
+    if (userOverrideRef.current) return; // User has manually chosen a sound, don't auto-change
     if (externalSound === undefined) return;
     if (externalSound === 'off' || externalSound === '') {
       setActive('off');
@@ -332,6 +334,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, []);
 
   function select(value: string) {
+    userOverrideRef.current = true; // User has manually chosen a sound
     stop(); // Stop current sound FIRST
     setActive(value);
     setShowMenu(false);
