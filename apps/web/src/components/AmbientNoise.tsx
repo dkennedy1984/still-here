@@ -24,6 +24,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   const gainRef = useRef<GainNode | null>(null);
   const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   const presenceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const isDisabledRef = useRef(false);
 
   function stop() {
     try {
@@ -161,6 +162,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }
 
   function play(type: 'white' | 'brown' | 'rain' | 'presence') {
+    if (isDisabledRef.current) return; // Never play if disabled
     console.log('[ambient] play called, type:', type);
     stop();
 
@@ -278,6 +280,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, [volume]);
 
   useEffect(() => {
+    if (disabled) return; // Don't start audio if call has ended
     if (externalSound === undefined) return;
     if (externalSound === 'off' || externalSound === '') {
       setActive('off');
@@ -286,10 +289,11 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       setActive(externalSound);
       play(externalSound as any);
     }
-  }, [externalSound]);
+  }, [externalSound, disabled]);
 
   useEffect(() => {
     if (disabled) {
+      isDisabledRef.current = true;
       stop();
       setActive('off');
       // Also close AudioContext to be thorough
@@ -298,6 +302,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         ctxRef.current = null;
       }
       gainRef.current = null;
+    } else {
+      isDisabledRef.current = false;
     }
   }, [disabled]);
 

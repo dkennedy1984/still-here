@@ -66,7 +66,10 @@ function CallPageInner() {
 
     // Close ALL AudioContexts
     if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
-      try { (window as any).__ambientCtx.close(); } catch {}
+      const ctx = (window as any).__ambientCtx;
+      if (ctx.state !== 'closed') {
+        try { ctx.close(); } catch {}
+      }
       (window as any).__ambientCtx = null;
     }
 
