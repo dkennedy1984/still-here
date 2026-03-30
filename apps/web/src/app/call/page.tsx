@@ -121,7 +121,7 @@ function CallPageInner() {
       className="relative min-h-screen min-h-[100dvh] bg-slate-950 select-none"
       onClick={handleScreenTap}
     >
-      <FixedOrb state={state.status === 'connected' ? (isAudioPlaying ? 'speaking' : 'listening') : state.status === 'connecting' ? 'connecting' : 'idle'} />
+      <FixedOrb state={isAudioPlaying ? 'speaking' : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening' : 'idle'} />
 
       {ambientStarted && (
         <AmbientNoise
