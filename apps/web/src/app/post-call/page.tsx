@@ -6,10 +6,18 @@ import { FixedOrb } from '../../components/FixedOrb';
 export default function PostCallPage() {
   const router = useRouter();
   const [isPaid, setIsPaid] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const tier = localStorage.getItem('swy-tier');
-    setIsPaid(tier === 'paid');
+    fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/v1/calls/tier', {
+      credentials: 'include',
+    })
+      .then(res => res.json())
+      .then(data => {
+        setIsPaid(data.tier === 'paid');
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   const handleCallAgain = async () => {
@@ -25,6 +33,9 @@ export default function PostCallPage() {
     }
   };
 
+  if (loading) {
+    return <main className="min-h-screen bg-slate-950" />;
+  }
 
   return (
     <main className="relative min-h-screen min-h-[100dvh] bg-slate-950">

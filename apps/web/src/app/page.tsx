@@ -48,8 +48,15 @@ function HomePageContent() {
     if (savedPresence === 'quiet' || savedPresence === 'silent' || savedPresence === 'check-ins' || savedPresence === 'talk') {
       setPresenceStyle(savedPresence === 'quiet' ? 'silent' : savedPresence as "silent" | "check-ins" | "talk");
     }
-    const tier = localStorage.getItem('swy-tier');
-    setIsPaid(tier === 'paid');
+  }, []);
+
+  useEffect(() => {
+    fetch((process.env.NEXT_PUBLIC_API_URL || '') + '/api/v1/calls/tier', {
+      credentials: 'include',
+    })
+      .then(res => res.json())
+      .then(data => setIsPaid(data.tier === 'paid'))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {

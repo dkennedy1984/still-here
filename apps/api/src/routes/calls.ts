@@ -145,6 +145,15 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
   }
 });
 
+// GET /api/v1/calls/tier — return tier for the current session
+callRouter.get('/tier', async (req, res) => {
+  const sessionId = (req as any).signedCookies?.sh_session || (req as any).cookies?.sh_session;
+  if (!sessionId) return res.json({ tier: 'free' });
+
+  const session = await prisma.session.findUnique({ where: { id: sessionId } }).catch(() => null);
+  return res.json({ tier: session?.tier?.toLowerCase() || 'free' });
+});
+
 function setSessionCookie(res: any, sessionId: string) {
   res.cookie("sh_session", sessionId, {
     httpOnly: true,
