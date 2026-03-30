@@ -169,7 +169,7 @@ function PostCallContent() {
                   onClick={() => setShowEmailInput(true)}
                   className="mt-4 text-sm text-slate-400 hover:text-slate-300 transition-colors py-2"
                 >
-                  Keep me on the free plan
+                  Try the free plan
                 </button>
               ) : !emailSent ? (
                 <div className="mt-6 flex flex-col items-center gap-3">
