@@ -274,8 +274,10 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }
 
   useEffect(() => {
-    if (gainRef.current) {
-      gainRef.current.gain.value = volume;
+    if (gainRef.current) gainRef.current.gain.value = volume;
+    // Also update presence HTML Audio element volume
+    if (presenceAudioRef.current) {
+      presenceAudioRef.current.volume = Math.min(volume * 5, 1.0);
     }
   }, [volume]);
 
@@ -315,9 +317,10 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   }, []);
 
   function select(value: string) {
+    stop(); // Stop current sound FIRST
     setActive(value);
     setShowMenu(false);
-    if (value === 'off') { stop(); return; }
+    if (value === 'off') return;
     play(value as any);
   }
 

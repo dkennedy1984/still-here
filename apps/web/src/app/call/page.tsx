@@ -124,10 +124,12 @@ function CallPageInner() {
       <FixedOrb state={isAudioPlaying ? 'speaking' : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening' : 'idle'} />
 
       {ambientStarted && (
-        <AmbientNoise
-          disabled={state.status === 'ended'}
-          externalSound={ambientSound}
-        />
+        <div className="fixed bottom-6 left-6" style={{ zIndex: 50 }} onClick={e => e.stopPropagation()}>
+          <AmbientNoise
+            disabled={state.status === 'ended'}
+            externalSound={ambientStarted ? ambientSound : undefined}
+          />
+        </div>
       )}
 
       {crisisInfo && (
