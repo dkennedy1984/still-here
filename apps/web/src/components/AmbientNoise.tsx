@@ -33,6 +33,12 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         presenceAudioRef.current.currentTime = 0;
         presenceAudioRef.current = null;
       }
+      // Clean up global ref
+      if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
+        (window as any).__presenceAudio.pause();
+        (window as any).__presenceAudio.currentTime = 0;
+        (window as any).__presenceAudio = null;
+      }
       // Stop AudioContext layers
       const layers = (sourceRef.current as any)?.__layers;
       if (layers) {
@@ -218,6 +224,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
           audio.volume = Math.min(volume * 5, 1.0);
 
           presenceAudioRef.current = audio;
+      // Store globally so it can be stopped from anywhere
+      (window as any).__presenceAudio = audio;
           audio.oncanplaythrough = () => {
             audio.play().catch(() => {});
             console.log('[ambient] playing: presence (real audio file)');
