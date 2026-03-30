@@ -44,52 +44,49 @@ function CallPageInner() {
       }
     },
     onAmbientControl: (sound: string) => setAmbientSound(sound),
-    onCrisisInfo: (info: any) => setCrisisInfo(info),
+    onCrisisDetected: (info: any) => setCrisisInfo(info),
   });
 
   const stopAllAudio = useCallback(() => {
-    // Stop by DOM ID
-    try {
-      const pa = document.getElementById('swy-presence-audio') as HTMLAudioElement;
-      if (pa) { pa.pause(); pa.currentTime = 0; pa.remove(); }
-    } catch {}
-
-    // Stop by global ref
     try {
       if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
-        (window as any).__presenceAudio.pause();
-        (window as any).__presenceAudio.currentTime = 0;
+        const audio = (window as any).__presenceAudio as HTMLAudioElement;
+        audio.pause();
+        audio.src = '';
+        audio.load();
         (window as any).__presenceAudio = null;
       }
-    } catch {}
-
-    // Stop ALL audio elements
-    try {
-      document.querySelectorAll('audio').forEach(a => {
-        try { (a as HTMLAudioElement).pause(); (a as HTMLAudioElement).currentTime = 0; } catch {}
-      });
-    } catch {}
-
-    // Close AudioContext - CHECK STATE FIRST
+    } catch (e) {
+      console.warn('stopAllAudio: presenceAudio error', e);
+    }
     try {
       if (typeof window !== 'undefined' && (window as any).__ambientCtx) {
-        const ctx = (window as any).__ambientCtx;
-        if (ctx && ctx.state && ctx.state !== 'closed') {
+        const ctx = (window as any).__ambientCtx as AudioContext;
+        if (ctx.state !== 'closed') {
           ctx.close().catch(() => {});
         }
         (window as any).__ambientCtx = null;
       }
-    } catch {}
-
-    console.log('[audio] all audio stopped');
+    } catch (e) {
+      console.warn('stopAllAudio: ambientCtx error', e);
+    }
+    try {
+      if (typeof window !== 'undefined' && (window as any).__ambientSource) {
+        const src = (window as any).__ambientSource as AudioBufferSourceNode;
+        try { src.stop(); } catch (_) {}
+        (window as any).__ambientSource = null;
+      }
+    } catch (e) {
+      console.warn('stopAllAudio: ambientSource error', e);
+    }
   }, []);
 
   const handleHangup = useCallback(() => {
     hasStoppedAudio.current = true;
     stopAllAudio();
     hangup();
-    requestAnimationFrame(() => router.push('/post-call'));
-  }, [router, hangup, stopAllAudio]);
+    window.location.href = '/post-call';
+  }, [hangup, stopAllAudio]);
 
   useEffect(() => {
     if (state.status === 'connected' && !hasSentInitialStyle.current) {
@@ -104,12 +101,12 @@ function CallPageInner() {
     if (state.status === 'ended' && wasConnected.current && !hasStoppedAudio.current) {
       hasStoppedAudio.current = true;
       stopAllAudio();
-      router.push('/post-call');
+      window.location.href = '/post-call';
     }
-  }, [state.status, router, stopAllAudio]);
+  }, [state.status, stopAllAudio]);
 
   const handleScreenTap = useCallback(() => {
-    // Start presence sounds on first tap (ensures AudioContext is created in user gesture)
+    // Start presence sounds on first tap if not already started
     if (!ambientStarted && !hasStartedPresenceRef.current) {
       hasStartedPresenceRef.current = true;
       setAmbientStarted(true);
@@ -119,115 +116,101 @@ function CallPageInner() {
     hideTimerRef.current = setTimeout(() => setShowControls(false), 3000);
   }, [ambientStarted]);
 
-  const orbState: 'idle' | 'listening' | 'speaking' | 'greeting' = isAudioPlaying ? 'speaking'
-    : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening'
-    : 'idle';
-
-  const presenceLabels: Record<PresenceStyle, string> = {
-    'quiet': 'Quiet',
-    'check-ins': 'Check-ins',
-    'talk': 'Talk',
-  };
-
   return (
-    <main
-      className="relative h-[100dvh] bg-slate-950 overflow-hidden select-none"
+    <div
+      className="relative min-h-screen min-h-[100dvh] bg-slate-950 select-none"
       onClick={handleScreenTap}
     >
-      {/* Orb - shared FixedOrb at top 35% */}
-      <FixedOrb state={orbState} />
+      <FixedOrb state={state.status === 'connected' ? (isAudioPlaying ? 'speaking' : 'listening') : state.status === 'connecting' ? 'connecting' : 'idle'} />
 
-      {/* Tap controls */}
+      {ambientStarted && (
+        <AmbientNoise
+          sound={ambientSound}
+          presenceStyle={presenceStyle}
+        />
+      )}
+
+      {crisisInfo && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center pb-16 px-6 pointer-events-none">
+          <div className="bg-slate-800/95 backdrop-blur-sm rounded-2xl p-6 max-w-sm w-full pointer-events-auto">
+            <p className="text-white/90 text-sm font-medium mb-1">You matter.</p>
+            <p className="text-white/70 text-sm mb-4">If you're in crisis, please reach out.</p>
+            {crisisInfo.phone && (
+              <a
+                href={`tel:${crisisInfo.phone}`}
+                className="block w-full text-center bg-rose-500 hover:bg-rose-400 text-white font-semibold py-3 rounded-xl mb-2 transition-colors"
+              >
+                Call {crisisInfo.phone}
+              </a>
+            )}
+            {crisisInfo.chat && (
+              <a
+                href={crisisInfo.chat}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center bg-slate-700 hover:bg-slate-600 text-white/90 font-medium py-3 rounded-xl transition-colors"
+              >
+                Chat online
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
       <div
-        className={`fixed bottom-32 sm:bottom-28 left-0 right-0 flex flex-col items-center gap-5 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        style={{ zIndex: 30 }}
-        onClick={(e) => e.stopPropagation()}
+        className={`fixed bottom-0 left-0 right-0 pb-10 flex flex-col items-center gap-4 transition-opacity duration-500 ${
+          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
       >
-        {/* Presence style pills */}
+        {/* Presence style selector */}
         <div className="flex gap-2">
-          {(['quiet', 'check-ins', 'talk'] as PresenceStyle[]).map((s) => (
+          {(['quiet', 'check-ins', 'talk'] as PresenceStyle[]).map((style) => (
             <button
-              key={s}
-              onClick={() => {
-                setPresenceStyle(s);
-                localStorage.setItem('swy-presence', s);
-                changeStyle(s);
+              key={style}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPresenceStyle(style);
+                localStorage.setItem('swy-presence', style);
+                changeStyle(style);
               }}
-              className={`px-4 py-1.5 rounded-full text-xs transition-all duration-150 ${
-                presenceStyle === s
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                presenceStyle === style
                   ? 'bg-white text-slate-900'
-                  : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
               }`}
             >
-              {presenceLabels[s]}
+              {style === 'quiet' ? 'Quiet' : style === 'check-ins' ? 'Check-ins' : 'Talk'}
             </button>
           ))}
         </div>
 
-        {/* Hang up */}
+        {/* Hangup button */}
         <button
-          onClick={handleHangup}
-          className="px-20 py-5 rounded-full bg-red-500 text-white text-xl font-semibold tracking-tight hover:bg-red-600 active:scale-95 transition-all duration-150 shadow-lg shadow-red-500/25"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleHangup();
+          }}
+          className="w-16 h-16 rounded-full bg-rose-500/90 hover:bg-rose-400 flex items-center justify-center transition-colors shadow-lg"
+          aria-label="End call"
         >
-          <svg className="w-6 h-6 text-white rotate-[135deg]" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+            <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 011 1V20a1 1 0 01-1 1C10.61 21 3 13.39 3 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.46.57 3.58a1 1 0 01-.24 1.01l-2.21 2.2z"/>
           </svg>
         </button>
       </div>
 
-      {/* Ambient noise - bottom left */}
-      <div
-        className="fixed bottom-6 left-6"
-        style={{ zIndex: 30 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <AmbientNoise
-          disabled={state.status === 'ended'}
-          externalSound={ambientStarted ? ambientSound : undefined}
-        />
-      </div>
-
-      {/* Still here - bottom right */}
-      <div className="fixed bottom-6 right-6" style={{ zIndex: 30 }}>
-        <span className="text-xs text-slate-600">Still here</span>
-      </div>
-
-      {/* Crisis helpline overlay */}
-      {crisisInfo && (
-        <div className="fixed inset-0 flex items-end justify-center z-[60] pointer-events-none">
-          <div className="w-full max-w-md bg-slate-900/95 backdrop-blur rounded-t-2xl px-6 pt-5 pb-8 border-t border-white/10 pointer-events-auto mb-0">
-            <p className="text-sm text-white mb-4">{crisisInfo.message}</p>
-            <div className="flex flex-col gap-3">
-              {crisisInfo.helplines?.map((h: any) => (
-                <a
-                  key={h.number}
-                  href={`tel:${h.number.replace(/\D/g, '')}`}
-                  className="flex justify-between items-center px-4 py-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  <div>
-                    <span className="text-sm text-white font-medium">{h.name}</span>
-                    <span className="block text-xs text-slate-400">{h.note}</span>
-                  </div>
-                  <span className="text-sm text-white/70">{h.number}</span>
-                </a>
-              ))}
-            </div>
-            <button
-              onClick={() => setCrisisInfo(null)}
-              className="mt-4 w-full py-2 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-            >
-              Close
-            </button>
-          </div>
+      {state.status === 'error' && (
+        <div className="fixed inset-0 flex items-center justify-center">
+          <div className="text-white/60 text-sm">Connection error. Please try again.</div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 
 export default function CallPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<main className="min-h-screen bg-slate-950" />}>
       <CallPageInner />
     </Suspense>
   );
