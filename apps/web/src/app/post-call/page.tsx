@@ -114,7 +114,7 @@ function PostCallContent() {
                 onClick={() => router.push('/')}
                 className="mt-4 text-sm text-slate-500 hover:text-slate-400 transition-colors py-2"
               >
-                Go home
+                That's all for now
               </button>
             </>
           )}
@@ -146,7 +146,7 @@ function PostCallContent() {
                 onClick={() => router.push('/')}
                 className="mt-4 text-sm text-slate-500 hover:text-slate-400 transition-colors py-2"
               >
-                Go home
+                That's all for now
               </button>
             </>
           )}
