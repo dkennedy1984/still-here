@@ -117,11 +117,6 @@ export function setupWebSocket(server: Server): void {
 
     console.log(`[ws] mode=${mode}, voice=${voiceChoice}, sessionId=${call.session.id}`);
 
-    console.log('[stt] connecting to Deepgram:', STT_URL);
-    const dgWs = new WebSocket(STT_URL, {
-      headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
-    });
-
     let dgReady = false;
     let isEnded = false;
     let checkInTimer: ReturnType<typeof setTimeout> | null = null;
@@ -133,9 +128,10 @@ export function setupWebSocket(server: Server): void {
     let isSpeakingTTS = false;
     let currentTranscript = '';
     let processTimer: ReturnType<typeof setTimeout> | null = null;
-    let greetingPlaying = true;
+    let greetingPlaying = false;
     const audioBuffer: Buffer[] = [];
     let conversationHistory: { role: string; content: string }[] = [];
+    let dgWs: WebSocket | undefined;
 
     const sendToClient = (type: string, payload?: Record<string, unknown>) => {
       if (clientWs.readyState === WS.OPEN) {
@@ -215,7 +211,7 @@ export function setupWebSocket(server: Server): void {
       clearTimeout(sessionWarningTimer!);
       clearTimeout(sessionEndTimer!);
       clearInterval(timeUpdateInterval!);
-      try { dgWs.close(); } catch {}
+      try { if (dgWs) dgWs.close(); } catch {}
       // Write call duration to DB for usage tracking
       if (startTime > 0) {
         const durationSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -322,35 +318,42 @@ export function setupWebSocket(server: Server): void {
       scheduleCheckIn();
     }
 
+    // When free limit reached: speak farewell immediately, skip STT entirely
+    if (limitReached) {
+      console.log('[session] free limit reached, speaking farewell');
+      sendToClient('connected', { state: 'LIMIT_REACHED' });
+      const farewell = "It looks like we've reached the end of the free time for now. That's just how the free version works, not a judgement on you. If you want this support available whenever you need it, you can choose to keep me here with a subscription. And if not, that's okay too. More free time will be there again next month. I'm here either way.";
+      speakWithElevenLabs(farewell).then(() => {
+        setTimeout(() => {
+          sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
+          endCall();
+        }, 2000);
+      }).catch(() => {
+        sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
+        endCall();
+      });
+      return;
+    }
+
+    // Connect to Deepgram STT
+    console.log('[stt] connecting to Deepgram:', STT_URL);
+    dgWs = new WebSocket(STT_URL, {
+      headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
+    });
+
     dgWs.on('open', () => {
       console.log('[stt] Deepgram streaming STT connected');
       dgReady = true;
       sendToClient('connected', { state: 'GREETING' });
 
-      // Speak greeting via ElevenLabs
+      // Speak greeting via ElevenLabs (limitReached callers never reach this point)
       greetingPlaying = true;
       speakWithElevenLabs(GREETING).then(() => {
         setTimeout(() => {
           greetingPlaying = false;
-          console.log('[dg] greeting mute cleared after 4s');
+          console.log('[dg] greeting mute cleared');
         }, 4000);
-      }).catch(() => {
-        greetingPlaying = false;
-      });
-
-      // If free limit reached, speak farewell and end gracefully after greeting
-      if (limitReached) {
-        console.log('[session] free limit reached — scheduling farewell');
-        setTimeout(async () => {
-          if (isEnded) return;
-          await speakWithElevenLabs("I've really enjoyed our time together this month. To keep sitting with you, you can upgrade anytime. I hope to see you again soon.");
-          setTimeout(() => {
-            if (isEnded) return;
-            sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
-            endCall();
-          }, 3000);
-        }, 5000);
-      }
+      }).catch(() => { greetingPlaying = false; });
 
       // Flush any buffered audio
       for (const chunk of audioBuffer) {
@@ -458,7 +461,7 @@ export function setupWebSocket(server: Server): void {
     clientWs.on('message', (data: Buffer, isBinary: boolean) => {
       if (isBinary) {
         if (greetingPlaying) return; // don't send mic audio during greeting
-        if (dgWs.readyState === WebSocket.OPEN && !isEnded) {
+        if (dgWs && dgWs.readyState === WebSocket.OPEN && !isEnded) {
           dgWs.send(data);
         } else if (!isEnded) {
           audioBuffer.push(data);
