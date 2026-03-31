@@ -77,7 +77,7 @@ const VOICE_MAP: Record<string, string> = {
 
 const GREETING = "Hi. I'm here. You don't have to talk... I'll just sit with you.";
 
-const STT_URL = 'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&model=nova-2&language=en-GB&punctuate=true&interim_results=true';
+const STT_URL = 'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&model=nova-2&language=en-GB&punctuate=true&interim_results=true&utterance_end_ms=1000';
 
 export function setupWebSocket(server: Server): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
