@@ -153,7 +153,6 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
           height: d,
           transition: 'opacity 0.1s ease',
           pointerEvents: 'none',
-          mixBlendMode: 'screen' as const,
         }}
         draggable={false}
       />
@@ -169,7 +168,6 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
           opacity: 0,
           transition: 'opacity 0.1s ease',
           pointerEvents: 'none',
-          mixBlendMode: 'screen' as const,
         }}
         draggable={false}
       />
@@ -185,7 +183,6 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
           opacity: 0,
           transition: 'opacity 0.1s ease',
           pointerEvents: 'none',
-          mixBlendMode: 'screen' as const,
         }}
         draggable={false}
       />
