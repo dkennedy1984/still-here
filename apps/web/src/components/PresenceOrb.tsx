@@ -145,7 +145,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
 
       {/* Idle orb image */}
       <img
-        src="/orb/orb-idle.png"
+        src="/orb/orb--idle.png"
         alt=""
         className="orb-idle absolute"
         style={{
