@@ -103,11 +103,13 @@ export function setupWebSocket(server: Server): void {
     const warningMs = maxSessionMs - WARNING_BEFORE_END_MS;
     console.log('[session] tier:', tier, 'maxSessionMs:', maxSessionMs);
 
-    // Decode voice choice from JWT ticket (not stored in DB to avoid migration)
+    // Decode voice choice and limitReached from JWT ticket (not stored in DB to avoid migration)
     let voiceChoice = 'her';
+    let limitReached = false;
     try {
       const decoded = jwt.verify(ticket, config.jwt.secret) as Record<string, unknown>;
       if (decoded.voice === 'her' || decoded.voice === 'him') voiceChoice = decoded.voice as string;
+      if (decoded.limitReached === true) limitReached = true;
     } catch {
       // ticket already validated by DB lookup above; safe to fall back to default
     }
@@ -335,6 +337,20 @@ export function setupWebSocket(server: Server): void {
       }).catch(() => {
         greetingPlaying = false;
       });
+
+      // If free limit reached, speak farewell and end gracefully after greeting
+      if (limitReached) {
+        console.log('[session] free limit reached — scheduling farewell');
+        setTimeout(async () => {
+          if (isEnded) return;
+          await speakWithElevenLabs("I've really enjoyed our time together this month. To keep sitting with you, you can upgrade anytime. I hope to see you again soon.");
+          setTimeout(() => {
+            if (isEnded) return;
+            sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
+            endCall();
+          }, 3000);
+        }, 5000);
+      }
 
       // Flush any buffered audio
       for (const chunk of audioBuffer) {

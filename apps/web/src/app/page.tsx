@@ -108,12 +108,7 @@ function HomePageContent() {
         return;
       }
 
-      if (error === 'monthly_limit') {
-        router.push('/post-call?gate=limit');
-        callingRef.current = false;
-        setLoading(false);
-        return;
-      }
+      // monthly_limit: allow call to proceed — AI will speak farewell and end gracefully
 
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     } catch (err) {
@@ -137,12 +132,7 @@ function HomePageContent() {
         setLoading(false);
         return;
       }
-      if (error === 'monthly_limit') {
-        router.push('/post-call?gate=limit');
-        callingRef.current = false;
-        setLoading(false);
-        return;
-      }
+      // monthly_limit: allow call to proceed — AI will speak farewell and end gracefully
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     }).catch(err => {
       console.error(err);

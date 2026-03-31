@@ -113,6 +113,7 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
     }
 
     // Check monthly limits for free users with email
+    let limitReached = false;
     if (session.tier !== 'PAID' && session.tier !== 'pro' && session.email) {
       // Reset monthly counters if needed
       const now = new Date();
@@ -127,20 +128,20 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
       }
 
       if (session.monthlyCallCount >= 5) {
-        console.log('[session] monthly call limit reached:', session.monthlyCallCount);
-        return res.status(403).json({ error: 'monthly_limit', message: 'You have used all your free calls this month.' });
+        console.log('[session] monthly limit reached (calls):', session.monthlyCallCount, '— allowing call with farewell');
+        limitReached = true;
+      } else if (session.monthlyMinutesUsed >= 30) {
+        console.log('[session] monthly limit reached (minutes):', session.monthlyMinutesUsed, '— allowing call with farewell');
+        limitReached = true;
       }
 
-      if (session.monthlyMinutesUsed >= 30) {
-        console.log('[session] monthly minutes limit reached:', session.monthlyMinutesUsed);
-        return res.status(403).json({ error: 'monthly_limit', message: 'You have used all your free minutes this month.' });
+      if (!limitReached) {
+        // Increment call count only when within limit
+        await prisma.session.update({
+          where: { id: session.id },
+          data: { monthlyCallCount: { increment: 1 } },
+        });
       }
-
-      // Increment call count
-      await prisma.session.update({
-        where: { id: session.id },
-        data: { monthlyCallCount: { increment: 1 } },
-      });
     }
 
     // --- Create the call ---
@@ -152,6 +153,7 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
         callId,
         presenceStyle,
         voice,
+        limitReached,
       },
       config.jwt.secret,
       { expiresIn: "5m" }
@@ -175,6 +177,7 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
         tier: session.tier,
         minutesUsed,
         emailVerified: !!session.emailVerifiedAt,
+        limitReached,
       },
     });
   } catch (err) {
