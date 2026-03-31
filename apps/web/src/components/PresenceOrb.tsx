@@ -68,10 +68,6 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         }
       }
 
-      // Glow intensity â transitions at same speed as orb opacity
-      const glowSize = 20 + breathe * 15 + sp * 30;
-      const glowAlpha = 0.15 + breathe * 0.1 + sp * 0.3;
-
       // Apply to container
       const el = containerRef.current;
       if (el) {
@@ -97,8 +93,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         });
 
         // Glow
-        if (glowEl) glowEl.style.boxShadow = 'none';px ${glowSize * 0.5}px rgba(${r},${g},${b},${glowAlpha})`;
-        }
+        if (glowEl) glowEl.style.boxShadow = 'none';
 
         // Ripple rings â only during speaking
         if (ringsEl) {
