@@ -132,6 +132,7 @@ export function setupWebSocket(server: Server): void {
     const audioBuffer: Buffer[] = [];
     let conversationHistory: { role: string; content: string }[] = [];
     let dgWs: WebSocket | undefined;
+    let waitingForPlaybackComplete = false;
 
     const sendToClient = (type: string, payload?: Record<string, unknown>) => {
       if (clientWs.readyState === WS.OPEN) {
@@ -337,18 +338,18 @@ export function setupWebSocket(server: Server): void {
       const farewell = (call.session as any)?.email
         ? "It looks like we've reached the end of the free time for now. That's just how the free version works, not a judgement on you. If you want this support available whenever you need it, you can choose to keep me here with a subscription. And if not, that's okay too. More free time will be there again next month. I'm here either way."
         : "It looks like that was your free session. I hope it helped. You can sign up for free to get more time together each month, or if you'd like unlimited sessions, there's a subscription option too. Either way, no pressure. I'm here whenever you're ready.";
-      speakWithElevenLabs(farewell).then((audioBytes) => {
-        // Wait for browser to finish playing: ~4000 bytes/sec for mp3 + 3s buffer
-        const waitMs = audioBytes ? Math.round((audioBytes / 4000) * 1000) + 3000 : 15000;
-        console.log('[session] farewell bytes:', audioBytes, 'waiting', waitMs, 'ms for playback');
+      speakWithElevenLabs(farewell).then(() => {
+        waitingForPlaybackComplete = true;
+        console.log('[session] farewell sent, waiting for playback_complete from client');
+        // Safety timeout — if client never responds, end after 30 seconds
         setTimeout(() => {
-          sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
-          endCall();
-        }, waitMs);
-      }).catch(() => {
-        sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
-        endCall();
-      });
+          if (waitingForPlaybackComplete) {
+            console.log('[session] playback_complete timeout, ending call');
+            sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
+            endCall();
+          }
+        }, 30000);
+      }).catch(() => endCall());
       return;
     }
 
@@ -504,6 +505,16 @@ export function setupWebSocket(server: Server): void {
           systemPrompt = SYSTEM_PROMPTS['quiet'];
         } else if (type === 'ping') {
           sendToClient('pong');
+        } else if (type === 'playback_complete') {
+          console.log('[ws] playback_complete received');
+          if (waitingForPlaybackComplete) {
+            waitingForPlaybackComplete = false;
+            // Short pause after audio ends, then close
+            setTimeout(() => {
+              sendToClient('limit_reached', { reason: 'monthly_limit', tier: 'FREE' });
+              endCall();
+            }, 1500);
+          }
         }
       } catch {
         // Not JSON — ignore

@@ -86,7 +86,13 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
     // Set audio callbacks for orb animation
     setAudioCallbacks(
       () => onAudioStart?.(),
-      () => onAudioEnd?.(),
+      () => {
+        onAudioEnd?.();
+        // Notify backend that audio finished playing
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'playback_complete' }));
+        }
+      },
     );
 
     ws.onopen = async () => {
