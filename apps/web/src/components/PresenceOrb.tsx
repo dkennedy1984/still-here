@@ -97,11 +97,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         });
 
         // Glow
-        if (glowEl) {
-          const r = sp > 0.5 ? 100 : ls > 0.5 ? 130 : 200;
-          const g = sp > 0.5 ? 220 : ls > 0.5 ? 170 : 210;
-          const b = sp > 0.5 ? 120 : ls > 0.5 ? 255 : 240;
-          glowEl.style.boxShadow = `0 0 ${glowSize}px ${glowSize * 0.5}px rgba(${r},${g},${b},${glowAlpha})`;
+        if (glowEl) glowEl.style.boxShadow = 'none';px ${glowSize * 0.5}px rgba(${r},${g},${b},${glowAlpha})`;
         }
 
         // Ripple rings â only during speaking
@@ -117,8 +113,8 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
     return () => cancelAnimationFrame(animRef.current);
   }, [mounted, size]);
 
-  const d = size === 'lg' ? 144 : 80; // image display size
-  const containerSize = d * 2.5; // room for glow and rings
+  const d = size === 'lg' ? 200 : 100; // image display size
+  const containerSize = d * 2; // room for rings
 
   return (
     <div
@@ -132,10 +128,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       }}
     >
       {/* Glow layer */}
-      <div
-        className="orb-glow absolute rounded-full"
-        style={{ width: d * 0.8, height: d * 0.8 }}
-      />
+      /* orb-glow removed — images have baked-in glow */
 
       {/* Ripple rings */}
       <div className="orb-rings absolute" style={{ width: d * 2, height: d * 2, opacity: 0 }}>
