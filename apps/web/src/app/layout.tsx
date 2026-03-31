@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     template: "%s — Sit With You",
   },
   description:
-    "Quiet company when you need it. Sit With You lets you call for presence and start gently — no pressure, no productivity talk.",
+    "Quiet company when you need it. Sit With You is a calm body doubling companion — call for gentle presence when starting feels hard. No pressure, no judgement.",
   keywords: [
     "body doubling",
     "ADHD",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     siteName: "Sit With You",
     title: "Sit With You — Quiet body doubling for when starting is hard",
     description:
-      "Quiet company when you need it. Call for presence and start gently — no pressure, no productivity talk.",
+      "Quiet company when you need it. Sit With You is a calm body doubling companion — call for gentle presence when starting feels hard. No pressure, no judgement.",
     images: [
       {
         url: "/branding/og-image.png",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Sit With You — Quiet body doubling for when starting is hard",
     description:
-      "Quiet company when you need it. No pressure, no productivity talk.",
+      "Quiet company when you need it. Sit With You is a calm body doubling companion — call for gentle presence when starting feels hard. No pressure, no judgement.",
     images: ["/branding/og-image.png"],
   },
   robots: {
