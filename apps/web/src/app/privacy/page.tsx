@@ -21,6 +21,7 @@ export default function PrivacyPage() {
         <li>Your email address (if you register for a free account or subscribe)</li>
         <li>Call duration (how long each session lasts)</li>
         <li>Payment information (handled entirely by Stripe — we never see your card details)</li>
+        <li>A hashed version of your IP address (to prevent abuse of the free tier — we cannot identify you from this hash)</li>
       </ul>
       
       <h2 className="text-lg font-medium text-white mt-8 mb-3">What we don&apos;t collect</h2>

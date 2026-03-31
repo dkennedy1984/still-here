@@ -4,6 +4,7 @@ import { resolveIdentity, AuthRequest } from "../middleware/auth";
 import { apiLimiter } from "../middleware/rate-limit";
 import { prisma } from "../lib/prisma";
 import { config } from "../config";
+import { createHash } from "crypto";
 
 export const callRouter: Router = Router();
 
@@ -32,6 +33,10 @@ async function ensureDailyReset(sessionId: string, minutesResetAt: Date): Promis
   return -1; // no reset needed, caller should use existing value
 }
 
+function hashIP(ip: string): string {
+  return createHash('sha256').update(ip + (process.env.COOKIE_SECRET || 'salt')).digest('hex').substring(0, 16);
+}
+
 // POST /api/v1/calls/session — create or resume a session, then create a call
 callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest, res, next) => {
   try {
@@ -40,6 +45,8 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
     console.log('[session] signedCookies.sh_session:', signedSessionId || 'NONE');
     console.log('[session] req.sessionId (from resolveIdentity):', req.sessionId || 'NONE');
     const sessionId = signedSessionId || req.sessionId;
+    const clientIP = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || (req as any).ip || 'unknown';
+    const ipHash = hashIP(clientIP);
     const { presenceStyle: rawPresenceStyle, voice: rawVoice } = (req as any).body || {};
     const presenceStyle = rawPresenceStyle || 'quiet';
     const voice = rawVoice || 'her';
@@ -70,18 +77,31 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
         });
       } else {
         // Cookie references a deleted session — create a new one
-        const created = await prisma.session.create({ data: {} });
+        const created = await prisma.session.create({ data: { ipHash } });
         session = created;
         setSessionCookie(res, created.id);
       }
     } else {
       // No cookie — new anonymous session
-      const created = await prisma.session.create({ data: {} });
+      const created = await prisma.session.create({ data: { ipHash } });
       session = created;
       setSessionCookie(res, created.id);
     }
 
-    // --- Enforce free tier limits ---
+    // --- IP-based abuse prevention for anonymous users ---
+    if (!session.email && session.tier !== 'PAID' && session.tier !== 'pro') {
+      const ipSessions = await prisma.session.findMany({
+        where: { ipHash },
+      });
+      const totalMinutes = ipSessions.reduce((sum, s) => sum + (s.monthlyMinutesUsed || 0), 0);
+      const totalCalls = ipSessions.reduce((sum, s) => sum + (s.monthlyCallCount || 0), 0);
+      if (totalMinutes >= 30 || totalCalls >= 5) {
+        console.log('[session] IP limit reached:', ipHash, 'minutes:', totalMinutes, 'calls:', totalCalls);
+        return res.status(403).json({ error: 'email_required', message: 'Please provide your email to continue.' });
+      }
+    }
+
+        // --- Enforce free tier limits ---
     const resetResult = await ensureDailyReset(session.id, session.minutesResetAt);
     const minutesUsed = resetResult >= 0 ? resetResult : session.dailyMinutesUsed;
 

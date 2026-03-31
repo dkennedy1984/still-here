@@ -24,10 +24,12 @@ model Session {
   monthlyMinutesUsed Int       @default(0) @map("monthly_minutes_used")
   monthlyCallCount    Int       @default(0) @map("monthly_call_count")
   monthlyResetAt      DateTime  @default(now()) @map("monthly_reset_at")
+  ipHash           String?   @map("ip_hash")
 
   calls Call[]
 
   @@index([email])
+  @@index([ipHash])
   @@map("sessions")
 }
 
