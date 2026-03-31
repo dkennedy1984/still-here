@@ -77,7 +77,7 @@ const VOICE_MAP: Record<string, string> = {
 
 const GREETING = "Hi. I'm here. You don't have to talk... I'll just sit with you.";
 
-const STT_URL = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&smart_format=true&punctuate=true&vad_events=true&utterance_end_ms=1000&endpointing=300&encoding=linear16&sample_rate=16000&channels=1`;
+const STT_URL = 'wss://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&punctuate=true&smart_format=true&endpointing=300&utterance_end_ms=1000&encoding=linear16&sample_rate=16000&channels=1';
 
 export function setupWebSocket(server: Server): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -112,6 +112,7 @@ export function setupWebSocket(server: Server): void {
 
     console.log(`[ws] mode=${mode}, voice=${voiceChoice}, sessionId=${call.session.id}`);
 
+    console.log('[stt] connecting to Deepgram:', STT_URL);
     const dgWs = new WebSocket(STT_URL, {
       headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
     });
@@ -424,9 +425,15 @@ export function setupWebSocket(server: Server): void {
       if (!isEnded) sendToClient('dg_closed', { code, reason: reason.toString() });
     });
 
-    dgWs.on('error', (err: Error) => {
-      console.error('[dg] WebSocket error:', err.message);
+    dgWs.on('error', (err: any) => {
+      console.error('[stt] Deepgram error:', err.message || err);
       sendToClient('error', { message: err.message });
+    });
+
+    dgWs.on('unexpected-response', (_req: any, res: any) => {
+      let body = '';
+      res.on('data', (chunk: any) => body += chunk);
+      res.on('end', () => console.error('[stt] Deepgram 400 response:', res.statusCode, body));
     });
 
     clientWs.on('message', (data: Buffer, isBinary: boolean) => {
