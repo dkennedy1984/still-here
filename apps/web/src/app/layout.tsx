@@ -34,8 +34,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/branding/og-image.png",
-        width: 1200,
-        height: 630,
+        width: 1376,
+        height: 768,
         alt: "Sit With You — quiet body doubling",
       },
     ],
