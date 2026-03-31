@@ -108,8 +108,8 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
     return () => cancelAnimationFrame(animRef.current);
   }, [mounted, size]);
 
-  const d = size === 'lg' ? 200 : 100; // image display size
-  const containerSize = d * 2; // room for rings
+  const d = size === 'lg' ? 280 : 120; // image display size
+  const containerSize = d * 1.8; // room for rings
 
   return (
     <div
