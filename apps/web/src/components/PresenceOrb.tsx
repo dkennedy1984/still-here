@@ -24,7 +24,8 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   useEffect(() => {
     if (!mounted) return;
 
-    const LERP = 0.015; // ~2 second transition
+    const LERP_IN = 0.08;  // fast transition IN  (~0.5s)
+    const LERP_OUT = 0.025; // slower transition OUT (~1.5s)
     let microNextEvent = 0;
     let microProgress = -1;
 
@@ -34,25 +35,25 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       const isSpeaking = current === 'speaking' || current === 'greeting';
       const isListening = current === 'listening';
 
-      // Lerp towards target
+      // Lerp towards target â fast in, slow out
       const targetSp = isSpeaking ? 1 : 0;
       const targetLs = isListening ? 1 : 0;
-      speakingRef.current += (targetSp - speakingRef.current) * LERP;
-      listeningRef.current += (targetLs - listeningRef.current) * LERP;
+      const spLerp = targetSp > speakingRef.current ? LERP_IN : LERP_OUT;
+      const lsLerp = targetLs > listeningRef.current ? LERP_IN : LERP_OUT;
+      speakingRef.current += (targetSp - speakingRef.current) * spLerp;
+      listeningRef.current += (targetLs - listeningRef.current) * lsLerp;
       if (Math.abs(speakingRef.current - targetSp) < 0.005) speakingRef.current = targetSp;
       if (Math.abs(listeningRef.current - targetLs) < 0.005) listeningRef.current = targetLs;
 
       const sp = speakingRef.current;
       const ls = listeningRef.current;
 
-      // Breathing
+      // Gentle breathing â same for ALL states, no size difference
       const breathe = Math.sin(t * 0.523) * 0.5 + 0.5; // 12s cycle
-      const pulse = isSpeaking ? Math.abs(Math.sin(t * 3.8)) : 0;
+      const scale = 0.95 + breathe * 0.05; // gentle 5% breathing, same for all states
 
-      // Scale
-      const baseScale = 0.90 + breathe * 0.12;
-      const speakScale = 1.0 + pulse * 0.06;
-      const scale = baseScale * (1 - sp) + speakScale * sp + (0.95 - ls * 0.02);
+      // Disable pulse entirely â no size changes during speaking
+      const pulse = 0;
 
       // Micro-animations during idle
       let microBright = 0;
@@ -67,8 +68,8 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         }
       }
 
-      // Glow intensity
-      const glowSize = 20 + breathe * 15 + sp * 30 + pulse * 20;
+      // Glow intensity â transitions at same speed as orb opacity
+      const glowSize = 20 + breathe * 15 + sp * 30;
       const glowAlpha = 0.15 + breathe * 0.1 + sp * 0.3;
 
       // Apply to container
@@ -84,8 +85,8 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         if (speakEl) speakEl.style.opacity = String(sp);
         if (listenEl) listenEl.style.opacity = String(ls);
 
-        // Scale and brightness on all orb images
-        const brightness = 1 + microBright + sp * 0.1 + pulse * 0.05;
+        // Same scale and brightness for all orb images â no state-based size changes
+        const brightness = 1 + microBright + sp * 0.1;
         const orbTransform = `scale(${scale})`;
         const orbFilter = `brightness(${brightness})`;
         [idleEl, speakEl, listenEl].forEach(img => {
@@ -103,7 +104,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
           glowEl.style.boxShadow = `0 0 ${glowSize}px ${glowSize * 0.5}px rgba(${r},${g},${b},${glowAlpha})`;
         }
 
-        // Ripple rings — only during speaking
+        // Ripple rings â only during speaking
         if (ringsEl) {
           ringsEl.style.opacity = String(sp > 0.05 ? sp : 0);
         }
