@@ -123,7 +123,6 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
       }}
     >
       {/* Glow layer */}
-      /* orb-glow removed — images have baked-in glow */
 
       {/* Ripple rings */}
       <div className="orb-rings absolute" style={{ width: d * 2, height: d * 2, opacity: 0 }}>
