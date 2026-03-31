@@ -307,9 +307,18 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
       fadeIntervalRef.current = null;
     }
     if (gainRef.current) gainRef.current.gain.value = volume;
-    // Also update presence HTML Audio element volume
+
+    // Update presence audio volume via all possible references
+    const targetVol = Math.min(volume * 3, 1.0);
     if (presenceAudioRef.current) {
-      presenceAudioRef.current.volume = Math.min(volume * 3, 1.0);
+      presenceAudioRef.current.volume = targetVol;
+    }
+    if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
+      (window as any).__presenceAudio.volume = targetVol;
+    }
+    const domAudio = document.getElementById('swy-presence-audio') as HTMLAudioElement;
+    if (domAudio) {
+      domAudio.volume = targetVol;
     }
   }, [volume]);
 
