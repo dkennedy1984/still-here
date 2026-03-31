@@ -18,7 +18,7 @@ interface AmbientNoiseProps {
 export function AmbientNoise({ disabled = false, externalSound, className }: AmbientNoiseProps) {
   const [active, setActive] = useState('off');
   const [showMenu, setShowMenu] = useState(false);
-  const [volume, setVolume] = useState(0.2);
+  const [volume, setVolume] = useState(0.5);
 
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
@@ -259,7 +259,7 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
             audio.play().catch(() => {});
             console.log('[ambient] playing: presence (real audio file)');
             // Fade in over 3 seconds
-            const targetVol = Math.min(volume * 3, 1.0);
+            const targetVol = volume;
             let fadeVol = 0;
             const fadeInterval = setInterval(() => {
               if (!presenceAudioRef.current) {
@@ -301,24 +301,25 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
   useEffect(() => { activeRef.current = active; }, [active]);
 
   useEffect(() => {
-    // User changed volume — cancel any ongoing fade-in
     if (fadeIntervalRef.current) {
       clearInterval(fadeIntervalRef.current);
       fadeIntervalRef.current = null;
     }
+
+    // Generated sounds (rain, white, brown) — use raw volume
     if (gainRef.current) gainRef.current.gain.value = volume;
 
-    // Update presence audio volume via all possible references
-    const targetVol = Math.min(volume * 3, 1.0);
+    // Presence MP3 — use raw volume, no multiplier
+    const presenceVol = volume;
     if (presenceAudioRef.current) {
-      presenceAudioRef.current.volume = targetVol;
+      presenceAudioRef.current.volume = presenceVol;
     }
     if (typeof window !== 'undefined' && (window as any).__presenceAudio) {
-      (window as any).__presenceAudio.volume = targetVol;
+      (window as any).__presenceAudio.volume = presenceVol;
     }
     const domAudio = document.getElementById('swy-presence-audio') as HTMLAudioElement;
     if (domAudio) {
-      domAudio.volume = targetVol;
+      domAudio.volume = presenceVol;
     }
   }, [volume]);
 
@@ -430,8 +431,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
         {active !== 'off' && (
           <input
             type="range"
-            min="0.05"
-            max="0.5"
+            min="0"
+            max="1"
             step="0.01"
             value={volume}
             onClick={(e) => e.stopPropagation()}
@@ -473,8 +474,8 @@ export function AmbientNoise({ disabled = false, externalSound, className }: Amb
                 <span className="text-xs text-slate-500">Volume</span>
                 <input
                   type="range"
-                  min="0.05"
-                  max="0.5"
+                  min="0"
+                  max="1"
                   step="0.01"
                   value={volume}
                   onChange={e => setVolume(parseFloat(e.target.value))}
