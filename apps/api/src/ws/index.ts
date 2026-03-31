@@ -365,6 +365,7 @@ export function setupWebSocket(server: Server): void {
 
       // Session time limit
       startTime = Date.now();
+      console.log('[session] timers set: session=' + maxSessionMs + 'ms, checkin=' + CHECK_IN_MS + 'ms');
       sessionWarningTimer = setTimeout(() => {
         console.log('[session] 2 minutes remaining, warning user');
         speakWithElevenLabs("Just to let you know, we have about two minutes left on this call. You can always call back whenever you need to.").catch(() => {});

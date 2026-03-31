@@ -127,6 +127,7 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
         session.monthlyCallCount = 0;
       }
 
+      console.log('[session] monthly check: calls=' + session.monthlyCallCount + '/5, minutes=' + session.monthlyMinutesUsed + '/30');
       if (session.monthlyCallCount >= 5) {
         console.log('[session] monthly limit reached (calls):', session.monthlyCallCount, '— allowing call with farewell');
         limitReached = true;

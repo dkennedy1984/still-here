@@ -88,6 +88,14 @@ export default function UpgradePage() {
       </ul>
       </div>
 
+      <div className="mt-6 pt-4 border-t border-white/5">
+        <p className="text-xs text-slate-500 text-center mb-3">Your free plan includes:</p>
+        <ul className="space-y-1 text-center">
+          <li className="text-xs text-slate-500">5 calls per month, up to 30 minutes total</li>
+          <li className="text-xs text-slate-500">All features included</li>
+        </ul>
+      </div>
+
       <div className="text-center mt-6">
         <p className="text-lg text-slate-300">£8 per month</p>
         <p className="text-sm text-slate-500 mt-1">Cancel anytime</p>
