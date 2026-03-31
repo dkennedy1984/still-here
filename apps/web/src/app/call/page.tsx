@@ -118,7 +118,7 @@ function CallPageInner() {
       <FixedOrb state={isAudioPlaying ? 'speaking' : (state.agentState === 'LISTENING' || state.agentState === 'THINKING') ? 'listening' : 'idle'} />
 
       {ambientStarted && (
-        <div className="fixed bottom-6 left-6" style={{ zIndex: 50 }} onClick={e => e.stopPropagation()}>
+        <div className="fixed bottom-6 left-6 z-50" onClick={e => e.stopPropagation()}>
           <AmbientNoise
             disabled={state.status === 'ended'}
             externalSound={ambientStarted ? ambientSound : undefined}
@@ -154,12 +154,12 @@ function CallPageInner() {
       )}
 
       <div
-        className={`fixed bottom-0 left-0 right-0 pb-10 flex flex-col items-center gap-4 transition-opacity duration-500 ${
+        className={`fixed bottom-0 left-0 right-0 pb-10 flex flex-col items-center gap-5 transition-opacity duration-500 ${
           showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
         {/* Presence style selector */}
-        <div className="flex gap-2">
+        <div className="flex justify-center gap-2.5">
           {(['quiet', 'check-ins', 'talk'] as PresenceStyle[]).map((style) => (
             <button
               key={style}
@@ -186,7 +186,7 @@ function CallPageInner() {
             e.stopPropagation();
             handleHangup();
           }}
-          className="w-16 h-16 rounded-full bg-rose-500/90 hover:bg-rose-400 flex items-center justify-center transition-colors shadow-lg"
+          className="mx-auto w-16 h-16 rounded-full bg-rose-500/90 hover:bg-rose-400 flex items-center justify-center transition-colors shadow-lg"
           aria-label="End call"
         >
           <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
