@@ -101,14 +101,7 @@ function HomePageContent() {
       const mode = presenceStyle === 'silent' ? 'quiet' : presenceStyle;
       const { callId, wsTicket, error } = await startCall(mode, voice);
 
-      if (error === 'email_required') {
-        router.push('/post-call?gate=email');
-        callingRef.current = false;
-        setLoading(false);
-        return;
-      }
-
-      // monthly_limit: allow call to proceed — AI will speak farewell and end gracefully
+      // all limit paths allow the call to proceed — AI handles farewell gracefully
 
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     } catch (err) {
@@ -126,13 +119,7 @@ function HomePageContent() {
     callingRef.current = true;
     setLoading(true);
     startCall(style, voice).then(({ callId, wsTicket, error }) => {
-      if (error === 'email_required') {
-        router.push('/post-call?gate=email');
-        callingRef.current = false;
-        setLoading(false);
-        return;
-      }
-      // monthly_limit: allow call to proceed — AI will speak farewell and end gracefully
+      // all limit paths allow the call to proceed — AI handles farewell gracefully
       router.push(`/call?callId=${callId}&ticket=${wsTicket}`);
     }).catch(err => {
       console.error(err);

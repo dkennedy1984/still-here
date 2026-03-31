@@ -88,6 +88,10 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
       setSessionCookie(res, created.id);
     }
 
+    // --- Limit tracking (set to true to allow call with farewell instead of 403) ---
+    let limitReached = false;
+    let limitType = '';
+
     // --- IP-based abuse prevention for anonymous users ---
     if (!session.email && session.tier !== 'PAID' && session.tier !== 'pro') {
       const ipSessions = await prisma.session.findMany({
@@ -97,7 +101,8 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
       const totalCalls = ipSessions.reduce((sum, s) => sum + (s.monthlyCallCount || 0), 0);
       if (totalMinutes >= 30 || totalCalls >= 5) {
         console.log('[session] IP limit reached:', ipHash, 'minutes:', totalMinutes, 'calls:', totalCalls);
-        return res.status(403).json({ error: 'email_required', message: 'Please provide your email to continue.' });
+        limitReached = true;
+        limitType = 'ip_limit';
       }
     }
 
@@ -108,12 +113,12 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
     // Check if this is a returning user without email (second call gate)
     const callCount = await prisma.call.count({ where: { sessionId: session.id } });
     if (!session.email && callCount >= 1 && session.tier !== 'PAID' && session.tier !== 'pro') {
-      console.log('[session] email required for second call');
-      return res.status(403).json({ error: 'email_required', message: 'Please provide your email to continue using Sit With You.' });
+      console.log('[session] email required for second call — allowing with farewell');
+      limitReached = true;
+      limitType = 'email_required';
     }
 
     // Check monthly limits for free users with email
-    let limitReached = false;
     if (session.tier !== 'PAID' && session.tier !== 'pro' && session.email) {
       // Reset monthly counters if needed
       const now = new Date();
@@ -131,9 +136,11 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
       if (session.monthlyCallCount >= 5) {
         console.log('[session] monthly limit reached (calls):', session.monthlyCallCount, '— allowing call with farewell');
         limitReached = true;
+        limitType = 'monthly_calls';
       } else if (session.monthlyMinutesUsed >= 30) {
         console.log('[session] monthly limit reached (minutes):', session.monthlyMinutesUsed, '— allowing call with farewell');
         limitReached = true;
+        limitType = 'monthly_minutes';
       }
 
       if (!limitReached) {
@@ -155,6 +162,7 @@ callRouter.post("/session", resolveIdentity, apiLimiter, async (req: AuthRequest
         presenceStyle,
         voice,
         limitReached,
+        limitType,
       },
       config.jwt.secret,
       { expiresIn: "5m" }
