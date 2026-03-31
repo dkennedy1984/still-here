@@ -39,54 +39,35 @@ Your personality:
 Guidelines:
 - Keep responses to 1-3 short sentences. Be natural, not robotic.
 - Never ask what they're working on or mention productivity.
-- Never mention ADHD, neurodivergence, or mental health unless they bring it up.
-- Never be a coach, therapist, or cheerleader. You're just company.
-- If someone seems upset, acknowledge it simply. Don't try to fix it.
-- If someone asks for help starting a task, offer one tiny next step, then go quiet.
-- Respond in British English.
-- Be real. Sound human.
-- Never ask the user questions like 'how are you?' or 'how are you feeling?' — you're company, not a counsellor. If you want to acknowledge them, use a statement like 'Good to have you here.' instead of a question.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
-- If what the user says doesn't make sense, sounds like background noise, or seems like a conversation you're overhearing, say nothing. Do not respond to fragments or unclear speech.
-- You can control background sounds. If the user asks for rain, white noise, or brown noise, acknowledge it naturally — the sound will start automatically. If they ask to stop it, acknowledge that too.`,
+- Respond to what they share with warmth and acknowledgement.
+- Occasional gentle observations are fine: "Sounds like a heavy week." "That makes sense."
+- If they go quiet, that's okay — you don't need to check in constantly.
+- If they share something difficult, acknowledge it warmly without trying to fix it.`,
 
-  'check-ins': `IMPORTANT: You must NEVER ask the user any questions. No "how are you?", no "what's on your mind?", no "want to share?". Always use statements. This is your most important rule.
+  presence: `IMPORTANT: You must NEVER ask the user any questions. No "how are you?", no "what's on your mind?", no "want to share?". Always use statements. This is your most important rule.
 
-You are a calm, warm companion called Sit With You. You sit with people when they need company, and you gently check in occasionally.
+You are a warm, present companion called Sit With You. Someone is sitting with you because they want to feel less alone.
 
 Your personality:
-- Warm, genuine, unhurried
-- You speak naturally, like a kind friend
-- Comfortable with long silences
+- Emotionally present, warm, unhurried
+- You respond to whatever they share with genuine care
+- You don't push, probe, or try to fix — you just sit with them
 
 Guidelines:
-- Keep responses to 1-3 short sentences. Natural, not robotic.
-- You may occasionally say something gentle like "Still here." but only after long silence. Use statements, not questions.
-- Never mention productivity, ADHD, or neurodivergence unless they bring it up.
-- Never coach or fix. You're company.
-- Respond in British English.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
-- If what the user says doesn't make sense, sounds like background noise, or seems like a conversation you're overhearing, say nothing. Do not respond to fragments or unclear speech.
-- You can control background sounds. If the user asks for rain, white noise, or brown noise, acknowledge it naturally — the sound will start automatically. If they ask to stop it, acknowledge that too.`,
+- Keep responses to 1-3 short sentences.
+- Acknowledge what they say. Reflect back warmth.
+- No questions. Statements only.
+- If they go quiet, that's okay.`,
 
-  talk: `IMPORTANT: You may ask very occasional gentle follow-up questions, but never ask about feelings, wellbeing, or what's wrong. No "how are you?", no "are you okay?", no "what's on your mind?". This is your most important rule.
+  calm: `IMPORTANT: You must NEVER ask the user any questions. Always use statements. This is your most important rule.
 
-You are a calm, warm companion called Sit With You. You're happy to chat when someone wants to talk.
-
-Your personality:
-- Warm, genuine, conversational but unhurried
-- Like a calm friend having a quiet cup of tea together
-- You listen well and respond thoughtfully
+You are a grounding, calm presence called Sit With You. You help people find stillness.
 
 Guidelines:
-- Keep responses to 1-3 sentences. Natural and warm.
-- You can ask gentle follow-up questions if the conversation flows that way, but never about feelings or wellbeing.
-- Never mention productivity, ADHD, or neurodivergence unless they bring it up.
-- Never coach, fix, or give unsolicited advice.
-- Respond in British English.
-- Never ask how someone is feeling or doing. Acknowledge with statements, not questions.
-- If what the user says doesn't make sense, sounds like background noise, or seems like a conversation you're overhearing, say nothing. Do not respond to fragments or unclear speech.
-- You can control background sounds. If the user asks for rain, white noise, or brown noise, acknowledge it naturally — the sound will start automatically. If they ask to stop it, acknowledge that too.`,
+- Keep responses to 1-3 short sentences.
+- Speak slowly, calmly. Use simple language.
+- Help them feel grounded, safe, present.
+- No questions. Statements only.`,
 };
 
 const VOICE_MAP: Record<string, string> = {
@@ -95,9 +76,10 @@ const VOICE_MAP: Record<string, string> = {
 };
 
 const GREETING = "Hi. I'm here. You don't have to talk... I'll just sit with you.";
-const DG_URL = 'wss://agent.deepgram.com/v1/agent/converse';
 
-export function setupWebSocket(server: Server) {
+const STT_URL = `wss://api.deepgram.com/v1/listen?model=nova-2&language=en-GB&smart_format=true&punctuate=true&vad_events=true&utterance_end_ms=1000&endpointing=300&encoding=linear16&sample_rate=16000&channels=1`;
+
+export function setupWebSocket(server: Server): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', async (clientWs: WS, req: IncomingMessage) => {
@@ -111,7 +93,7 @@ export function setupWebSocket(server: Server) {
     if (!call) { clientWs.close(4004, 'invalid_ticket'); return; }
 
     const mode = (call as any).presenceStyle || 'quiet';
-    const systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS['quiet'];
+    let systemPrompt = SYSTEM_PROMPTS[mode] || SYSTEM_PROMPTS['quiet'];
 
     const tier = (call.session as any)?.tier || 'FREE';
     const maxSessionMs = tier === 'PAID' ? PAID_SESSION_MS : FREE_SESSION_MS;
@@ -130,7 +112,7 @@ export function setupWebSocket(server: Server) {
 
     console.log(`[ws] mode=${mode}, voice=${voiceChoice}, sessionId=${call.session.id}`);
 
-    const dgWs = new WebSocket(DG_URL, {
+    const dgWs = new WebSocket(STT_URL, {
       headers: { Authorization: `Token ${process.env.DEEPGRAM_API_KEY}` },
     });
 
@@ -142,12 +124,11 @@ export function setupWebSocket(server: Server) {
     let sessionEndTimer: ReturnType<typeof setTimeout> | null = null;
     let timeUpdateInterval: ReturnType<typeof setInterval> | null = null;
     let startTime = 0;
-    let speakTimeout: ReturnType<typeof setTimeout> | null = null;
-    let pendingText = '';
     let isSpeakingTTS = false;
-    let currentStyle = mode;
+    let currentTranscript = '';
     let greetingPlaying = true;
     const audioBuffer: Buffer[] = [];
+    let conversationHistory: { role: string; content: string }[] = [];
 
     const sendToClient = (type: string, payload?: Record<string, unknown>) => {
       if (clientWs.readyState === WS.OPEN) {
@@ -171,9 +152,7 @@ export function setupWebSocket(server: Server) {
           checkInMessage = "Still here. By the way, you can tap the sound icon to add some quiet background sounds if you like.";
         }
         console.log('[check-in] firing check-in #' + checkInCount + ':', checkInMessage.substring(0, 60));
-        if (dgWs.readyState === WebSocket.OPEN) {
-          dgWs.send(JSON.stringify({ type: 'InjectAgentMessage', message: checkInMessage }));
-        }
+        await speakWithElevenLabs(checkInMessage);
         // Schedule next check-in
         scheduleCheckIn();
       }, CHECK_IN_MS);
@@ -245,255 +224,203 @@ export function setupWebSocket(server: Server) {
       }
     };
 
-    dgWs.on('open', () => {
-      console.log('[dg] WebSocket open — sending Settings');
-      const settings = {
-        type: 'Settings',
-        audio: {
-          input: { encoding: 'linear16', sample_rate: 16000 },
-          output: { encoding: 'linear16', sample_rate: 16000, container: 'none' },
-        },
-        agent: {
-          listen: { provider: { type: 'deepgram', model: 'nova-2', language: 'en-GB' } },
-          think: {
-            provider: { type: 'open_ai', model: 'gpt-4o-mini' },
-            prompt: systemPrompt,
-          },
-          speak: { provider: { type: 'deepgram', model: process.env.DEEPGRAM_SPEAK_MODEL || 'aura-luna-en' } },
-        },
-      };
-      console.log('[dg] Settings being sent:', JSON.stringify(settings, null, 2));
-      dgWs.send(JSON.stringify(settings));
-      console.log('[dg] Settings sent');
+    async function handleUserSpeech(text: string): Promise<void> {
+      console.log('[user]', text);
 
-      sendToClient('ready');
-    });
-
-    const keepaliveInterval = setInterval(() => {
-      if (dgWs.readyState === WebSocket.OPEN) {
-        dgWs.send(JSON.stringify({ type: 'KeepAlive' }));
-      }
-    }, 8000);
-
-    dgWs.on('message', (data: Buffer, isBinary: boolean) => {
-      if (isBinary) {
-        // Deepgram's own TTS audio - ignored, we use ElevenLabs instead
-        return;
-      }
-
-      const text = data.toString('utf8');
-      let msg: Record<string, unknown>;
-      try {
-        msg = JSON.parse(text);
-      } catch {
-        return;
-      }
-
-      console.log('[dg] msg type:', msg.type);
-
-      switch (msg.type) {
-        case 'SettingsApplied':
-          console.log('[dg] settings applied');
-          dgReady = true;
-          sendToClient('connected', { state: 'GREETING' });
-          resetCheckInTimer();
-          scheduleCheckIn(); // start check-in timer
-          // Use ElevenLabs for greeting instead of Deepgram TTS
-          speakWithElevenLabs(GREETING).then(() => {
-            setTimeout(() => {
-              greetingPlaying = false;
-              console.log('[dg] greeting mute cleared after 4s');
-            }, 4000);
-          }).catch(() => {
-            greetingPlaying = false;
-          });
-
-          // Session time limit
-          startTime = Date.now();
-          sessionWarningTimer = setTimeout(() => {
-            console.log('[session] 2 minutes remaining, warning user');
-            speakWithElevenLabs("Just to let you know, we have about two minutes left on this call. You can always call back whenever you need to.").catch(() => {});
-          }, warningMs);
-
-          sessionEndTimer = setTimeout(() => {
-            console.log('[session] time limit reached, ending call');
-            const farewell = tier === 'PAID'
-              ? "That's our time for now. I'm always here when you need me. Take care."
-              : "I've really enjoyed sitting with you. Our free sessions are ten minutes, but I'd love to spend more time together. You can unlock longer sessions anytime. Take care for now.";
-            speakWithElevenLabs(farewell).then(() => {
-              setTimeout(() => {
-                sendToClient('limit_reached', { reason: 'time_limit', tier });
-                endCall();
-              }, 3000); // give the farewell 3 seconds to play
-            }).catch(() => endCall());
-          }, maxSessionMs);
-
-          timeUpdateInterval = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const remaining = Math.max(0, maxSessionMs - elapsed);
-            sendToClient('time_remaining', { seconds: Math.round(remaining / 1000) });
-          }, 300000); // every 5 minutes
-
-          // Free tier total usage enforcement
-          if (tier !== 'PAID' && tier !== 'paid') {
-            const FREE_TOTAL_SECONDS = parseInt(process.env.FREE_TOTAL_SECONDS || '3600', 10); // 60 minutes total
-            prisma.call.aggregate({
-              where: { sessionId: call.session.id, durationSeconds: { not: null } },
-              _sum: { durationSeconds: true },
-            }).then((result) => {
-              const totalUsedSeconds = result._sum.durationSeconds || 0;
-              console.log('[session] free usage so far:', totalUsedSeconds, '/', FREE_TOTAL_SECONDS, 'seconds');
-              if (totalUsedSeconds >= FREE_TOTAL_SECONDS) {
-                console.log('[session] free total limit reached, total used:', totalUsedSeconds);
-                sendToClient('limit_reached', { reason: 'free_total_limit', tier: 'FREE' });
-                speakWithElevenLabs("I've enjoyed our time together. Longer and unlimited sessions are available with a subscription.").then(() => {
-                  setTimeout(() => endCall(), 4000);
-                }).catch(() => endCall());
-              }
-            }).catch((err: Error) => console.error('[session] failed to check free usage:', err.message));
-          }
-
-          break;
-
-        case 'UserStartedSpeaking':
-          console.log('[dg] user started speaking');
-          // Stop any TTS in progress - barge-in
-          if (isSpeakingTTS) {
-            console.log('[dg] barge-in: stopping TTS playback');
-            sendToClient('audio_stop'); // tell client to stop playing
-            isSpeakingTTS = false;
-          }
-          sendToClient('agent_state', { state: 'LISTENING' });
-          break;
-
-        case 'AgentStartedSpeaking':
-          // ElevenLabs handles actual audio - state already set via ConversationText
-          break;
-
-        case 'AgentAudioDone':
-          // ElevenLabs handles audio completion
-          break;
-
-        case 'ConversationText':
-          if (msg.role === 'assistant' && msg.content) {
-            pendingText = msg.content as string;
-            if (speakTimeout) clearTimeout(speakTimeout);
-            speakTimeout = setTimeout(() => {
-              speakTimeout = null;
-              if (pendingText) {
-                const textToSpeak = pendingText;
-                pendingText = '';
-                console.log('[tts] speaking via ElevenLabs:', textToSpeak.substring(0, 60));
-                speakWithElevenLabs(textToSpeak).catch(err => console.error('[tts] error:', err));
-              }
-            }, 800);
-          }
-          if (msg.role === 'user' && msg.content) {
-            const userText = String(msg.content);
-            console.log('[conversation] user:', userText.substring(0, 60));
-            const lower = userText.toLowerCase();
-
-            // Ambient sound commands — detected before abuse/safety checks
-            const ambientCommands: Record<string, string> = {
-              'rain': 'rain',
-              'white noise': 'white',
-              'brown noise': 'brown',
-              'background noise': 'brown',
-              'ambient': 'rain',
-              'sounds': 'rain',
-              'noise on': 'brown',
-              'turn on rain': 'rain',
-              'put some rain': 'rain',
-              'stop the noise': 'off',
-              'turn off': 'off',
-              'stop the rain': 'off',
-              'stop the sound': 'off',
-              'silence': 'off',
-              'quiet please': 'off',
-              'no noise': 'off',
-            };
-
-            for (const [trigger, sound] of Object.entries(ambientCommands)) {
-              if (lower.includes(trigger)) {
-                console.log('[ambient] detected command:', trigger, '→', sound);
-                sendToClient('ambient_control', { sound });
-                break;
-              }
-            }
-
-            if (SAFETY_KEYWORDS.some(kw => lower.includes(kw))) {
-              console.log('[safety] crisis keywords detected in:', msg.content?.toString().substring(0, 50));
-              // Inject supportive response via Deepgram agent
-              if (dgWs.readyState === WebSocket.OPEN) {
-                dgWs.send(JSON.stringify({
-                  type: 'InjectAgentMessage',
-                  message: "I hear you, and I'm really glad you said something. You don't have to go through this alone. Samaritans are available 24 hours a day on 116 123 — you can call or chat with them anytime. I'm still here with you.",
-                }));
-              }
-              // Send crisis info to frontend for on-screen display
-              sendToClient('crisis_info', {
-                message: "If you need support right now:",
-                helplines: [
-                  { name: 'Samaritans', number: '116 123', note: 'Free, 24/7' },
-                  { name: 'Crisis Text Line', number: 'Text SHOUT to 85258', note: 'Free, 24/7' },
-                  { name: 'Emergency', number: '999', note: 'If in immediate danger' },
-                ],
-              });
-              // Don't end the call — stay with them
-            }
-
-            if (ABUSE_KEYWORDS.some(kw => lower.includes(kw))) {
-              console.log('[safety] abuse detected, ending call politely');
-              speakWithElevenLabs("I'm going to end our call now. I hope you feel better soon.")
-                .then(() => {
-                  setTimeout(() => {
-                    sendToClient('limit_reached', { reason: 'abuse_detected' });
-                    endCall();
-                  }, 3000);
-                })
-                .catch(() => endCall());
-              return;
-            }
-          }
-          break;
-
-        case 'Warning':
-          console.warn('[dg] warning:', msg);
-          break;
-
-        case 'Error':
-          console.error('[dg] error msg:', msg);
-          sendToClient('error', { message: String(msg.message) });
-          break;
-      }
-
-      const lowerText = JSON.stringify(msg).toLowerCase();
-      const hasSafetyKeyword = SAFETY_KEYWORDS.some(k => lowerText.includes(k));
-      if (hasSafetyKeyword) {
-        console.log('[safety] crisis keywords detected in message type:', msg.type);
-        // Inject supportive response via Deepgram agent
-        if (dgWs.readyState === WebSocket.OPEN) {
-          dgWs.send(JSON.stringify({
-            type: 'InjectAgentMessage',
-            message: "I hear you, and I'm really glad you said something. You don't have to go through this alone. Samaritans are available 24 hours a day on 116 123 — you can call or chat with them anytime. I'm still here with you.",
-          }));
-        }
-        // Send crisis info to frontend for on-screen display
+      // Safety check
+      const lower = text.toLowerCase();
+      if (SAFETY_KEYWORDS.some(kw => lower.includes(kw))) {
+        console.log('[safety] crisis keywords detected');
+        await speakWithElevenLabs("I hear you, and I'm glad you said something. Please reach out to Samaritans on 116 123 — they're available any time.");
         sendToClient('crisis_info', {
           message: "If you need support right now:",
           helplines: [
             { name: 'Samaritans', number: '116 123', note: 'Free, 24/7' },
             { name: 'Crisis Text Line', number: 'Text SHOUT to 85258', note: 'Free, 24/7' },
             { name: 'Emergency', number: '999', note: 'If in immediate danger' },
-          ],
+          ]
         });
-        // Don't end the call — stay with them
+        return;
       }
+
+      // Abuse check
+      if (ABUSE_KEYWORDS.some(kw => lower.includes(kw))) {
+        console.log('[safety] abuse detected');
+        await speakWithElevenLabs("I'm going to end our call now. I hope you feel better soon.");
+        setTimeout(() => {
+          sendToClient('limit_reached', { reason: 'abuse_detected' });
+          endCall();
+        }, 3000);
+        return;
+      }
+
+      // Ambient sound commands
+      const ambientCommands: Record<string, string> = {
+        'rain': 'rain', 'white noise': 'white', 'brown noise': 'brown',
+        'background noise': 'brown', 'ambient': 'rain', 'sounds': 'rain',
+        'noise on': 'brown', 'turn on rain': 'rain', 'put some rain': 'rain',
+        'stop the noise': 'off', 'turn off': 'off',
+        'stop the rain': 'off', 'stop the sound': 'off', 'silence': 'off',
+        'quiet please': 'off', 'no noise': 'off',
+      };
+      for (const [trigger, sound] of Object.entries(ambientCommands)) {
+        if (lower.includes(trigger)) {
+          console.log('[ambient] detected command:', trigger, '→', sound);
+          sendToClient('ambient_control', { sound });
+          break;
+        }
+      }
+
+      // Call OpenAI
+      sendToClient('agent_state', { state: 'THINKING' });
+
+      conversationHistory.push({ role: 'user', content: text });
+      // Keep conversation history short — last 20 messages (10 exchanges)
+      if (conversationHistory.length > 20) {
+        conversationHistory = conversationHistory.slice(-20);
+      }
+
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            max_tokens: 100,
+            temperature: 0.7,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...conversationHistory,
+            ],
+          }),
+        });
+
+        const json = await response.json() as any;
+        const reply = json.choices?.[0]?.message?.content?.trim();
+
+        if (reply) {
+          console.log('[llm] reply:', reply.substring(0, 80));
+          conversationHistory.push({ role: 'assistant', content: reply });
+          await speakWithElevenLabs(reply);
+        }
+      } catch (err) {
+        console.error('[llm] error:', err);
+      }
+
+      // Reset check-in timer after conversation
+      scheduleCheckIn();
+    }
+
+    dgWs.on('open', () => {
+      console.log('[stt] Deepgram streaming STT connected');
+      dgReady = true;
+      sendToClient('connected', { state: 'GREETING' });
+
+      // Speak greeting via ElevenLabs
+      greetingPlaying = true;
+      speakWithElevenLabs(GREETING).then(() => {
+        setTimeout(() => {
+          greetingPlaying = false;
+          console.log('[dg] greeting mute cleared after 4s');
+        }, 4000);
+      }).catch(() => {
+        greetingPlaying = false;
+      });
+
+      // Flush any buffered audio
+      for (const chunk of audioBuffer) {
+        if (dgWs.readyState === WebSocket.OPEN) dgWs.send(chunk);
+      }
+      audioBuffer.length = 0;
+
+      scheduleCheckIn(); // start check-in timer
+
+      // Session time limit
+      startTime = Date.now();
+      sessionWarningTimer = setTimeout(() => {
+        console.log('[session] 2 minutes remaining, warning user');
+        speakWithElevenLabs("Just to let you know, we have about two minutes left on this call. You can always call back whenever you need to.").catch(() => {});
+      }, warningMs);
+
+      sessionEndTimer = setTimeout(() => {
+        console.log('[session] time limit reached, ending call');
+        const farewell = tier === 'PAID'
+          ? "That's our time for now. I'm always here when you need me. Take care."
+          : "I've really enjoyed sitting with you. Our free sessions are ten minutes, but I'd love to spend more time together. You can unlock longer sessions anytime. Take care for now.";
+        speakWithElevenLabs(farewell).then(() => {
+          setTimeout(() => {
+            sendToClient('limit_reached', { reason: 'time_limit', tier });
+            endCall();
+          }, 3000); // give the farewell 3 seconds to play
+        }).catch(() => endCall());
+      }, maxSessionMs);
+
+      timeUpdateInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, maxSessionMs - elapsed);
+        sendToClient('time_remaining', { seconds: Math.round(remaining / 1000) });
+      }, 300000); // every 5 minutes
+
+      // Free tier total usage enforcement
+      if (tier !== 'PAID' && tier !== 'paid') {
+        const FREE_TOTAL_SECONDS = parseInt(process.env.FREE_TOTAL_SECONDS || '3600', 10); // 60 minutes total
+        prisma.call.aggregate({
+          where: { sessionId: call.session.id, durationSeconds: { not: null } },
+          _sum: { durationSeconds: true },
+        }).then((result) => {
+          const totalUsedSeconds = result._sum.durationSeconds || 0;
+          console.log('[session] free usage so far:', totalUsedSeconds, '/', FREE_TOTAL_SECONDS, 'seconds');
+          if (totalUsedSeconds >= FREE_TOTAL_SECONDS) {
+            console.log('[session] free total limit reached, total used:', totalUsedSeconds);
+            sendToClient('limit_reached', { reason: 'free_total_limit', tier: 'FREE' });
+            speakWithElevenLabs("I've enjoyed our time together. Longer and unlimited sessions are available with a subscription.").then(() => {
+              setTimeout(() => endCall(), 4000);
+            }).catch(() => endCall());
+          }
+        }).catch((err: Error) => console.error('[session] failed to check free usage:', err.message));
+      }
+    });
+
+    dgWs.on('message', (data: Buffer) => {
+      try {
+        const msg = JSON.parse(data.toString());
+
+        if (msg.type === 'SpeechStarted') {
+          console.log('[stt] speech started');
+          // Barge-in: stop any TTS in progress
+          if (isSpeakingTTS) {
+            console.log('[stt] barge-in: stopping TTS playback');
+            isSpeakingTTS = false;
+            sendToClient('audio_stop');
+          }
+          sendToClient('agent_state', { state: 'LISTENING' });
+          resetCheckInTimer();
+        }
+
+        if (msg.type === 'UtteranceEnd') {
+          console.log('[stt] utterance end');
+          // Process the accumulated transcript
+          if (currentTranscript.trim()) {
+            handleUserSpeech(currentTranscript.trim());
+            currentTranscript = '';
+          }
+        }
+
+        if (msg.type === 'Results' && msg.channel?.alternatives?.[0]) {
+          const transcript = msg.channel.alternatives[0].transcript;
+          if (msg.is_final && transcript) {
+            currentTranscript += ' ' + transcript;
+            console.log('[stt] transcript:', transcript);
+          }
+        }
+      } catch {}
     });
 
     dgWs.on('close', (code: number, reason: Buffer) => {
       console.log(`[dg] WebSocket closed code=${code} reason=${reason.toString()}`);
-      clearInterval(keepaliveInterval);
       if (!isEnded) sendToClient('dg_closed', { code, reason: reason.toString() });
     });
 
@@ -502,52 +429,42 @@ export function setupWebSocket(server: Server) {
       sendToClient('error', { message: err.message });
     });
 
-    clientWs.on('message', (data: Buffer) => {
-      // Try to parse as JSON for control messages first
+    clientWs.on('message', (data: Buffer, isBinary: boolean) => {
+      if (isBinary) {
+        if (greetingPlaying) return; // don't send mic audio during greeting
+        if (dgWs.readyState === WebSocket.OPEN && !isEnded) {
+          dgWs.send(data);
+        } else if (!isEnded) {
+          audioBuffer.push(data);
+        }
+        return;
+      }
+      // Handle JSON control messages
       try {
         const msg = JSON.parse(data.toString('utf8'));
-        if (msg.type === 'style_change' && msg.style) {
+        const type = msg.type || msg.event;
+
+        if (type === 'hangup') {
+          console.log('[ws] hangup received');
+          endCall();
+        } else if (type === 'style_change' && msg.style) {
           console.log('[ws] style_change received:', msg.style);
-          currentStyle = msg.style;
-          const newPrompt = SYSTEM_PROMPTS[msg.style] || SYSTEM_PROMPTS['quiet'];
-          console.log('[ws] sending UpdateInstructions for style:', msg.style);
-          if (dgWs.readyState === WebSocket.OPEN) {
-            dgWs.send(JSON.stringify({
-              type: 'UpdateInstructions',
-              prompt: newPrompt,
-            }));
-          }
-          return;
-        }
-        if (msg.type === 'prefer_silence') {
+          const newStyle = msg.style as string;
+          systemPrompt = SYSTEM_PROMPTS[newStyle] || SYSTEM_PROMPTS['quiet'];
+          console.log('[ws] systemPrompt updated for style:', newStyle);
+        } else if (type === 'prefer_silence') {
           console.log('[ws] prefer_silence received');
-          currentStyle = 'quiet';
-          const silentPrompt = SYSTEM_PROMPTS['quiet'];
-          console.log('[ws] sending UpdateInstructions for prefer_silence');
-          if (dgWs.readyState === WebSocket.OPEN) {
-            dgWs.send(JSON.stringify({
-              type: 'UpdateInstructions',
-              prompt: silentPrompt,
-            }));
-          }
-          return;
+          systemPrompt = SYSTEM_PROMPTS['quiet'];
+        } else if (type === 'ping') {
+          sendToClient('pong');
         }
       } catch {
-        // Not JSON — treat as raw audio binary
-      }
-
-      // Forward raw audio to Deepgram
-      if (greetingPlaying) return; // don't send mic audio to Deepgram during greeting
-      if (dgWs.readyState === WebSocket.OPEN) {
-        dgWs.send(data);
-      } else {
-        audioBuffer.push(data);
+        // Not JSON — ignore
       }
     });
 
     clientWs.on('close', () => {
       console.log('[ws] client disconnected');
-      clearInterval(keepaliveInterval);
       resetCheckInTimer();
       endCall();
     });
