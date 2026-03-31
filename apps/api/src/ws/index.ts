@@ -77,7 +77,7 @@ const VOICE_MAP: Record<string, string> = {
 
 const GREETING = "Hi. I'm here. You don't have to talk... I'll just sit with you.";
 
-const STT_URL = 'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&model=nova-2&language=en-GB&punctuate=true&interim_results=true&utterance_end_ms=1000';
+const STT_URL = 'wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=16000&channels=1&model=nova-2&language=en-GB&punctuate=true&interim_results=true';
 
 export function setupWebSocket(server: Server): void {
   const wss = new WebSocketServer({ server, path: '/ws' });
@@ -127,6 +127,7 @@ export function setupWebSocket(server: Server): void {
     let startTime = 0;
     let isSpeakingTTS = false;
     let currentTranscript = '';
+    let processTimer: ReturnType<typeof setTimeout> | null = null;
     let greetingPlaying = true;
     const audioBuffer: Buffer[] = [];
     let conversationHistory: { role: string; content: string }[] = [];
@@ -205,6 +206,7 @@ export function setupWebSocket(server: Server): void {
       if (isEnded) return;
       isEnded = true;
       resetCheckInTimer();
+      if (processTimer) clearTimeout(processTimer);
       clearTimeout(sessionWarningTimer!);
       clearTimeout(sessionEndTimer!);
       clearInterval(timeUpdateInterval!);
@@ -389,33 +391,31 @@ export function setupWebSocket(server: Server): void {
       try {
         const msg = JSON.parse(data.toString());
 
-        if (msg.type === 'SpeechStarted') {
-          console.log('[stt] speech started');
-          // Barge-in: stop any TTS in progress
-          if (isSpeakingTTS) {
-            console.log('[stt] barge-in: stopping TTS playback');
-            isSpeakingTTS = false;
-            sendToClient('audio_stop');
-          }
-          sendToClient('agent_state', { state: 'LISTENING' });
-          resetCheckInTimer();
-        }
-
-        if (msg.type === 'UtteranceEnd') {
-          console.log('[stt] utterance end');
-          // Process the accumulated transcript
-          if (currentTranscript.trim()) {
-            handleUserSpeech(currentTranscript.trim());
-            currentTranscript = '';
-          }
-        }
-
         if (msg.type === 'Results' && msg.channel?.alternatives?.[0]) {
           const transcript = msg.channel.alternatives[0].transcript;
-          if (msg.is_final && transcript) {
-            currentTranscript += ' ' + transcript;
-            console.log('[stt] transcript:', transcript);
+          const isFinal = msg.is_final;
+
+          if (isFinal && transcript) {
+            currentTranscript += (currentTranscript ? ' ' : '') + transcript;
+            console.log('[stt] final:', transcript);
+
+            sendToClient('agent_state', { state: 'LISTENING' });
+
+            // Debounce: process after 600ms of no new transcripts
+            if (processTimer) clearTimeout(processTimer);
+            processTimer = setTimeout(() => {
+              if (currentTranscript.trim()) {
+                console.log('[stt] processing:', currentTranscript.trim());
+                handleUserSpeech(currentTranscript.trim());
+                currentTranscript = '';
+              }
+            }, 600);
           }
+        }
+
+        if (msg.type === 'SpeechStarted') {
+          console.log('[stt] speech started');
+          sendToClient('agent_state', { state: 'LISTENING' });
         }
       } catch {}
     });
