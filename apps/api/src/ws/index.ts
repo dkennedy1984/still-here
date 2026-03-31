@@ -336,8 +336,8 @@ export function setupWebSocket(server: Server): void {
       console.log('[session] free limit reached, speaking farewell');
       sendToClient('connected', { state: 'LIMIT_REACHED' });
       const farewell = (call.session as any)?.email
-        ? "It looks like we've reached the end of the free time for now. That's just how the free version works, not a judgement on you. If you want this support available whenever you need it, you can choose to keep me here with a subscription. And if not, that's okay too. More free time will be there again next month. I'm here either way."
-        : "It looks like that was your free session. I hope it helped. You can sign up for free to get more time together each month, or if you'd like unlimited sessions, there's a subscription option too. Either way, no pressure. I'm here whenever you're ready.";
+        ? "It looks like we've reached the end of the free time for now. That's just how the free version works, not a judgement on you. If you want this support available whenever you need it, you can choose to keep me here with a subscription. And if not, that's okay too. More free time will be there again next month. Either way, I'll be here to sit with you."
+        : "It looks like that was your free session. I hope it helped. You can sign up for free to get more time together each month, or if you'd like unlimited sessions, there's a subscription option too. Either way, no pressure. Either way, I'll be here to sit with you.";
       speakWithElevenLabs(farewell).then((audioBytes) => {
         // ElevenLabs mp3_22050_32 is roughly 16000 bytes/sec (not 4000)
         const estimatedMs = audioBytes ? Math.round((audioBytes / 16000) * 1000) : 20000;
