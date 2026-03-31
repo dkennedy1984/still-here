@@ -24,8 +24,8 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
   useEffect(() => {
     if (!mounted) return;
 
-    const LERP_IN = 0.08;  // fast transition IN  (~0.5s)
-    const LERP_OUT = 0.025; // slower transition OUT (~1.5s)
+    const LERP_IN = 0.04;  // smoother transition in (~1 second)
+    const LERP_OUT = 0.02; // smooth transition out (~2 seconds)
     let microNextEvent = 0;
     let microProgress = -1;
 
@@ -139,6 +139,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         style={{
           width: d,
           height: d,
+          objectFit: 'contain' as const,
           transition: 'opacity 0.1s ease',
           pointerEvents: 'none',
         }}
@@ -153,6 +154,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         style={{
           width: d,
           height: d,
+          objectFit: 'contain' as const,
           opacity: 0,
           transition: 'opacity 0.1s ease',
           pointerEvents: 'none',
@@ -168,6 +170,7 @@ export function PresenceOrb({ state, size = 'lg' }: PresenceOrbProps) {
         style={{
           width: d,
           height: d,
+          objectFit: 'contain' as const,
           opacity: 0,
           transition: 'opacity 0.1s ease',
           pointerEvents: 'none',

@@ -29,9 +29,9 @@ const config: Config = {
         'fade-in': 'fadeIn 1.5s ease-in forwards',
         'pulse-slow': 'pulse 4s ease-in-out infinite',
         'bounce-slow': 'bounceSlow 2.5s ease-in-out infinite',
-        'ripple-1': 'rippleOut 2.8s ease-out infinite',
-        'ripple-2': 'rippleOut 2.8s ease-out infinite 0.93s',
-        'ripple-3': 'rippleOut 2.8s ease-out infinite 1.86s',
+        'ripple-1': 'rippleOut 2s ease-out infinite',
+        'ripple-2': 'rippleOut 2s ease-out infinite 0.6s',
+        'ripple-3': 'rippleOut 2s ease-out infinite 1.2s',
       },
       keyframes: {
         breathe: {
@@ -47,8 +47,8 @@ const config: Config = {
           '50%': { transform: 'translateY(6px)' },
         },
         rippleOut: {
-          '0%': { transform: 'scale(0.5)', opacity: '0.6' },
-          '100%': { transform: 'scale(1)', opacity: '0' },
+          '0%': { transform: 'scale(0.7)', opacity: '0.5' },
+          '100%': { transform: 'scale(1.1)', opacity: '0' },
         },
       },
     },
