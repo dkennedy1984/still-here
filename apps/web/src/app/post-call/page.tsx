@@ -16,6 +16,7 @@ function PostCallContent() {
   const [showEmailInput, setShowEmailInput] = useState(false);
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
+  const [limitReached, setLimitReached] = useState(false);
 
   useEffect(() => {
     if (tierChecked.current) return;
@@ -49,6 +50,15 @@ function PostCallContent() {
         setLoading(false);
       });
   }, [gate]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const lr = localStorage.getItem('swy-limit-reached');
+    if (lr === 'true') {
+      setLimitReached(true);
+      localStorage.removeItem('swy-limit-reached');
+    }
+  }, []);
 
   const handleCallAgain = async () => {
     try {
@@ -87,6 +97,26 @@ function PostCallContent() {
         localStorage.setItem('swy-email', email);
       }
     } catch {}
+  }
+
+  if (limitReached && !isPaid) {
+    return (
+      <main className="relative min-h-screen min-h-[100dvh] bg-slate-950">
+        <FixedOrb state="idle" />
+        <div className="relative flex flex-col items-center justify-end min-h-screen min-h-[100dvh] px-6 pb-[15vh]" style={{ zIndex: 10 }}>
+          <div className="pointer-events-auto flex flex-col items-center text-center">
+            <h1 className="text-lg text-white">Thanks for sitting with me.</h1>
+            <p className="text-sm text-slate-400 mt-2">Want this available whenever you need it?</p>
+            <button onClick={() => router.push('/upgrade')} className="mt-8 px-20 py-5 rounded-full bg-white text-slate-900 text-xl font-semibold tracking-tight hover:bg-white/90 active:scale-95 transition-all duration-150">
+              I&apos;d like that
+            </button>
+            <button onClick={() => router.push('/')} className="mt-4 text-sm text-slate-500 hover:text-slate-300 transition-colors">
+              Not right now
+            </button>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (loading) {

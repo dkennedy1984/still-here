@@ -190,6 +190,9 @@ export function useAudioSession({ callId, wsTicket, onAudioStart, onAudioEnd, on
             onCrisisInfo?.(msg);
             break;
           case 'limit_reached':
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('swy-limit-reached', 'true');
+            }
             setStatus('ended');
             break;
           case 'pong':
